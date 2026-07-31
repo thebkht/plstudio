@@ -20,7 +20,7 @@ function splitTopLevel(value: string) {
 }
 
 function parseColumn(line: string) {
-  const match = line.match(/^([A-Z0-9_$#]+)\s+(VARCHAR2|CHAR|NUMBER|DATE|TIMESTAMP|CLOB|BLOB)(?:\(([^)]+)\))?(.*)$/i);
+  const match = line.match(/^([A-Z0-9_$#]+)\s+(TIMESTAMP\s+WITH\s+LOCAL\s+TIME\s+ZONE|TIMESTAMP\s+WITH\s+TIME\s+ZONE|INTERVAL\s+YEAR\s+TO\s+MONTH|INTERVAL\s+DAY\s+TO\s+SECOND|BINARY_FLOAT|BINARY_DOUBLE|VARCHAR2|NVARCHAR2|NCHAR|CHAR|NUMBER|FLOAT|TIMESTAMP|DATE|CLOB|NCLOB|BLOB|BFILE|RAW)(?:\(([^)]+)\))?(.*)$/i);
   if (!match) return null;
   const [, name, type, size, rest] = match;
   const check = rest.match(/CHECK\s*\((.*)\)\s*$/i)?.[1] ?? "";

@@ -4,11 +4,23 @@ export const SCHEMA_FORMAT_VERSION = 1 as const;
 export const ORACLE_TYPES = [
   "VARCHAR2",
   "CHAR",
+  "NCHAR",
+  "NVARCHAR2",
   "NUMBER",
+  "FLOAT",
+  "BINARY_FLOAT",
+  "BINARY_DOUBLE",
   "DATE",
   "TIMESTAMP",
+  "TIMESTAMP WITH TIME ZONE",
+  "TIMESTAMP WITH LOCAL TIME ZONE",
+  "INTERVAL YEAR TO MONTH",
+  "INTERVAL DAY TO SECOND",
   "CLOB",
+  "NCLOB",
   "BLOB",
+  "BFILE",
+  "RAW",
 ] as const;
 
 export type OracleType = (typeof ORACLE_TYPES)[number];
@@ -116,9 +128,19 @@ export function normalizeIdentifier(value: string) {
 }
 
 export function typeString(column: Column) {
-  if (["VARCHAR2", "CHAR"].includes(column.type) && column.size) return `${column.type}(${column.size})`;
-  if (column.type === "NUMBER" && column.size) return `NUMBER(${column.size})`;
+  if (typeUsesSize(column.type) && column.size) return `${column.type}(${column.size})`;
   return column.type;
+}
+
+export function typeUsesSize(type: OracleType) {
+  return ["VARCHAR2", "CHAR", "NCHAR", "NVARCHAR2", "NUMBER", "FLOAT", "TIMESTAMP", "RAW"].includes(type);
+}
+
+export function typeSizePlaceholder(type: OracleType) {
+  if (["NUMBER"].includes(type)) return "precision[,scale]";
+  if (["TIMESTAMP"].includes(type)) return "precision 0–9";
+  if (["FLOAT"].includes(type)) return "precision 1–126";
+  return "size";
 }
 
 export function isNumeric(column: Column) {

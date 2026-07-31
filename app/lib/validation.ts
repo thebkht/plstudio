@@ -1,4 +1,4 @@
-import { normalizeIdentifier, ORACLE_VERSION, primaryKeyColumns, type Table, type Schema } from "./schema";
+import { normalizeIdentifier, ORACLE_VERSION, primaryKeyColumns, typeUsesSize, type Table, type Schema } from "./schema";
 
 export type ValidationIssue = { severity: "error" | "warning"; message: string; tableId?: string; columnId?: string };
 
@@ -33,6 +33,21 @@ export function validateCheckExpression(expression: string) {
   return null;
 }
 
+export function validateTypeSpec(type: string, size: string) {
+  const value = size.trim();
+  if (!typeUsesSize(type as never)) return value ? `${type} does not accept a size or precision.` : null;
+  if (!value) return `${type} requires a size or precision.`;
+  if (type === "TIMESTAMP") return /^(?:[0-9])$/.test(value) ? null : "TIMESTAMP precision must be an integer from 0 to 9.";
+  if (type === "FLOAT") return /^(?:[1-9]|[1-9][0-9]|1[01][0-9]|12[0-6])$/.test(value) ? null : "FLOAT precision must be an integer from 1 to 126.";
+  if (type === "NUMBER") {
+    const match = value.match(/^(\d{1,2})(?:,(-?\d{1,3}))?$/);
+    if (!match || Number(match[1]) > 38) return "NUMBER precision must be 1–38 with an optional scale.";
+    const scale = match[2] === undefined ? null : Number(match[2]);
+    return scale !== null && (scale < -84 || scale > 127) ? "NUMBER scale must be between -84 and 127." : null;
+  }
+  return /^\d+$/.test(value) && Number(value) > 0 ? null : `${type} size must be a positive integer.`;
+}
+
 function duplicateIssues(items: Array<{ value: string; label: string; tableId?: string; columnId?: string }>) {
   const seen = new Map<string, string>();
   const issues: ValidationIssue[] = [];
@@ -59,6 +74,8 @@ export function validateSchema(schema: Schema): ValidationIssue[] {
       issues.push(...identifierIssues(column.name, `Column ${table.name}.${column.name}`).map((issue) => ({ ...issue, tableId: table.id, columnId: column.id })));
       const checkIssue = validateCheckExpression(column.check);
       if (checkIssue) issues.push({ severity: "error", message: `${table.name}.${column.name}: ${checkIssue}`, tableId: table.id, columnId: column.id });
+      const typeIssue = validateTypeSpec(column.type, column.size);
+      if (typeIssue) issues.push({ severity: "error", message: `${table.name}.${column.name}: ${typeIssue}`, tableId: table.id, columnId: column.id });
       if (column.fk) {
         const target = schema.tables.find((candidate) => candidate.id === column.fk?.tableId);
         const targetColumn = target?.columns.find((candidate) => candidate.id === column.fk?.columnId);

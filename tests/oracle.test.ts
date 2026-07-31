@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { generateDDL } from "@/app/lib/generators";
 import { parseCreateTable } from "@/app/lib/parser";
 import { makeDemoSchema, makeTable } from "@/app/lib/schema";
-import { validateCheckExpression, validateSchema } from "@/app/lib/validation";
+import { validateCheckExpression, validateSchema, validateTypeSpec } from "@/app/lib/validation";
 
 describe("Oracle schema model", () => {
   it("generates identity without sequence or trigger artifacts", () => {
@@ -33,6 +33,14 @@ describe("Oracle schema model", () => {
   it("validates check expressions using the supported subset", () => {
     expect(validateCheckExpression("STATUS IN ('A', 'I')")).toBeNull();
     expect(validateCheckExpression("STATUS IN ('A)")).toContain("not a supported");
+  });
+
+  it("validates type-specific precision and size rules", () => {
+    expect(validateTypeSpec("TIMESTAMP", "9")).toBeNull();
+    expect(validateTypeSpec("TIMESTAMP", "10")).toContain("0 to 9");
+    expect(validateTypeSpec("NUMBER", "38,4")).toBeNull();
+    expect(validateTypeSpec("NUMBER", "39,4")).toContain("1–38");
+    expect(validateTypeSpec("BLOB", "")).toBeNull();
   });
 
   it("imports the generated CREATE TABLE subset", () => {
