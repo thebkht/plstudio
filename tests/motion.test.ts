@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { Spring, VelocityTracker, project, rubberband, rubberClamp } from "@/app/lib/motion";
-import { contrastRatio, readableTextOn } from "@/app/lib/color";
-import { PALETTE } from "@/app/lib/schema";
 
 describe("momentum projection", () => {
   it("projects further the faster the flick", () => {
@@ -112,21 +110,5 @@ describe("VelocityTracker", () => {
     tracker.add(100, 0, 400);
     tracker.add(100, 0, 450);
     expect(tracker.velocity(450).x).toBe(0);
-  });
-});
-
-describe("header contrast", () => {
-  it("gives every palette color a foreground that clears WCAG AA", () => {
-    PALETTE.forEach((color) => {
-      [color.a, color.b].forEach((background) => {
-        const ratio = contrastRatio(background, readableTextOn(background));
-        expect(ratio).toBeGreaterThanOrEqual(4.5);
-      });
-    });
-  });
-
-  it("picks dark ink on light backgrounds and white on dark", () => {
-    expect(readableTextOn("#E8A33D")).toBe("#12203A");
-    expect(readableTextOn("#3A66C4")).toBe("#FFFFFF");
   });
 });

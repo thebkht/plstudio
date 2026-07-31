@@ -9,38 +9,40 @@ import {
   type ReactNode,
 } from "react";
 import {
+  AlertTriangle,
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Code2,
   Copy,
   Database,
   Download,
   FileUp,
-  Grid3X3,
-  Home,
   KeyRound,
   LayoutGrid,
   Link2,
-  Minus,
-  PanelLeft,
+  Maximize2,
   Plus,
   Redo2,
-  Search,
   Save,
+  Search,
+  Share2,
+  TablePropertiesIcon as TablePlus,
   Trash2,
   Undo2,
+  UserRound,
   X,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { exportSchema, generateDDL, generatePLSQL } from "@/app/lib/generators";
 import { parseCreateTable } from "@/app/lib/parser";
-import { chipBackgroundOn, readableTextOn } from "@/app/lib/color";
+import { typeColorVar } from "@/app/lib/datatype-color";
 import {
   Spring,
   VelocityTracker,
@@ -59,6 +61,10 @@ import {
   tableHeight,
   typeSizePlaceholder,
   typeUsesSize,
+  TABLE_WIDTH,
+  TABLE_COLOR_STRIP_HEIGHT,
+  TABLE_HEADER_HEIGHT,
+  TABLE_FIELD_HEIGHT,
   type Schema,
   type Table,
   type Column,
@@ -66,9 +72,9 @@ import {
 } from "@/app/lib/schema";
 import { validateSchema } from "@/app/lib/validation";
 
-const TABLE_WIDTH = 236;
-const HEADER_HEIGHT = 38;
-const ROW_HEIGHT = 27;
+/** Header offset for row anchors: the colour strip sits above the title bar. */
+const HEADER_HEIGHT = TABLE_COLOR_STRIP_HEIGHT + TABLE_HEADER_HEIGHT;
+const ROW_HEIGHT = TABLE_FIELD_HEIGHT;
 const CANVAS_WIDTH = 2400;
 const CANVAS_HEIGHT = 1800;
 const MIN_ZOOM = 0.45;
@@ -118,6 +124,82 @@ function highlightSql(source: string): ReactNode[] {
   return pieces;
 }
 
+type MenuItem =
+  | { label: string; onSelect: () => void; disabled?: boolean; hint?: string }
+  | { separator: true };
+
+/** A menubar menu. Opens on click, closes on select, Escape, or outside press. */
+function Menu({
+  name,
+  items,
+  open,
+  anyOpen,
+  onOpenChange,
+}: {
+  name: string;
+  items: MenuItem[];
+  open: boolean;
+  /** Once one menu is open, hovering the others switches between them. */
+  anyOpen: boolean;
+  onOpenChange: (name: string | null) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (event: PointerEvent) => {
+      if (!ref.current?.contains(event.target as Node)) onOpenChange(null);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onOpenChange(null);
+    };
+    window.addEventListener("pointerdown", away);
+    window.addEventListener("keydown", escape);
+    return () => {
+      window.removeEventListener("pointerdown", away);
+      window.removeEventListener("keydown", escape);
+    };
+  }, [open, onOpenChange]);
+
+  return (
+    <div className="menu" ref={ref}>
+      <button
+        type="button"
+        className={`menu-trigger ${open ? "open" : ""}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => onOpenChange(open ? null : name)}
+        onPointerEnter={() => anyOpen && onOpenChange(name)}
+      >
+        {name}
+      </button>
+      {open && (
+        <div className="menu-popup" role="menu">
+          {items.map((item, index) =>
+            "separator" in item ? (
+              <div className="menu-separator" key={`sep-${index}`} role="none" />
+            ) : (
+              <button
+                type="button"
+                role="menuitem"
+                className="menu-item"
+                key={item.label}
+                disabled={item.disabled}
+                onClick={() => {
+                  onOpenChange(null);
+                  item.onSelect();
+                }}
+              >
+                <span>{item.label}</span>
+                {item.hint && <kbd>{item.hint}</kbd>}
+              </button>
+            ),
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Designer() {
   const [schema, setSchema] = useState<Schema>(() => makeDemoSchema());
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -132,8 +214,6 @@ export default function Designer() {
     y: number;
   } | null>(null);
   const [grabbing, setGrabbing] = useState(false);
-  /** Keeps the sheet mounted long enough to exit along the path it entered on. */
-  const [closingSheet, setClosingSheet] = useState(false);
   const [toast, setToast] = useState<{ text: string; tone: "ok" | "error" } | null>(
     null,
   );
@@ -149,6 +229,12 @@ export default function Designer() {
   const [copied, setCopied] = useState(false);
   const [tableQuery, setTableQuery] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [panelTab, setPanelTab] = useState<"tables" | "relationships">("tables");
+  const [panelMode, setPanelMode] = useState<"structure" | "code">("structure");
+  const [issuesOpen, setIssuesOpen] = useState(false);
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [diagramName, setDiagramName] = useState("Untitled Diagram");
+  const [dirty, setDirty] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   const importHighlightRef = useRef<HTMLPreElement>(null);
   /**
@@ -222,6 +308,7 @@ export default function Designer() {
       setHistory((items) => [...items.slice(-49), cloneSchema(schema)]);
       setFuture([]);
       setSchema({ ...next, revision: schema.revision });
+      setDirty(true);
     },
     [schema],
   );
@@ -814,6 +901,7 @@ export default function Designer() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ schema }),
       });
+      if (response.ok) setDirty(false);
       setToast(
         response.ok
           ? { text: "Project saved.", tone: "ok" }
@@ -833,29 +921,32 @@ export default function Designer() {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  /** Plays the exit, then drops the selection. Instant when motion is reduced. */
-  const closeSheet = useCallback(() => {
-    if (prefersReducedMotion()) {
-      setSelectedId(null);
-      return;
-    }
-    setClosingSheet(true);
-    setTimeout(() => {
-      setSelectedId(null);
-      setClosingSheet(false);
-    }, 180);
-  }, []);
-
-  /** Escape closes the topmost layer — sheet, then modal. */
+  /** Escape closes the topmost layer; ⌘S saves and ⌘E exports. */
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      if (modal) setModal(null);
-      else if (selectedId) closeSheet();
+      if (event.key === "Escape") {
+        if (modal) setModal(null);
+        else if (openMenu) setOpenMenu(null);
+        else if (selectedId) setSelectedId(null);
+        return;
+      }
+      if (!(event.metaKey || event.ctrlKey)) return;
+      const key = event.key.toLowerCase();
+      if (key === "s") {
+        event.preventDefault();
+        void save();
+      } else if (key === "e") {
+        event.preventDefault();
+        setModal("export");
+      } else if (key === "z") {
+        event.preventDefault();
+        if (event.shiftKey) redo();
+        else undo();
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [modal, selectedId, closeSheet]);
+  });
 
   const relationships = useMemo(
     () =>
@@ -919,126 +1010,532 @@ export default function Designer() {
     };
   };
 
+  const relationshipRows = useMemo(
+    () =>
+      relationships.map((relationship) => {
+        const column = relationship.from.columns[relationship.fromIndex];
+        const target = relationship.to.columns[relationship.toIndex];
+        return {
+          id: relationship.id,
+          from: `${relationship.from.name.toUpperCase()}.${column.name.toUpperCase()}`,
+          to: `${relationship.to.name.toUpperCase()}.${target.name.toUpperCase()}`,
+          fromId: relationship.from.id,
+        };
+      }),
+    [relationships],
+  );
+
+  const fileMenu: MenuItem[] = [
+    { label: "New diagram", onSelect: () => commit(makeDemoSchema()) },
+    { separator: true },
+    { label: "Import DDL…", onSelect: () => setModal("import") },
+    { label: "Export…", onSelect: () => setModal("export"), hint: "⌘E" },
+    { separator: true },
+    { label: "Save to database", onSelect: save, hint: "⌘S" },
+  ];
+  const editMenu: MenuItem[] = [
+    { label: "Undo", onSelect: undo, disabled: !history.length, hint: "⌘Z" },
+    { label: "Redo", onSelect: redo, disabled: !future.length, hint: "⇧⌘Z" },
+    { separator: true },
+    { label: "Add table", onSelect: addTable },
+    { label: "Add junction table", onSelect: makeJunction, disabled: !selected },
+    { separator: true },
+    {
+      label: "Delete selected table",
+      onSelect: () => selected && deleteTable(selected.id),
+      disabled: !selected,
+    },
+  ];
+  const viewMenu: MenuItem[] = [
+    { label: "Zoom in", onSelect: () => zoomBy(0.1), hint: "⌘+" },
+    { label: "Zoom out", onSelect: () => zoomBy(-0.1), hint: "⌘−" },
+    { label: "Fit to screen", onSelect: fitView, hint: "⇧1" },
+    { separator: true },
+    { label: "Tidy up layout", onSelect: autoLayout },
+    {
+      label: sidebarOpen ? "Hide side panel" : "Show side panel",
+      onSelect: () => setSidebarOpen((open) => !open),
+    },
+  ];
+  const settingsMenu: MenuItem[] = [
+    { label: "Clear invalid references", onSelect: clearInvalidForeignKeys },
+  ];
+  const helpMenu: MenuItem[] = [
+    {
+      label: "Oracle target: 12.2+",
+      onSelect: () =>
+        setToast({ text: "Generating DDL for Oracle 12.2 and later.", tone: "ok" }),
+    },
+  ];
+
+  const menus: Array<{ name: string; items: MenuItem[] }> = [
+    { name: "File", items: fileMenu },
+    { name: "Edit", items: editMenu },
+    { name: "View", items: viewMenu },
+    { name: "Settings", items: settingsMenu },
+    { name: "Help", items: helpMenu },
+  ];
+
   return (
-    <div className={`designer light`}>
-      <header className="topbar">
-        <div className="reference-nav">
-          <Button className="reference-nav-button"><Home size={15} /> Dashboard</Button>
-          <Button className="reference-nav-button"><Grid3X3 size={15} /> Diagrams</Button>
-          <span className="reference-separator">•</span>
-          <strong className="reference-page-title">Diagram Editor</strong>
-          <span className="reference-separator">•</span>
-          <input className="diagram-name" aria-label="Diagram name" defaultValue="Oracle Demo" />
+    <div className="app">
+      <header className="appbar">
+        <div className="appbar-brand" aria-hidden="true">
+          <Database size={22} />
         </div>
-        <Button
-          className="btn ghost sidebar-toggle"
-          aria-label={sidebarOpen ? "Hide tables sidebar" : "Show tables sidebar"}
-          aria-expanded={sidebarOpen}
-          aria-controls="tables-sidebar"
-          onClick={() => setSidebarOpen((open) => !open)}
-        >
-          <PanelLeft size={16} />
-        </Button>
-        <div className="toolbar">
-          <div className="toolbar-group">
-            <Button
-              className="btn ghost"
-              aria-label="Undo last change"
-              onClick={undo}
-              isDisabled={!history.length}
-            >
-              <Undo2 size={16} />
-            </Button>
-            <Button
-              className="btn ghost"
-              aria-label="Redo last change"
-              onClick={redo}
-              isDisabled={!future.length}
-            >
-              <Redo2 size={16} />
-            </Button>
+        <div className="appbar-main">
+          <div className="appbar-title">
+            <Database size={17} className="appbar-title-icon" />
+            <span className="appbar-crumb">Diagrams</span>
+            <span className="appbar-slash">/</span>
+            <input
+              className="appbar-name"
+              aria-label="Diagram name"
+              value={diagramName}
+              onChange={(event) => {
+                setDiagramName(event.target.value);
+                setDirty(true);
+              }}
+            />
           </div>
-          <div className="toolbar-group">
-            <Button className="btn" onClick={addTable}>
-              <Plus size={15} /> Table
-            </Button>
-            <Button className="btn" onClick={() => setModal("import")}>
-              <FileUp size={15} /> Import
-            </Button>
-            <Button className="btn" onClick={save}>
-              <Save size={15} /> Save
-            </Button>
-            <Button className="btn primary" onClick={() => setModal("export")}>
-              <Download size={15} /> Export
-            </Button>
+          <div className="menubar">
+            {menus.map((menu) => (
+              <Menu
+                key={menu.name}
+                name={menu.name}
+                items={menu.items}
+                open={openMenu === menu.name}
+                anyOpen={openMenu !== null}
+                onOpenChange={setOpenMenu}
+              />
+            ))}
+            <span className={`status-chip ${dirty ? "dirty" : ""}`}>
+              {dirty ? "Unsaved changes" : "No changes"}
+            </span>
           </div>
+        </div>
+        <div className="appbar-actions">
+          <Button className="share-btn" onClick={() => setModal("export")}>
+            <Share2 size={15} /> Share
+          </Button>
+          <button type="button" className="avatar-btn" aria-label="Account">
+            <UserRound size={17} />
+            <ChevronDown size={13} />
+          </button>
         </div>
       </header>
-      <section className={`workspace ${sidebarOpen ? "" : "sidebar-collapsed"}`}>
-        <aside
-          id="tables-sidebar"
-          className={`tables-sidebar ${sidebarOpen ? "open" : ""}`}
-          aria-label="Tables"
-          aria-hidden={!sidebarOpen}
-          inert={!sidebarOpen}
-        >
-          <div className="sidebar-head">
-            <div className="sidebar-title">
-              <Database size={16} />
-              <strong>Database Tables</strong>
-              <Badge variant="secondary">{schema.tables.length}</Badge>
-            </div>
-            <Button
-              className="btn ghost sidebar-collapse"
-              aria-label="Collapse tables sidebar"
-              onClick={() => {
-                setTableQuery("");
-                setSidebarOpen(false);
-              }}
+
+      <div className={`body ${sidebarOpen ? "" : "panel-hidden"}`}>
+        <aside className="panel" aria-label="Diagram structure">
+          <div className="panel-tabs" role="tablist">
+            <button
+              type="button"
+              className="tab-arrow"
+              aria-label="Hide side panel"
+              onClick={() => setSidebarOpen(false)}
             >
-              <ChevronDown size={15} />
-            </Button>
+              <ChevronLeft size={15} />
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={panelTab === "tables"}
+              className={`panel-tab ${panelTab === "tables" ? "active" : ""}`}
+              onClick={() => setPanelTab("tables")}
+            >
+              Tables ({schema.tables.length})
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={panelTab === "relationships"}
+              className={`panel-tab ${panelTab === "relationships" ? "active" : ""}`}
+              onClick={() => setPanelTab("relationships")}
+            >
+              Relationships ({relationshipRows.length})
+            </button>
           </div>
-          <Button className="sidebar-add" onClick={addTable}>
-            <Plus size={15} /> Add table
-          </Button>
-          <label className="sidebar-search">
-            <Search size={14} />
-            <Input
-              aria-label="Search tables"
-              placeholder="Search tables"
-              value={tableQuery}
-              onChange={(event) => setTableQuery(event.target.value)}
-            />
-          </label>
-          <div className="table-list">
-            {filteredTables.map((table) => (
+
+          {panelMode === "code" ? (
+            <pre className="panel-code">
+              <code>{highlightSql(ddl)}</code>
+            </pre>
+          ) : panelTab === "tables" ? (
+            <>
+              <div className="panel-toolbar">
+                <label className="panel-search">
+                  <Search size={15} />
+                  <input
+                    aria-label="Search tables"
+                    placeholder="Search..."
+                    value={tableQuery}
+                    onChange={(event) => setTableQuery(event.target.value)}
+                  />
+                </label>
+                <Button className="add-link" onClick={addTable}>
+                  <Plus size={15} /> Add table
+                </Button>
+              </div>
+              <div className="panel-body">
+                {!schema.tables.length ? (
+                  <div className="empty-state">
+                    <div className="empty-art" aria-hidden="true">
+                      <Database size={40} />
+                      <span className="empty-badge">
+                        <Plus size={16} />
+                      </span>
+                    </div>
+                    <strong>No tables</strong>
+                    <p>Start building your diagram!</p>
+                    <Button className="btn primary" onClick={addTable}>
+                      <Plus size={15} /> Add table
+                    </Button>
+                  </div>
+                ) : !filteredTables.length ? (
+                  <div className="empty-state">
+                    <strong>No matches</strong>
+                    <p>No table names contain “{tableQuery}”.</p>
+                  </div>
+                ) : (
+                  filteredTables.map((table) => (
+                    <div
+                      className={`entity ${selectedId === table.id ? "open" : ""}`}
+                      key={table.id}
+                    >
+                      <button
+                        type="button"
+                        className="entity-head"
+                        aria-expanded={selectedId === table.id}
+                        onClick={() =>
+                          setSelectedId(selectedId === table.id ? null : table.id)
+                        }
+                      >
+                        <span
+                          className="entity-swatch"
+                          style={{ background: table.color.a }}
+                          aria-hidden="true"
+                        />
+                        <span className="entity-copy">
+                          <strong>{table.name.toUpperCase()}</strong>
+                          <small>{table.columns.length} columns</small>
+                        </span>
+                        <ChevronDown
+                          size={15}
+                          className="entity-chevron"
+                          aria-hidden="true"
+                        />
+                      </button>
+                      {selectedId === table.id && (
+                        <div className="entity-body">
+                          <div className="field-row">
+                            <label className="field">
+                              <span className="field-label">Table name</span>
+                              <Input
+                                className="input"
+                                value={table.name}
+                                onChange={(event) =>
+                                  patchTable(table.id, { name: event.target.value })
+                                }
+                              />
+                            </label>
+                            <label className="field">
+                              <span className="field-label">Key generation</span>
+                              <select
+                                className="select"
+                                value={table.keyStrategy}
+                                onChange={(event) =>
+                                  patchTable(table.id, {
+                                    keyStrategy: event.target.value as KeyStrategy,
+                                  })
+                                }
+                              >
+                                <option value="sequence-trigger">
+                                  Sequence + trigger
+                                </option>
+                                <option value="identity">Generated identity</option>
+                                <option value="none">Manual / none</option>
+                              </select>
+                            </label>
+                          </div>
+                          {primaryKeyColumns(table).length > 1 && (
+                            <p className="hint">
+                              Composite primary key — manual key generation required.
+                            </p>
+                          )}
+
+                          {table.columns.map((column) => (
+                            <div className="column-card" key={column.id}>
+                              <div className="column-card-head">
+                                <Input
+                                  className="input"
+                                  aria-label={`Name of column ${column.name}`}
+                                  value={column.name}
+                                  onChange={(event) =>
+                                    patchColumn(table.id, column.id, {
+                                      name: event.target.value,
+                                    })
+                                  }
+                                />
+                                <Button
+                                  className="icon-btn danger"
+                                  aria-label={`Delete column ${column.name}`}
+                                  onClick={() => deleteColumn(table.id, column.id)}
+                                >
+                                  <Trash2 size={14} />
+                                </Button>
+                              </div>
+                              <div className="column-card-row">
+                                <select
+                                  aria-label={`Datatype for ${column.name}`}
+                                  className="select"
+                                  value={column.type}
+                                  onChange={(event) =>
+                                    patchColumn(table.id, column.id, {
+                                      type: event.target.value as Column["type"],
+                                    })
+                                  }
+                                >
+                                  {ORACLE_TYPES.map((type) => (
+                                    <option key={type}>{type}</option>
+                                  ))}
+                                </select>
+                                {typeUsesSize(column.type) && (
+                                  <Input
+                                    className="input"
+                                    aria-label={`Size for ${column.name}`}
+                                    placeholder={typeSizePlaceholder(column.type)}
+                                    value={column.size}
+                                    onChange={(event) =>
+                                      patchColumn(table.id, column.id, {
+                                        size: event.target.value,
+                                      })
+                                    }
+                                  />
+                                )}
+                              </div>
+                              <div className="checks">
+                                <label>
+                                  <Checkbox
+                                    isSelected={column.pk}
+                                    onChange={(isSelected) =>
+                                      patchColumn(table.id, column.id, {
+                                        pk: isSelected,
+                                        fk: isSelected ? null : column.fk,
+                                      })
+                                    }
+                                  />
+                                  PK
+                                </label>
+                                <label>
+                                  <Checkbox
+                                    isSelected={column.notNull}
+                                    onChange={(isSelected) =>
+                                      patchColumn(table.id, column.id, {
+                                        notNull: isSelected,
+                                      })
+                                    }
+                                  />
+                                  NN
+                                </label>
+                                <label>
+                                  <Checkbox
+                                    isSelected={column.unique}
+                                    onChange={(isSelected) =>
+                                      patchColumn(table.id, column.id, {
+                                        unique: isSelected,
+                                      })
+                                    }
+                                  />
+                                  UQ
+                                </label>
+                              </div>
+                              <Input
+                                className="input"
+                                aria-label={`Default for ${column.name}`}
+                                placeholder="DEFAULT expression"
+                                value={column.defaultValue}
+                                onChange={(event) =>
+                                  patchColumn(table.id, column.id, {
+                                    defaultValue: event.target.value,
+                                  })
+                                }
+                              />
+                              <Input
+                                className="input"
+                                aria-label={`Check for ${column.name}`}
+                                placeholder="CHECK expression"
+                                value={column.check}
+                                onChange={(event) =>
+                                  patchColumn(table.id, column.id, {
+                                    check: event.target.value,
+                                  })
+                                }
+                              />
+                              {!column.pk && (
+                                <select
+                                  aria-label={`Foreign key for ${column.name}`}
+                                  className="select"
+                                  value={
+                                    column.fk
+                                      ? `${column.fk.tableId}::${column.fk.columnId}`
+                                      : ""
+                                  }
+                                  onChange={(event) => {
+                                    const [tableId, columnId] =
+                                      event.target.value.split("::");
+                                    patchColumn(table.id, column.id, {
+                                      fk:
+                                        tableId && columnId
+                                          ? { tableId, columnId }
+                                          : null,
+                                    });
+                                  }}
+                                >
+                                  <option value="">No reference</option>
+                                  {compatibleForeignKeyTargets(column).map(
+                                    ({ table: target, target: field }) => (
+                                      <option
+                                        key={`${target.id}::${field.id}`}
+                                        value={`${target.id}::${field.id}`}
+                                      >
+                                        {target.name.toUpperCase()}.
+                                        {field.name.toUpperCase()}
+                                      </option>
+                                    ),
+                                  )}
+                                </select>
+                              )}
+                            </div>
+                          ))}
+
+                          <div className="entity-actions">
+                            <Button
+                              className="btn"
+                              onClick={() => addColumn(table.id)}
+                            >
+                              <Plus size={14} /> Add column
+                            </Button>
+                            <Button className="btn" onClick={makeJunction}>
+                              <Link2 size={14} /> Junction
+                            </Button>
+                            <Button
+                              className="btn danger"
+                              onClick={() => deleteTable(table.id)}
+                            >
+                              <Trash2 size={14} /> Delete
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="panel-body">
+              {!relationshipRows.length ? (
+                <div className="empty-state">
+                  <div className="empty-art" aria-hidden="true">
+                    <Link2 size={38} />
+                  </div>
+                  <strong>No relationships</strong>
+                  <p>Give a column a foreign key to link two tables.</p>
+                </div>
+              ) : (
+                relationshipRows.map((row) => (
+                  <button
+                    type="button"
+                    className="relationship-row"
+                    key={row.id}
+                    onClick={() => setSelectedId(row.fromId)}
+                  >
+                    <Link2 size={14} aria-hidden="true" />
+                    <span className="relationship-copy">
+                      <strong>{row.from}</strong>
+                      <small>references {row.to}</small>
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+
+          <div className="panel-footer">
+            <span className="counter" title="Tables">
+              <Database size={14} /> {schema.tables.length}
+            </span>
+            <span className="counter" title="Relationships">
+              <Link2 size={14} /> {relationshipRows.length}
+            </span>
+            <div className="segmented" role="group" aria-label="Panel view">
               <button
-                className={`table-list-item ${selectedId === table.id ? "active" : ""}`}
-                key={table.id}
                 type="button"
-                aria-current={selectedId === table.id ? "true" : undefined}
-                onClick={() => setSelectedId(table.id)}
+                className={panelMode === "structure" ? "active" : ""}
+                aria-pressed={panelMode === "structure"}
+                onClick={() => setPanelMode("structure")}
               >
-                <span
-                  className="table-list-swatch"
-                  style={{ background: table.color.a }}
-                  aria-hidden="true"
-                />
-                <span className="table-list-copy">
-                  <strong>{table.name.toUpperCase()}</strong>
-                  <small>{table.columns.length} columns</small>
-                </span>
-                <span className="table-list-more" aria-hidden="true">
-                  ···
-                </span>
+                <LayoutGrid size={13} /> Structure
               </button>
-            ))}
-            {!filteredTables.length && (
-              <div className="sidebar-empty">No tables found</div>
+              <button
+                type="button"
+                className={panelMode === "code" ? "active" : ""}
+                aria-pressed={panelMode === "code"}
+                onClick={() => setPanelMode("code")}
+              >
+                <Code2 size={13} /> Code
+              </button>
+            </div>
+          </div>
+
+          <div className={`issues-bar ${issuesOpen ? "open" : ""}`}>
+            <button
+              type="button"
+              className="issues-head"
+              aria-expanded={issuesOpen}
+              onClick={() => setIssuesOpen((open) => !open)}
+            >
+              <AlertTriangle
+                size={15}
+                className={errors.length ? "warn danger" : "warn"}
+              />
+              <span>Issues</span>
+              <span className={`issue-count ${errors.length ? "bad" : ""}`}>
+                {issues.length}
+              </span>
+              <ChevronDown size={15} className="issues-chevron" />
+            </button>
+            {issuesOpen && (
+              <div className="issues-list">
+                {!issues.length ? (
+                  <p className="issues-empty">No problems found.</p>
+                ) : (
+                  issues.slice(0, 40).map((issue) => (
+                    <button
+                      type="button"
+                      className={`issue ${issue.severity}`}
+                      key={`${issue.message}-${issue.columnId ?? issue.tableId ?? ""}`}
+                      onClick={() => issue.tableId && setSelectedId(issue.tableId)}
+                    >
+                      {issue.message}
+                    </button>
+                  ))
+                )}
+              </div>
             )}
           </div>
         </aside>
+
+        {!sidebarOpen && (
+          <button
+            type="button"
+            className="panel-reveal"
+            aria-label="Show side panel"
+            onClick={() => setSidebarOpen(true)}
+          >
+            <ChevronRight size={16} />
+          </button>
+        )}
+
         <div
           ref={canvasRef}
           className={`canvas-wrap ${grabbing ? "grabbing" : ""}`}
@@ -1053,7 +1550,12 @@ export default function Designer() {
               willChange: grabbing || dragPosition ? "transform" : undefined,
             }}
           >
-            <svg className="edges" width={CANVAS_WIDTH} height={CANVAS_HEIGHT} aria-hidden="true">
+            <svg
+              className="edges"
+              width={CANVAS_WIDTH}
+              height={CANVAS_HEIGHT}
+              aria-hidden="true"
+            >
               {relationships.map((relationship) => {
                 const from = relationshipPoint(
                   relationship.from,
@@ -1069,25 +1571,20 @@ export default function Designer() {
                 const midpoint = horizontal
                   ? (to.x - from.x) / 2
                   : (to.y - from.y) / 2;
+                const path = horizontal
+                  ? `M ${from.x} ${from.y} C ${from.x + midpoint} ${from.y}, ${to.x - midpoint} ${to.y}, ${to.x} ${to.y}`
+                  : `M ${from.x} ${from.y} C ${from.x} ${from.y + midpoint}, ${to.x} ${to.y - midpoint}, ${to.x} ${to.y}`;
+                const active =
+                  selectedId === relationship.from.id ||
+                  selectedId === relationship.to.id;
                 return (
-                  <g key={relationship.id}>
+                  <g className="relationship" key={relationship.id}>
+                    {/* Invisible fat stroke so the thin line is easy to hover. */}
+                    <path d={path} className="relationship-hit" />
                     <path
-                      d={
-                        horizontal
-                          ? `M ${from.x} ${from.y} C ${from.x + midpoint} ${from.y}, ${to.x - midpoint} ${to.y}, ${to.x} ${to.y}`
-                          : `M ${from.x} ${from.y} C ${from.x} ${from.y + midpoint}, ${to.x} ${to.y - midpoint}, ${to.x} ${to.y}`
-                      }
-                      fill="none"
-                      stroke={
-                        selectedId === relationship.from.id ||
-                        selectedId === relationship.to.id
-                          ? "var(--primary)"
-                          : "var(--border)"
-                      }
-                      strokeWidth="1.8"
+                      d={path}
+                      className={`relationship-path ${active ? "active" : ""}`}
                     />
-                    <circle cx={from.x} cy={from.y} r="3" fill="var(--accent)" />
-                    <circle cx={to.x} cy={to.y} r="3" fill="var(--primary)" />
                   </g>
                 );
               })}
@@ -1095,327 +1592,152 @@ export default function Designer() {
             {schema.tables.map((table) => {
               const position = livePosition(table);
               const moving = dragPosition?.id === table.id;
-              const ink = readableTextOn(table.color.b);
               return (
-              <div
-                className={`table-card ${selectedId === table.id ? "selected" : ""} ${moving ? "moving" : ""}`}
-                key={table.id}
-                role="button"
-                tabIndex={0}
-                aria-pressed={selectedId === table.id}
-                aria-label={`Table ${table.name}, ${table.columns.length} columns. Arrow keys move it.`}
-                style={{
-                  transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
-                  willChange: moving ? "transform" : undefined,
-                }}
-                onPointerDown={(event) => {
-                  event.stopPropagation();
-                  setSelectedId(table.id);
-                }}
-                onKeyDown={(event) => onCardKeyDown(event, table)}
-              >
                 <div
-                  className="table-head"
+                  className={`table-card ${selectedId === table.id ? "selected" : ""} ${moving ? "moving" : ""}`}
+                  key={table.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={selectedId === table.id}
+                  aria-label={`Table ${table.name}, ${table.columns.length} columns. Arrow keys move it.`}
                   style={{
-                    background: `linear-gradient(135deg,${table.color.a},${table.color.b})`,
-                    color: ink,
+                    transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
+                    willChange: moving ? "transform" : undefined,
                   }}
-                  onPointerDown={(event) => onHeaderDown(event, table)}
+                  onPointerDown={(event) => {
+                    event.stopPropagation();
+                    setSelectedId(table.id);
+                  }}
+                  onKeyDown={(event) => onCardKeyDown(event, table)}
                 >
-                  <span className="table-name">{table.name.toUpperCase()}</span>
-                  <Badge
-                    variant="outline"
-                    className="table-strategy"
-                    style={{
-                      background: chipBackgroundOn(table.color.b),
-                      color: ink,
-                      borderColor: "transparent",
-                    }}
+                  <div
+                    className="table-strip"
+                    style={{ background: table.color.a }}
+                    aria-hidden="true"
+                  />
+                  <div
+                    className="table-head"
+                    onPointerDown={(event) => onHeaderDown(event, table)}
                   >
-                    {table.keyStrategy === "sequence-trigger"
-                      ? "SEQ + TRG"
-                      : table.keyStrategy}
-                  </Badge>
-                </div>
-                {table.columns.map((column) => (
-                  <div className="table-row" key={column.id}>
-                    <span className="row-icon">
-                      {column.pk ? (
-                        <KeyRound size={13} />
-                      ) : column.fk ? (
-                        <Link2 size={13} className="fk-dot" />
-                      ) : (
-                        <span />
-                      )}
-                    </span>
-                    <span className="row-name">
-                      {column.name.toUpperCase()}
-                    </span>
-                    <span className="row-type">
-                      {column.type}
-                      {column.size ? `(${column.size})` : ""}
+                    <span className="table-name">{table.name.toUpperCase()}</span>
+                    <span className="table-strategy">
+                      {table.keyStrategy === "sequence-trigger"
+                        ? "SEQ+TRG"
+                        : table.keyStrategy === "identity"
+                          ? "IDENTITY"
+                          : ""}
                     </span>
                   </div>
-                ))}
-              </div>
+                  {table.columns.map((column) => (
+                    <div className="table-row" key={column.id}>
+                      <span className="row-grip" aria-hidden="true" />
+                      <span className="row-name">{column.name.toUpperCase()}</span>
+                      <span className="row-meta">
+                        {column.pk && <KeyRound size={13} aria-hidden="true" />}
+                        {column.fk && (
+                          <Link2 size={13} className="fk-dot" aria-hidden="true" />
+                        )}
+                        {!column.notNull && !column.pk && (
+                          <span className="row-nullable" title="Nullable">
+                            ?
+                          </span>
+                        )}
+                        <span
+                          className="row-type"
+                          style={{ color: typeColorVar(column.type) }}
+                        >
+                          {column.type}
+                          {column.size ? `(${column.size})` : ""}
+                        </span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
               );
             })}
           </div>
-        </div>
-        <div className="canvas-hud">
-          <Button className="btn" aria-label="Zoom out" onClick={() => zoomBy(-0.1)}>
-            <ZoomOut size={14} />
-          </Button>
-          <span className="zoom-label" aria-live="polite" aria-atomic="true">
-            {Math.round(zoom * 100)}%
-          </span>
-          <Button className="btn" aria-label="Zoom in" onClick={() => zoomBy(0.1)}>
-            <ZoomIn size={14} />
-          </Button>
-          <Button className="btn" onClick={fitView}>
-            Fit
-          </Button>
-          <Button className="btn" onClick={autoLayout}>
-            <LayoutGrid size={14} /> Tidy up
-          </Button>
-        </div>
-        {selected && (
-          <div
-            className={`table-edit-modal-backdrop ${closingSheet ? "closing" : ""}`}
-            onMouseDown={closeSheet}
-          >
-          <div
-            className="table-edit-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label={`Edit table ${selected.name}`}
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="drawer-head">
-              <div className="drawer-title">
-                <Database size={16} color="var(--primary)" />
-                <input
-                  aria-label="Table name"
-                  value={selected.name}
-                  onChange={(event) =>
-                    patchTable(selected.id, { name: event.target.value })
-                  }
-                />
-                <span className="muted">{selected.columns.length} columns</span>
-              </div>
-              <div className="drawer-actions">
-                <Button
-                  className="btn ghost danger"
-                  aria-label={`Delete table ${selected.name}`}
-                  onClick={() => deleteTable(selected.id)}
-                >
-                  <Trash2 size={16} />
-                </Button>
-                <Button
-                  className="btn ghost"
-                  aria-label="Close table editor"
-                  onClick={closeSheet}
-                >
-                  <X size={16} />
-                </Button>
-              </div>
-            </div>
-            <Separator className="drawer-separator" />
-            <div className="drawer-content">
-              <div className="drawer-toolbar">
-                <span className="field-label">Key generation</span>
-                <div className="strategy">
-                  <select
-                    aria-label="Key generation strategy"
-                    className="select"
-                    value={selected.keyStrategy}
-                    onChange={(event) =>
-                      patchTable(selected.id, {
-                        keyStrategy: event.target.value as KeyStrategy,
-                      })
-                    }
-                  >
-                    <option value="sequence-trigger">Sequence + trigger</option>
-                    <option value="identity">Generated identity</option>
-                    <option value="none">Manual / none</option>
-                  </select>
-                  {primaryKeyColumns(selected).length > 1 && (
-                    <span className="muted">
-                      Composite PK: manual generation required
-                    </span>
-                  )}
-                </div>
-                <Button className="btn" onClick={makeJunction}>
-                  <Link2 size={14} /> Junction
-                </Button>
-                <Button className="btn" onClick={() => addColumn(selected.id)}>
-                  <Plus size={14} /> Add column
-                </Button>
-              </div>
-              {selected.columns.map((column) => (
-                <div className="column-grid" key={column.id}>
-                  <div className="cell">
-                    <Input
-                      className="input"
-                      value={column.name}
-                      onChange={(event) =>
-                        patchColumn(selected.id, column.id, {
-                          name: event.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="cell">
-                    <select
-                      aria-label={`Datatype for ${column.name}`}
-                      className="select"
-                      value={column.type}
-                      onChange={(event) =>
-                        patchColumn(selected.id, column.id, {
-                          type: event.target.value as Column["type"],
-                        })
-                      }
-                    >
-                      {ORACLE_TYPES.map((type) => (
-                        <option key={type}>{type}</option>
-                      ))}
-                    </select>
-                    {typeUsesSize(column.type) && (
-                      <Input
-                        className="input"
-                        style={{ marginTop: 5 }}
-                        placeholder={typeSizePlaceholder(column.type)}
-                        value={column.size}
-                        onChange={(event) =>
-                          patchColumn(selected.id, column.id, {
-                            size: event.target.value,
-                          })
-                        }
-                      />
-                    )}
-                  </div>
-                  <div className="checks">
-                    <label>
-                      <Checkbox
-                        isSelected={column.pk}
-                        onChange={(isSelected) =>
-                          patchColumn(selected.id, column.id, {
-                            pk: isSelected,
-                            fk: isSelected ? null : column.fk,
-                          })
-                        }
-                      />
-                      PK
-                    </label>
-                    <label>
-                      <Checkbox
-                        isSelected={column.notNull}
-                        onChange={(isSelected) =>
-                          patchColumn(selected.id, column.id, {
-                            notNull: isSelected,
-                          })
-                        }
-                      />
-                      NN
-                    </label>
-                    <label>
-                      <Checkbox
-                        isSelected={column.unique}
-                        onChange={(isSelected) =>
-                          patchColumn(selected.id, column.id, {
-                            unique: isSelected,
-                          })
-                        }
-                      />
-                      UQ
-                    </label>
-                  </div>
-                  <div className="cell">
-                    <Input
-                      className="input"
-                      placeholder="DEFAULT expression"
-                      value={column.defaultValue}
-                      onChange={(event) =>
-                        patchColumn(selected.id, column.id, {
-                          defaultValue: event.target.value,
-                        })
-                      }
-                    />
-                    <Input
-                      className="input"
-                      style={{ marginTop: 5 }}
-                      placeholder="CHECK expression"
-                      value={column.check}
-                      onChange={(event) =>
-                        patchColumn(selected.id, column.id, {
-                          check: event.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="cell">
-                    {!column.pk && (
-                      <select
-                        aria-label={`Foreign key for ${column.name}`}
-                        className="select"
-                        value={
-                          column.fk
-                            ? `${column.fk.tableId}::${column.fk.columnId}`
-                            : ""
-                        }
-                        onChange={(event) => {
-                          const [tableId, columnId] =
-                            event.target.value.split("::");
-                          patchColumn(selected.id, column.id, {
-                            fk:
-                              tableId && columnId
-                                ? { tableId, columnId }
-                                : null,
-                          });
-                        }}
-                      >
-                        <option value="">No reference</option>
-                        {compatibleForeignKeyTargets(column).map(
-                          ({ table, target }) => (
-                            <option
-                              key={`${table.id}::${target.id}`}
-                              value={`${table.id}::${target.id}`}
-                            >
-                              {table.name.toUpperCase()}.
-                              {target.name.toUpperCase()}
-                            </option>
-                          ),
-                        )}
-                      </select>
-                    )}
-                  </div>
-                  <Button
-                    className="btn ghost danger"
-                    aria-label={`Delete column ${column.name}`}
-                    onClick={() => deleteColumn(selected.id, column.id)}
-                  >
-                    <X size={15} />
-                  </Button>
-                </div>
-              ))}
-            </div>
-            {issues
-              .filter((issue) => issue.tableId === selected.id)
-              .slice(0, 2)
-              .map((issue) => (
-                <div className="issue-strip" key={issue.message}>
-                  <ChevronDown size={14} />
-                  {issue.message}
-                </div>
-              ))}
+
+          <div className="dock" role="toolbar" aria-label="Canvas controls">
+            <button
+              type="button"
+              aria-label="Tidy up layout"
+              onClick={autoLayout}
+            >
+              <LayoutGrid size={17} />
+            </button>
+            <span className="dock-divider" />
+            <button type="button" aria-label="Zoom out" onClick={() => zoomBy(-0.1)}>
+              <ZoomOut size={17} />
+            </button>
+            <span className="dock-zoom" aria-live="polite" aria-atomic="true">
+              {Math.round(zoom * 100)}%
+            </span>
+            <button type="button" aria-label="Zoom in" onClick={() => zoomBy(0.1)}>
+              <ZoomIn size={17} />
+            </button>
+            <span className="dock-divider" />
+            <button
+              type="button"
+              aria-label="Undo"
+              disabled={!history.length}
+              onClick={undo}
+            >
+              <Undo2 size={17} />
+            </button>
+            <button
+              type="button"
+              aria-label="Redo"
+              disabled={!future.length}
+              onClick={redo}
+            >
+              <Redo2 size={17} />
+            </button>
+            <span className="dock-divider" />
+            <button type="button" aria-label="Add table" onClick={addTable}>
+              <TablePlus size={17} />
+            </button>
+            <button
+              type="button"
+              aria-label="Add junction table"
+              disabled={!selected}
+              onClick={makeJunction}
+            >
+              <Link2 size={17} />
+            </button>
+            <button type="button" aria-label="Fit to screen" onClick={fitView}>
+              <Maximize2 size={17} />
+            </button>
+            <span className="dock-divider" />
+            <button type="button" aria-label="Save to database" onClick={save}>
+              <Save size={17} />
+            </button>
+            <button
+              type="button"
+              aria-label="Export SQL"
+              onClick={() => setModal("export")}
+            >
+              <Download size={17} />
+            </button>
           </div>
-          </div>
-        )}
-      </section>
+
+          <button
+            type="button"
+            className="fab"
+            aria-label="Add table"
+            onClick={addTable}
+          >
+            <Plus size={22} />
+          </button>
+        </div>
+      </div>
+
       {modal === "export" && (
         <div className="modal-backdrop" onMouseDown={() => setModal(null)}>
           <div
             className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Export SQL"
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="modal-head">
@@ -1443,7 +1765,7 @@ export default function Designer() {
                   onClick={copyOutput}
                 >
                   {copied ? (
-                    <Check size={15} color="var(--chart-3)" />
+                    <Check size={15} color="var(--type-binary)" />
                   ) : (
                     <Copy size={15} />
                   )}
@@ -1473,14 +1795,20 @@ export default function Designer() {
                 </Button>
               </div>
             )}
-            <pre className="code"><code>{highlightSql(output)}</code></pre>
+            <pre className="code">
+              <code>{highlightSql(output)}</code>
+            </pre>
           </div>
         </div>
       )}
+
       {modal === "import" && (
         <div className="modal-backdrop" onMouseDown={() => setModal(null)}>
           <div
             className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Import Oracle DDL"
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="modal-head">
@@ -1514,8 +1842,10 @@ export default function Designer() {
                   value={importText}
                   onScroll={(event) => {
                     if (importHighlightRef.current) {
-                      importHighlightRef.current.scrollTop = event.currentTarget.scrollTop;
-                      importHighlightRef.current.scrollLeft = event.currentTarget.scrollLeft;
+                      importHighlightRef.current.scrollTop =
+                        event.currentTarget.scrollTop;
+                      importHighlightRef.current.scrollLeft =
+                        event.currentTarget.scrollLeft;
                     }
                   }}
                   onChange={(event) => setImportText(event.target.value)}
@@ -1540,6 +1870,7 @@ export default function Designer() {
           </div>
         </div>
       )}
+
       <div className="toast-region" role="status" aria-live="polite">
         {toast && (
           <div className={`toast ${toast.tone === "error" ? "toast-error" : ""}`}>

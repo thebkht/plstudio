@@ -44,9 +44,13 @@ An Oracle 12.2+ schema designer: a DrawSQL-style canvas where you draw tables, a
 
 `app/components/Designer.tsx` (~1100 lines) is the whole client app — it owns schema state, selection, undo/redo history stacks, pointer-based drag/pan, zoom, and the export/import modals. `app/page.tsx` just mounts it. The spec assigns it sole ownership of state and command actions; sidebar/editor/canvas are presentation sections within it.
 
-Canvas geometry constants (`TABLE_WIDTH = 236`, `HEADER_HEIGHT = 38`, `ROW_HEIGHT = 27`) are duplicated between `Designer.tsx` and `tableHeight()` in `schema.ts`. Relationship anchor routing depends on them matching — change both together.
+Canvas geometry (`TABLE_WIDTH`, `TABLE_COLOR_STRIP_HEIGHT`, `TABLE_HEADER_HEIGHT`, `TABLE_FIELD_HEIGHT`) is defined once in `app/lib/schema.ts` alongside `tableHeight()`, and imported by `Designer.tsx`. Relationship anchors are derived from these — if the card's visual layout changes, update the constants rather than hardcoding new offsets.
 
-Undo/redo: `commit(next)` pushes the _previous_ schema onto `history` (capped at 50) and clears `future`. Drags bypass `commit` (they mutate on every pointermove) and push history once on pointerup.
+Undo/redo: `commit(next)` pushes the _previous_ schema onto `history` (capped at 50) and clears `future`.
+
+Canvas gestures live in `app/lib/motion.ts` (pure, tested): `Spring` (analytic damped oscillator, re-targetable mid-flight), `VelocityTracker`, `project()` for momentum, `rubberClamp()` for soft bounds. Drags do **not** write to `schema` per frame — the live position sits in `dragPosition` state and is committed once on release, so `validateSchema`/`generateDDL` don't rerun every pointermove. Anything reading a table's on-screen position must go through `livePosition(table)`, not `table.x/y`.
+
+Wheel handling is attached natively with `{ passive: false }` because React registers `wheel` passively, which silently no-ops `preventDefault`. Scroll pans; ctrl/⌘-scroll zooms anchored at the cursor.
 
 `app/globals.css` (~1000 lines) owns all workspace layout, light-mode materials, table-card styling, and responsive breakpoints. It supports `prefers-reduced-motion` and `prefers-reduced-transparency` — keep new styles consistent with that.
 

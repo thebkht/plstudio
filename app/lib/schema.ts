@@ -60,14 +60,19 @@ export type Schema = {
   updatedAt?: string;
 };
 
+/**
+ * Table accent colours. Rendered as a strip across the top of a card rather
+ * than behind text, so these are chosen for separation, not text contrast.
+ * `b` is retained for stored-schema compatibility.
+ */
 export const PALETTE = [
-  { a: "#5B8DEF", b: "#3A66C4" },
-  { a: "#E8A33D", b: "#C27F1E" },
-  { a: "#4FB286", b: "#2E8A63" },
-  { a: "#C15FBB", b: "#9A3F94" },
-  { a: "#E36B6B", b: "#BC4646" },
-  { a: "#4FBEDA", b: "#2E93AD" },
-  { a: "#A78BFA", b: "#7C5CE0" },
+  { a: "#175e7a", b: "#124b61" },
+  { a: "#7d9dff", b: "#5f7fe0" },
+  { a: "#3cde7d", b: "#2fb265" },
+  { a: "#6360f7", b: "#4f4cd6" },
+  { a: "#f2994a", b: "#d97f34" },
+  { a: "#e8617d", b: "#c94a64" },
+  { a: "#00b8d9", b: "#0094ad" },
 ];
 
 let sequence = 0;
@@ -151,8 +156,21 @@ export function primaryKeyColumns(table: Table) {
   return table.columns.filter((column) => column.pk);
 }
 
+/**
+ * Card geometry. Mirrored by the same constants in Designer.tsx — relationship
+ * anchor routing depends on the two agreeing, so change them together.
+ */
+export const TABLE_WIDTH = 220;
+export const TABLE_COLOR_STRIP_HEIGHT = 7;
+export const TABLE_HEADER_HEIGHT = 50;
+export const TABLE_FIELD_HEIGHT = 36;
+
 export function tableHeight(table: Table) {
-  return 38 + table.columns.length * 27;
+  return (
+    TABLE_COLOR_STRIP_HEIGHT +
+    TABLE_HEADER_HEIGHT +
+    table.columns.length * TABLE_FIELD_HEIGHT
+  );
 }
 
 export function cloneSchema(schema: Schema): Schema {
