@@ -618,6 +618,38 @@ export default function Designer({
     [],
   );
 
+  const resolveTablePosition = useCallback((id: string, x: number, y: number) => {
+    const tables = schemaRef.current.tables;
+    const table = tables.find((candidate) => candidate.id === id);
+    if (!table) return { x, y };
+    const bounds = tableBounds(table);
+    const clamp = (value: Vec) => ({
+      x: Math.max(bounds.minX, Math.min(bounds.maxX, Math.round(value.x))),
+      y: Math.max(bounds.minY, Math.min(bounds.maxY, Math.round(value.y))),
+    });
+    const collides = (position: Vec) => tables.some((other) => {
+      if (other.id === id) return false;
+      return position.x < other.x + TABLE_WIDTH + 18 &&
+        position.x + TABLE_WIDTH + 18 > other.x &&
+        position.y < other.y + tableHeight(other) + 18 &&
+        position.y + tableHeight(table) + 18 > other.y;
+    });
+    const initial = clamp({ x, y });
+    if (!collides(initial)) return initial;
+    const step = 48;
+    for (let ring = 1; ring <= 24; ring += 1) {
+      const candidates = [
+        { x: x + ring * step, y }, { x: x - ring * step, y },
+        { x, y: y + ring * step }, { x, y: y - ring * step },
+        { x: x + ring * step, y: y + ring * step }, { x: x - ring * step, y: y + ring * step },
+        { x: x + ring * step, y: y - ring * step }, { x: x - ring * step, y: y - ring * step },
+      ];
+      const free = candidates.map(clamp).find((candidate) => !collides(candidate));
+      if (free) return free;
+    }
+    return initial;
+  }, [tableBounds]);
+
   /** Pan limits that always keep some of the diagram on screen. */
   const panBounds = useCallback((scale: number) => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -633,6 +665,7 @@ export default function Designer({
   }, []);
 
   const commitPosition = useCallback((id: string, x: number, y: number) => {
+    const resolved = resolveTablePosition(id, x, y);
     setHistory((items) => [
       ...items.slice(-49),
       cloneSchema(schemaRef.current),
@@ -641,11 +674,11 @@ export default function Designer({
     setSchema((current) => ({
       ...current,
       tables: current.tables.map((table) =>
-        table.id === id ? { ...table, x, y } : table,
+        table.id === id ? { ...table, x: resolved.x, y: resolved.y } : table,
       ),
     }));
     setDragPosition(null);
-  }, []);
+  }, [resolveTablePosition]);
 
   const stopAnimation = useCallback(() => {
     stopAnimationRef.current?.();
@@ -793,10 +826,11 @@ export default function Designer({
         x: from.x + project(velocity.x),
         y: from.y + project(velocity.y),
       };
-      const target = {
+      const projectedTarget = {
         x: Math.max(bounds.minX, Math.min(bounds.maxX, projected.x)),
         y: Math.max(bounds.minY, Math.min(bounds.maxY, projected.y)),
       };
+      const target = resolveTablePosition(table.id, projectedTarget.x, projectedTarget.y);
       const flicked = Math.hypot(velocity.x, velocity.y) > 60;
       animateTo(
         from,
@@ -819,7 +853,7 @@ export default function Designer({
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", cancel);
     };
-  }, [animateTo, commitPosition, panBounds, tableBounds]);
+  }, [animateTo, commitPosition, panBounds, resolveTablePosition, tableBounds]);
 
   /**
    * Wheel handling is attached natively because React registers `wheel`
