@@ -10,6 +10,5 @@ export default async function TemplatesPage() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login?redirect=/templates");
   const row = (await getDb().select({ slug: organization.slug }).from(member).innerJoin(organization, eq(member.organizationId, organization.id)).where(eq(member.userId, session.user.id)).limit(1))[0];
-  if (!row) redirect("/onboarding");
-  return <TemplateGallery workspace={row.slug} />;
+  return <TemplateGallery workspace={row?.slug} />;
 }
