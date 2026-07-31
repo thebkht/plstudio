@@ -128,6 +128,16 @@ export function makeDemoSchema(): Schema {
   };
 }
 
+export function makeEmptySchema(name = "Untitled Diagram", id = nextId("schema")): Schema {
+  return {
+    id,
+    name,
+    revision: 1,
+    schemaFormatVersion: SCHEMA_FORMAT_VERSION,
+    tables: [],
+  };
+}
+
 export function normalizeIdentifier(value: string) {
   return value.trim().toUpperCase().replace(/[^A-Z0-9_$#]/g, "_").replace(/^([0-9])/, "T_$1");
 }
