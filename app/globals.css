@@ -45,21 +45,30 @@
   --sidebar-ring: oklch(0.708 0 0);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
-}
-.dark {
-  --background: oklch(0.145 0.012 255);
-  --foreground: oklch(0.93 0.02 255);
-  --card: oklch(0.19 0.018 255);
-  --card-foreground: oklch(0.93 0.02 255);
-  --popover: oklch(0.19 0.018 255);
-  --popover-foreground: oklch(0.93 0.02 255);
-  --secondary: oklch(0.24 0.02 255);
-  --secondary-foreground: oklch(0.93 0.02 255);
-  --muted: oklch(0.22 0.018 255);
-  --muted-foreground: oklch(0.66 0.03 255);
-  --border: oklch(0.3 0.025 255);
-  --input: oklch(0.3 0.025 255);
-  --ring: oklch(0.73 0.15 75);
+
+  /* Type scale. Tracking tightens as size grows; leading loosens as it shrinks. */
+  --text-2xs: 0.6875rem; /* 11px — smallest permitted, metadata only */
+  --text-xs: 0.75rem; /* 12px */
+  --text-sm: 0.8125rem; /* 13px */
+  --text-base: 0.875rem; /* 14px */
+  --text-lg: 1rem; /* 16px */
+  --text-xl: 1.25rem; /* 20px */
+  --leading-tight: 1.2;
+  --leading-snug: 1.4;
+  --leading-normal: 1.55;
+  --tracking-tight: -0.011em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.02em;
+  --tracking-caps: 0.06em;
+
+  /* Motion. Exits run shorter than entrances so dismissal feels responsive. */
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 240ms;
+
+  --sidebar-width: 248px;
 }
 * {
   box-sizing: border-box;
@@ -71,32 +80,60 @@ body {
   background: var(--background);
   color: var(--text);
   font-family:
-    Inter,
+    var(--font-sans),
     ui-sans-serif,
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  letter-spacing: var(--tracking-normal);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 button,
 input,
 select,
 textarea {
   font: inherit;
+  letter-spacing: inherit;
   touch-action: manipulation;
 }
 button {
   cursor: pointer;
 }
+/* Identifiers, counts, and measurements must not reflow as digits change. */
+.zoom-label,
+.row-type,
+.table-list-copy small,
+.code,
+.sql-highlight,
+.sql-input {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * A single visible focus treatment for every interactive surface. The shadcn
+ * base layer only sets an outline *color*, which renders no ring at all.
+ */
+:where(button, [role="button"], a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+.canvas-wrap:focus-visible {
+  outline-offset: -3px;
+}
 .app-shell {
   padding: 24px;
-  min-height: 100vh;
+  min-height: 100dvh;
   background:
     radial-gradient(circle at 20% 0%, var(--muted) 0, transparent 45%), var(--background);
 }
 .designer {
-  height: calc(100vh - 48px);
+  height: calc(100dvh - 48px);
   min-height: 640px;
   display: flex;
   flex-direction: column;
@@ -143,17 +180,6 @@ button {
   background: var(--primary);
   color: var(--primary-foreground);
 }
-.workspace-context {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
-  margin-right: 24px;
-  color: color-mix(in oklch, white 70%, transparent);
-  font-size: 12px;
-}
-.workspace-context b { color: color-mix(in oklch, white 38%, transparent); font-weight: 400; }
-.workspace-context strong { color: white; font-weight: 700; }
 .reference-nav {
   display: flex;
   align-items: center;
@@ -166,44 +192,25 @@ button {
   border: 0;
   background: transparent;
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 .reference-nav-button:hover { background: color-mix(in oklch, var(--primary) 7%, transparent); color: var(--foreground); }
 .reference-separator { color: var(--muted-foreground); }
-.reference-page-title { color: var(--foreground); font-size: 14px; }
+.reference-page-title { color: var(--foreground); font-size: var(--text-base); }
 .diagram-name {
   width: 145px;
   border: 0;
   outline: 0;
   background: transparent;
   color: var(--muted-foreground);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 .diagram-name:focus { color: var(--foreground); }
 .sidebar-toggle { min-width: 36px; min-height: 36px; padding: 0; }
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.brand-mark {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--primary), var(--chart-4));
-  color: var(--primary-foreground);
-  box-shadow: 0 6px 16px color-mix(in oklch, var(--primary) 18%, transparent);
-}
-.brand-title {
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
 .brand-sub {
   color: var(--muted-foreground);
-  font-size: 11px;
+  font-size: var(--text-2xs);
+  line-height: var(--leading-snug);
   margin-top: 2px;
 }
 .toolbar,
@@ -217,11 +224,10 @@ button {
 }
 .toolbar-label {
   color: var(--muted-foreground);
-  font-size: 11px;
+  font-size: var(--text-2xs);
 }
 .btn {
   min-width: 40px;
-  min-height: 40px;
   min-height: 40px;
   display: inline-flex;
   align-items: center;
@@ -232,10 +238,11 @@ button {
   border-radius: 10px;
   background: color-mix(in oklch, var(--foreground) 5%, transparent);
   color: var(--foreground);
+  font-size: var(--text-sm);
   transition:
-    background 0.16s ease,
-    transform 0.16s ease,
-    border-color 0.16s ease;
+    background var(--duration-base) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out);
 }
 @media (pointer: coarse) {
   .btn { min-width: 44px; min-height: 44px; }
@@ -286,9 +293,11 @@ button {
   --muted-foreground: oklch(0.54 0.035 240);
   --primary: oklch(0.56 0.19 265);
   --primary-foreground: oklch(0.99 0.01 250);
-  --accent: oklch(0.65 0.14 185);
+  --accent: oklch(0.55 0.12 195);
   --accent-foreground: oklch(0.27 0.045 185);
   --line: oklch(0.83 0.025 235 / 0.8);
+  /* Inherited --ring is a mid grey that all but disappears on this background. */
+  --ring: oklch(0.56 0.19 265);
   --bg: var(--background);
   --surface: var(--card);
   --text: var(--foreground);
@@ -298,7 +307,7 @@ button {
   position: absolute;
   inset: 0 auto 0 0;
   z-index: 3;
-  width: 248px;
+  width: var(--sidebar-width);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -306,6 +315,17 @@ button {
   background: color-mix(in oklch, var(--card) 94%, transparent);
   -webkit-backdrop-filter: blur(18px) saturate(130%);
   backdrop-filter: blur(18px) saturate(130%);
+  transition: transform var(--duration-slow) var(--ease-out);
+}
+/*
+ * Collapsing has to reclaim the canvas inset too, or the toggle appears to do
+ * nothing on desktop — the sidebar hid but the canvas kept its 248px gutter.
+ */
+.workspace.sidebar-collapsed .tables-sidebar {
+  transform: translateX(-100%);
+}
+.workspace.sidebar-collapsed .canvas-wrap {
+  inset: 0;
 }
 .sidebar-head {
   height: 54px;
@@ -320,7 +340,7 @@ button {
   align-items: center;
   gap: 8px;
   color: var(--foreground);
-  font-size: 14px;
+  font-size: var(--text-base);
 }
 .sidebar-title svg { color: var(--primary); }
 .sidebar-title .badge { margin-left: 2px; }
@@ -391,12 +411,12 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--text-xs);
   letter-spacing: 0.02em;
 }
-.table-list-copy small { font-size: 10px; color: var(--muted-foreground); }
+.table-list-copy small { font-size: var(--text-2xs); color: var(--muted-foreground); }
 .table-list-more { margin-left: auto; font-weight: 800; letter-spacing: 1px; }
-.sidebar-empty { padding: 18px 10px; color: var(--muted-foreground); font-size: 12px; }
+.sidebar-empty { padding: 18px 10px; color: var(--muted-foreground); font-size: var(--text-xs); }
 .sidebar-add {
   min-height: 40px;
   margin: 10px 12px 14px;
@@ -404,16 +424,21 @@ button {
   border-radius: 9px;
   background: color-mix(in oklch, var(--primary) 7%, var(--card));
   color: var(--primary);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 .canvas-wrap {
   position: absolute;
-  inset: 0 0 0 248px;
+  inset: 0 0 0 var(--sidebar-width);
   overflow: hidden;
   touch-action: none;
+  cursor: grab;
+  transition: inset var(--duration-slow) var(--ease-out);
   background-color: var(--background);
   background-image: radial-gradient(circle, color-mix(in oklch, var(--primary) 13%, transparent) 1px, transparent 1px);
   background-size: 18px 18px;
+}
+.canvas-wrap.grabbing {
+  cursor: grabbing;
 }
 .canvas {
   position: absolute;
@@ -427,6 +452,9 @@ button {
 }
 .table-card {
   position: absolute;
+  /* Positioned by transform so the spring can drive it on the compositor. */
+  left: 0;
+  top: 0;
   width: 236px;
   overflow: hidden;
   border: 1px solid color-mix(in oklch, var(--foreground) 12%, transparent);
@@ -436,37 +464,53 @@ button {
     0 14px 26px color-mix(in oklch, var(--background) 25%, transparent),
     inset 0 1px color-mix(in oklch, var(--foreground) 4%, transparent);
   transition:
-    border-color 0.16s ease,
-    box-shadow 0.16s ease;
+    border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out);
 }
 .table-card.selected {
-  border-color: var(--gold);
+  border-color: var(--primary);
   box-shadow:
     0 0 0 3px color-mix(in oklch, var(--primary) 12%, transparent),
     0 18px 32px color-mix(in oklch, var(--background) 35%, transparent);
+}
+/* Lifted while in flight, so the moving card reads as above the diagram. */
+.table-card.moving {
+  z-index: 2;
+  box-shadow:
+    0 0 0 3px color-mix(in oklch, var(--primary) 16%, transparent),
+    0 26px 50px color-mix(in oklch, var(--foreground) 22%, transparent);
 }
 .table-head {
   height: 38px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding: 0 11px;
   cursor: grab;
   user-select: none;
-  color: var(--primary-foreground);
+  touch-action: none;
+}
+.canvas-wrap.grabbing .table-head {
+  cursor: grabbing;
 }
 .table-name {
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  /* Uppercase identifiers need positive tracking to stay legible. */
+  letter-spacing: var(--tracking-wide);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .table-strategy {
-  font-size: 9px;
-  font-weight: 800;
-  opacity: 0.68;
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: var(--tracking-normal);
   text-transform: uppercase;
 }
 .table-row {
@@ -476,7 +520,7 @@ button {
   gap: 8px;
   padding: 0 10px;
   border-top: 1px solid color-mix(in oklch, var(--foreground) 5.5%, transparent);
-  font-size: 11px;
+  font-size: var(--text-2xs);
 }
 .row-icon {
   width: 14px;
@@ -492,7 +536,7 @@ button {
 .row-type {
   margin-left: auto;
   color: var(--muted-foreground);
-  font-size: 10px;
+  font-size: var(--text-2xs);
 }
 .fk-dot {
   color: var(--cyan);
@@ -518,34 +562,14 @@ button {
 }
 .canvas-hud .btn {
   min-height: 32px;
-  font-size: 11px;
+  font-size: var(--text-2xs);
   padding: 0 9px;
 }
 .zoom-label {
   min-width: 48px;
   text-align: center;
   color: var(--muted-foreground);
-  font-size: 11px;
-}
-.drawer {
-  position: absolute;
-  left: 264px;
-  right: 16px;
-  bottom: 16px;
-  top: 16px;
-  right: auto;
-  width: min(520px, calc(100% - 280px));
-  max-height: none;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid color-mix(in oklch, var(--foreground) 14%, transparent);
-  border-radius: 14px;
-  background: color-mix(in oklch, var(--card) 96%, transparent);
-  -webkit-backdrop-filter: blur(24px) saturate(140%);
-  backdrop-filter: blur(24px) saturate(140%);
-  backdrop-filter: blur(20px);
-  box-shadow: 0 18px 44px color-mix(in oklch, var(--background) 38%, transparent);
-  animation: drawer-in 0.22s cubic-bezier(0.2, 0, 0, 1);
+  font-size: var(--text-2xs);
 }
 .table-edit-modal-backdrop {
   position: absolute;
@@ -558,6 +582,13 @@ button {
   background: color-mix(in oklch, var(--foreground) 12%, transparent);
   -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
+  animation: scrim-in var(--duration-slow) var(--ease-out);
+}
+.table-edit-modal-backdrop.closing {
+  animation: scrim-in var(--duration-base) var(--ease-in) reverse forwards;
+}
+.table-edit-modal-backdrop.closing .table-edit-modal {
+  animation: sheet-out var(--duration-base) var(--ease-in) forwards;
 }
 .table-edit-modal {
   width: min(560px, 100%);
@@ -575,11 +606,7 @@ button {
 }
 .table-edit-modal .drawer-content { overflow: auto; }
 .table-edit-modal .drawer-head { background: var(--card); }
-.table-edit-modal .drawer-title input { font-size: 16px; }
-.designer.light .drawer {
-  background: color-mix(in oklch, white 95%, transparent);
-  border-color: color-mix(in oklch, var(--primary) 14%, var(--line));
-}
+.table-edit-modal .drawer-title input { font-size: var(--text-lg); }
 .drawer-head {
   display: flex;
   align-items: center;
@@ -600,7 +627,7 @@ button {
   outline: 0;
   background: transparent;
   color: var(--text);
-  font-size: 14px;
+  font-size: var(--text-base);
   font-weight: 700;
 }
 .drawer-actions { display: flex; align-items: center; gap: 8px; }
@@ -619,7 +646,7 @@ button {
 }
 .field-label {
   color: var(--muted-foreground);
-  font-size: 10px;
+  font-size: var(--text-2xs);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -643,21 +670,10 @@ button {
   border-radius: 12px;
   background: color-mix(in oklch, var(--card) 72%, transparent);
 }
-.column-grid.header {
-  display: none;
-  padding: 0 10px 7px;
-  color: var(--muted-foreground);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
 .column-grid > .cell:first-child,
 .column-grid > .cell:nth-child(4),
 .column-grid > .cell:nth-child(5) { grid-column: 1 / -1; }
 .column-grid > button { justify-self: end; }
-.column-editor {
-  display: contents;
-}
 .cell {
   min-width: 0;
 }
@@ -688,7 +704,7 @@ button {
   gap: 7px;
   align-items: center;
   color: var(--muted-foreground);
-  font-size: 10px;
+  font-size: var(--text-2xs);
 }
 .checks label {
   display: flex;
@@ -705,10 +721,15 @@ button {
   padding: 8px 12px;
   border-top: 1px solid color-mix(in oklch, var(--foreground) 6%, transparent);
   color: var(--primary);
-  font-size: 11px;
+  font-size: var(--text-2xs);
 }
+/*
+ * --muted is a *surface* token (near-white); using it as a text color made
+ * this copy invisible on the card. Text uses the foreground pair.
+ */
 .muted {
-  color: var(--muted);
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
 }
 .modal-backdrop {
   position: absolute;
@@ -719,7 +740,7 @@ button {
   background: color-mix(in oklch, var(--background) 68%, transparent);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
-  backdrop-filter: blur(5px);
+  animation: scrim-in var(--duration-base) var(--ease-out);
 }
 .modal {
   width: min(780px, calc(100% - 32px));
@@ -731,6 +752,7 @@ button {
   border-radius: 16px;
   background: var(--card);
   box-shadow: 0 28px 80px color-mix(in oklch, var(--background) 50%, transparent);
+  animation: modal-in var(--duration-slow) var(--ease-out);
 }
 .modal-head {
   display: flex;
@@ -840,45 +862,107 @@ button {
   border-radius: 9px;
   background: color-mix(in oklch, var(--accent) 8%, transparent);
   color: var(--accent);
-  font-size: 11px;
+  font-size: var(--text-2xs);
 }
 .parse-error {
   background: color-mix(in oklch, var(--destructive) 10%, transparent);
   color: var(--destructive);
 }
-@keyframes drawer-in {
-  from {
-    opacity: 0;
-    transform: translateX(-12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+@keyframes scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
+/*
+ * The sheet materializes from the edge it lives on, so its arrival and its
+ * dismissal trace the same path.
+ */
 @keyframes sheet-in {
   from { transform: translateX(100%); }
   to { transform: translateX(0); }
 }
+@keyframes sheet-out {
+  from { transform: translateX(0); }
+  to { transform: translateX(100%); }
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(0.97) translateY(6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.toast-region {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  z-index: 6;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--foreground);
+  font-size: var(--text-sm);
+  box-shadow: 0 16px 36px color-mix(in oklch, var(--foreground) 18%, transparent);
+  animation: toast-in var(--duration-slow) var(--ease-out);
+}
+.toast svg { color: var(--accent); }
+.toast-error { border-color: color-mix(in oklch, var(--destructive) 40%, var(--line)); }
+.toast-error svg { color: var(--destructive); }
+
+/*
+ * Reduced motion removes travel, not feedback: opacity and color still
+ * respond, so pressing a control is still visibly acknowledged.
+ */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
+    transition-property: opacity, background-color, border-color, color, box-shadow !important;
+    transition-duration: var(--duration-fast) !important;
   }
+  .btn:active,
+  .table-list-item:active { transform: none; }
+  .tables-sidebar { transition: none; }
 }
 @media (prefers-reduced-transparency: reduce) {
-  .topbar, .drawer, .modal-backdrop { backdrop-filter: none; -webkit-backdrop-filter: none; }
-  .topbar, .drawer { background: var(--card); }
-  .modal-backdrop { background: var(--background); }
+  .topbar,
+  .tables-sidebar,
+  .canvas-hud,
+  .modal-backdrop,
+  .table-edit-modal-backdrop {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .topbar,
+  .tables-sidebar,
+  .canvas-hud { background: var(--card); }
+  .modal-backdrop { background: color-mix(in oklch, var(--background) 92%, transparent); }
+  .table-edit-modal-backdrop { background: color-mix(in oklch, var(--foreground) 28%, transparent); }
+}
+@media (prefers-contrast: more) {
+  .table-card,
+  .modal,
+  .table-edit-modal,
+  .canvas-hud { border-color: var(--foreground); }
+  :where(button, [role="button"], a, input, select, textarea, [tabindex]):focus-visible {
+    outline-width: 3px;
+  }
 }
 @media (max-width: 900px) {
   .app-shell {
     padding: 0;
   }
   .designer {
-    height: 100vh;
+    height: 100dvh;
     min-height: 0;
     border-radius: 0;
   }
@@ -888,30 +972,18 @@ button {
   .toolbar-group:not(:last-child) {
     display: none;
   }
-  .workspace-context { display: none; }
-  .drawer {
-    left: 8px;
-    right: 8px;
-    bottom: 8px;
-    top: auto;
-    width: auto;
-    max-height: 70%;
-  }
   .table-edit-modal-backdrop { padding: 0; }
   .table-edit-modal {
-    width: min(560px, 100%);
-    border-radius: 14px 0 0 14px;
+    width: 100%;
+    border-radius: 0;
   }
   .tables-sidebar {
-    width: 220px;
+    width: min(280px, 82vw);
     transform: translateX(-100%);
-    transition: transform 0.2s ease;
   }
   .tables-sidebar.open { transform: translateX(0); }
+  /* The sidebar overlays the canvas at this width instead of insetting it. */
   .canvas-wrap { inset: 0; }
-  .column-grid.header {
-    display: none;
-  }
   .app-shell {
     background: var(--background);
   }
