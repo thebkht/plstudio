@@ -496,15 +496,37 @@ export default function Designer() {
       ),
     [schema],
   );
-  const point = (table: Table, index: number) => ({
-    x:
-      table.x +
-      (table.x <
-      (schema.tables.find((item) => item.id === selectedId)?.x ?? table.x)
-        ? TABLE_WIDTH
-        : 0),
-    y: table.y + HEADER_HEIGHT + index * ROW_HEIGHT + ROW_HEIGHT / 2,
-  });
+  const relationshipPoint = (
+    table: Table,
+    index: number,
+    other: Table,
+  ) => {
+    const tableCenter = {
+      x: table.x + TABLE_WIDTH / 2,
+      y: table.y + tableHeight(table) / 2,
+    };
+    const otherCenter = {
+      x: other.x + TABLE_WIDTH / 2,
+      y: other.y + tableHeight(other) / 2,
+    };
+    const dx = otherCenter.x - tableCenter.x;
+    const dy = otherCenter.y - tableCenter.y;
+    const rowY = table.y + HEADER_HEIGHT + index * ROW_HEIGHT + ROW_HEIGHT / 2;
+
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      return {
+        x: table.x + (dx >= 0 ? TABLE_WIDTH : 0),
+        y: rowY,
+        axis: "horizontal" as const,
+      };
+    }
+
+    return {
+      x: table.x + TABLE_WIDTH / 2,
+      y: table.y + (dy >= 0 ? tableHeight(table) : 0),
+      axis: "vertical" as const,
+    };
+  };
 
   return (
     <div className={`designer light`}>
@@ -633,16 +655,28 @@ export default function Designer() {
           >
             <svg className="edges" width="2400" height="1800">
               {relationships.map((relationship) => {
-                const from = point(relationship.from, relationship.fromIndex);
-                const to = point(relationship.to, relationship.toIndex);
-                const right = relationship.to.x >= relationship.from.x;
-                const x1 = right ? from.x : relationship.from.x;
-                const x2 = right ? relationship.to.x : to.x;
-                const dx = Math.max(50, Math.abs(x2 - x1) / 2);
+                const from = relationshipPoint(
+                  relationship.from,
+                  relationship.fromIndex,
+                  relationship.to,
+                );
+                const to = relationshipPoint(
+                  relationship.to,
+                  relationship.toIndex,
+                  relationship.from,
+                );
+                const horizontal = from.axis === "horizontal";
+                const midpoint = horizontal
+                  ? (to.x - from.x) / 2
+                  : (to.y - from.y) / 2;
                 return (
                   <g key={relationship.id}>
                     <path
-                      d={`M ${x1} ${from.y} C ${x1 + (right ? dx : -dx)} ${from.y}, ${x2 - (right ? dx : -dx)} ${to.y}, ${x2} ${to.y}`}
+                      d={
+                        horizontal
+                          ? `M ${from.x} ${from.y} C ${from.x + midpoint} ${from.y}, ${to.x - midpoint} ${to.y}, ${to.x} ${to.y}`
+                          : `M ${from.x} ${from.y} C ${from.x} ${from.y + midpoint}, ${to.x} ${to.y - midpoint}, ${to.x} ${to.y}`
+                      }
                       fill="none"
                       stroke={
                         selectedId === relationship.from.id ||
@@ -652,8 +686,8 @@ export default function Designer() {
                       }
                       strokeWidth="1.8"
                     />
-                    <circle cx={x1} cy={from.y} r="3" fill="var(--accent)" />
-                    <circle cx={x2} cy={to.y} r="3" fill="var(--primary)" />
+                    <circle cx={from.x} cy={from.y} r="3" fill="var(--accent)" />
+                    <circle cx={to.x} cy={to.y} r="3" fill="var(--primary)" />
                   </g>
                 );
               })}
