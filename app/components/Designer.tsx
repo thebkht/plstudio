@@ -179,7 +179,11 @@ function Menu({
         <div className="menu-popup" role="menu">
           {items.map((item, index) =>
             "separator" in item ? (
-              <div className="menu-separator" key={`sep-${index}`} role="none" />
+              <div
+                className="menu-separator"
+                key={`sep-${index}`}
+                role="none"
+              />
             ) : (
               <button
                 type="button"
@@ -203,7 +207,15 @@ function Menu({
   );
 }
 
-export default function Designer({ initialSchema, projectId, workspaceSlug }: { initialSchema: Schema; projectId: string; workspaceSlug?: string }) {
+export default function Designer({
+  initialSchema,
+  projectId,
+  workspaceSlug,
+}: {
+  initialSchema: Schema;
+  projectId: string;
+  workspaceSlug?: string;
+}) {
   const router = useRouter();
   const [schema, setSchema] = useState<Schema>(() => initialSchema);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -218,9 +230,10 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
     y: number;
   } | null>(null);
   const [grabbing, setGrabbing] = useState(false);
-  const [toast, setToast] = useState<{ text: string; tone: "ok" | "error" } | null>(
-    null,
-  );
+  const [toast, setToast] = useState<{
+    text: string;
+    tone: "ok" | "error";
+  } | null>(null);
   const [modal, setModal] = useState<"export" | "import" | null>(null);
   const [exportTab, setExportTab] = useState<"ddl" | "plsql" | "combined">(
     "ddl",
@@ -233,7 +246,9 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
   const [copied, setCopied] = useState(false);
   const [tableQuery, setTableQuery] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [panelTab, setPanelTab] = useState<"tables" | "relationships">("tables");
+  const [panelTab, setPanelTab] = useState<"tables" | "relationships">(
+    "tables",
+  );
   const [panelMode, setPanelMode] = useState<"structure" | "code">("structure");
   const [issuesOpen, setIssuesOpen] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -287,36 +302,116 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
         : { x: table.x, y: table.y },
     [dragPosition],
   );
-  const canvasPoint = useCallback((event: { clientX: number; clientY: number }) => {
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (!rect) return { x: 0, y: 0 };
-    return { x: (event.clientX - rect.left - pan.x) / zoom, y: (event.clientY - rect.top - pan.y) / zoom };
-  }, [pan.x, pan.y, zoom]);
-  const rowPoint = useCallback((table: Table, columnIndex: number) => {
-    const position = livePosition(table);
-    return { x: position.x, y: position.y + HEADER_HEIGHT + columnIndex * ROW_HEIGHT + ROW_HEIGHT / 2 };
-  }, [livePosition]);
-  const startLinking = (event: ReactPointerEvent, table: Table, column: Column, columnIndex: number) => {
+  const canvasPoint = useCallback(
+    (event: { clientX: number; clientY: number }) => {
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (!rect) return { x: 0, y: 0 };
+      return {
+        x: (event.clientX - rect.left - pan.x) / zoom,
+        y: (event.clientY - rect.top - pan.y) / zoom,
+      };
+    },
+    [pan.x, pan.y, zoom],
+  );
+  const rowPoint = useCallback(
+    (table: Table, columnIndex: number) => {
+      const position = livePosition(table);
+      return {
+        x: position.x,
+        y:
+          position.y +
+          HEADER_HEIGHT +
+          columnIndex * ROW_HEIGHT +
+          ROW_HEIGHT / 2,
+      };
+    },
+    [livePosition],
+  );
+  const startLinking = (
+    event: ReactPointerEvent,
+    table: Table,
+    column: Column,
+    columnIndex: number,
+  ) => {
     event.stopPropagation();
     const point = rowPoint(table, columnIndex);
-    setLinking({ pointerId: event.pointerId, sourceTableId: table.id, sourceColumnId: column.id, startX: point.x, startY: point.y, x: point.x, y: point.y });
+    setLinking({
+      pointerId: event.pointerId,
+      sourceTableId: table.id,
+      sourceColumnId: column.id,
+      startX: point.x,
+      startY: point.y,
+      x: point.x,
+      y: point.y,
+    });
   };
   const finishLinking = (event: ReactPointerEvent) => {
     if (!linking || linking.pointerId !== event.pointerId) return;
-    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-table-id][data-column-id]");
+    const target = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest<HTMLElement>("[data-table-id][data-column-id]");
     const targetTableId = target?.dataset.tableId;
     const targetColumnId = target?.dataset.columnId;
-    if (targetTableId && targetColumnId && !(targetTableId === linking.sourceTableId && targetColumnId === linking.sourceColumnId)) {
-      const sourceTable = schema.tables.find((table) => table.id === linking.sourceTableId);
-      const sourceColumn = sourceTable?.columns.find((column) => column.id === linking.sourceColumnId);
-      const targetTable = schema.tables.find((table) => table.id === targetTableId);
-      const targetColumn = targetTable?.columns.find((column) => column.id === targetColumnId);
-      if (sourceTable && sourceColumn && targetTable && targetColumn && sourceColumn.type === targetColumn.type) {
-        const child = sourceColumn.pk ? { table: targetTable, column: targetColumn } : { table: sourceTable, column: sourceColumn };
-        const parent = sourceColumn.pk ? { table: sourceTable, column: sourceColumn } : { table: targetTable, column: targetColumn };
+    if (
+      targetTableId &&
+      targetColumnId &&
+      !(
+        targetTableId === linking.sourceTableId &&
+        targetColumnId === linking.sourceColumnId
+      )
+    ) {
+      const sourceTable = schema.tables.find(
+        (table) => table.id === linking.sourceTableId,
+      );
+      const sourceColumn = sourceTable?.columns.find(
+        (column) => column.id === linking.sourceColumnId,
+      );
+      const targetTable = schema.tables.find(
+        (table) => table.id === targetTableId,
+      );
+      const targetColumn = targetTable?.columns.find(
+        (column) => column.id === targetColumnId,
+      );
+      if (
+        sourceTable &&
+        sourceColumn &&
+        targetTable &&
+        targetColumn &&
+        sourceColumn.type === targetColumn.type
+      ) {
+        const child = sourceColumn.pk
+          ? { table: targetTable, column: targetColumn }
+          : { table: sourceTable, column: sourceColumn };
+        const parent = sourceColumn.pk
+          ? { table: sourceTable, column: sourceColumn }
+          : { table: targetTable, column: targetColumn };
         if (!child.column.pk && parent.column.pk) {
-          commit({ ...schema, tables: schema.tables.map((table) => table.id === child.table.id ? { ...table, columns: table.columns.map((column) => column.id === child.column.id ? { ...column, fk: { tableId: parent.table.id, columnId: parent.column.id } } : column) } : table) });
-          setToast({ text: `Linked ${child.table.name}.${child.column.name} to ${parent.table.name}.${parent.column.name}.`, tone: "ok" });
+          commit({
+            ...schema,
+            tables: schema.tables.map((table) =>
+              table.id === child.table.id
+                ? {
+                    ...table,
+                    columns: table.columns.map((column) =>
+                      column.id === child.column.id
+                        ? {
+                            ...column,
+                            fk: {
+                              tableId: parent.table.id,
+                              columnId: parent.column.id,
+                            },
+                          }
+                        : column,
+                    ),
+                  }
+                : table,
+            ),
+          });
+          setPanelTab("relationships");
+          setToast({
+            text: `Linked ${child.table.name}.${child.column.name} to ${parent.table.name}.${parent.column.name}.`,
+            tone: "ok",
+          });
         }
       }
     }
@@ -327,7 +422,9 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
   const filteredTables = useMemo(() => {
     const query = tableQuery.trim().toUpperCase();
     return query
-      ? schema.tables.filter((table) => table.name.toUpperCase().includes(query))
+      ? schema.tables.filter((table) =>
+          table.name.toUpperCase().includes(query),
+        )
       : schema.tables;
   }, [schema.tables, tableQuery]);
   const compatibleForeignKeyTargets = (column: Column) =>
@@ -486,7 +583,9 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
     const padding = 48;
     const minX = Math.min(...schema.tables.map((table) => table.x));
     const minY = Math.min(...schema.tables.map((table) => table.y));
-    const maxX = Math.max(...schema.tables.map((table) => table.x + TABLE_WIDTH));
+    const maxX = Math.max(
+      ...schema.tables.map((table) => table.x + TABLE_WIDTH),
+    );
     const maxY = Math.max(
       ...schema.tables.map((table) => table.y + tableHeight(table)),
     );
@@ -534,7 +633,10 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
   }, []);
 
   const commitPosition = useCallback((id: string, x: number, y: number) => {
-    setHistory((items) => [...items.slice(-49), cloneSchema(schemaRef.current)]);
+    setHistory((items) => [
+      ...items.slice(-49),
+      cloneSchema(schemaRef.current),
+    ]);
     setFuture([]);
     setSchema((current) => ({
       ...current,
@@ -598,8 +700,10 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
       const now = event.timeStamp || performance.now();
       if (
         !gesture.moved &&
-        Math.hypot(event.clientX - gesture.startX, event.clientY - gesture.startY) <
-          DRAG_THRESHOLD
+        Math.hypot(
+          event.clientX - gesture.startX,
+          event.clientY - gesture.startY,
+        ) < DRAG_THRESHOLD
       ) {
         return; // hysteresis: not a drag yet
       }
@@ -625,9 +729,11 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
       if (!rect || !table) return;
       const bounds = tableBounds(table);
       const rawX =
-        (event.clientX - rect.left - panRef.current.x) / zoomRef.current - gesture.grabX;
+        (event.clientX - rect.left - panRef.current.x) / zoomRef.current -
+        gesture.grabX;
       const rawY =
-        (event.clientY - rect.top - panRef.current.y) / zoomRef.current - gesture.grabY;
+        (event.clientY - rect.top - panRef.current.y) / zoomRef.current -
+        gesture.grabY;
       const next = {
         x: rubberClamp(rawX, bounds.minX, bounds.maxX, CANVAS_WIDTH),
         y: rubberClamp(rawY, bounds.minY, bounds.maxY, CANVAS_HEIGHT),
@@ -657,7 +763,13 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
           y: Math.max(bounds.minY, Math.min(bounds.maxY, projected.y)),
         };
         const flicked = Math.hypot(velocity.x, velocity.y) > 60;
-        animateTo(current, target, velocity, flicked ? FLICK_SPRING : SETTLE_SPRING, setPan);
+        animateTo(
+          current,
+          target,
+          velocity,
+          flicked ? FLICK_SPRING : SETTLE_SPRING,
+          setPan,
+        );
         return;
       }
 
@@ -675,7 +787,8 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
         y: gesture.originY,
       };
       const live = dragPositionRef.current;
-      const from = live && live.id === table.id ? { x: live.x, y: live.y } : current;
+      const from =
+        live && live.id === table.id ? { x: live.x, y: live.y } : current;
       const projected = {
         x: from.x + project(velocity.x),
         y: from.y + project(velocity.y),
@@ -691,7 +804,8 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
         velocity,
         flicked ? FLICK_SPRING : SETTLE_SPRING,
         (value) => setDragPosition({ id: table.id, ...value }),
-        (value) => commitPosition(table.id, Math.round(value.x), Math.round(value.y)),
+        (value) =>
+          commitPosition(table.id, Math.round(value.x), Math.round(value.y)),
       );
     };
 
@@ -739,14 +853,23 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
           y: (pointer.y - panRef.current.y) / currentZoom,
         };
         setZoom(next);
-        setPan({ x: pointer.x - world.x * next, y: pointer.y - world.y * next });
+        setPan({
+          x: pointer.x - world.x * next,
+          y: pointer.y - world.y * next,
+        });
         return;
       }
 
       const bounds = panBounds(zoomRef.current);
       setPan((current) => ({
-        x: Math.max(bounds.minX, Math.min(bounds.maxX, current.x - event.deltaX)),
-        y: Math.max(bounds.minY, Math.min(bounds.maxY, current.y - event.deltaY)),
+        x: Math.max(
+          bounds.minX,
+          Math.min(bounds.maxX, current.x - event.deltaX),
+        ),
+        y: Math.max(
+          bounds.minY,
+          Math.min(bounds.maxY, current.y - event.deltaY),
+        ),
       }));
     };
     element.addEventListener("wheel", onWheel, { passive: false });
@@ -945,13 +1068,32 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
 
   const save = async (overwrite = false) => {
     try {
-      const response = await fetch(`/api/projects/${projectId}${workspaceSlug ? `?workspace=${encodeURIComponent(workspaceSlug)}` : ""}`, {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ schema, overwrite }),
-      });
-      if (response.ok) { const next = (await response.json()) as Schema; setSchema((current) => ({ ...current, revision: next.revision })); setDirty(false); lastSavedNameRef.current = next.name; }
-      else if (response.status === 409) { setToast({ text: "This project changed elsewhere. Overwrite your save?", tone: "error" }); if (window.confirm("This project changed elsewhere. Overwrite the other changes?")) await save(true); return; }
+      const response = await fetch(
+        `/api/projects/${projectId}${workspaceSlug ? `?workspace=${encodeURIComponent(workspaceSlug)}` : ""}`,
+        {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ schema, overwrite }),
+        },
+      );
+      if (response.ok) {
+        const next = (await response.json()) as Schema;
+        setSchema((current) => ({ ...current, revision: next.revision }));
+        setDirty(false);
+        lastSavedNameRef.current = next.name;
+      } else if (response.status === 409) {
+        setToast({
+          text: "This project changed elsewhere. Overwrite your save?",
+          tone: "error",
+        });
+        if (
+          window.confirm(
+            "This project changed elsewhere. Overwrite the other changes?",
+          )
+        )
+          await save(true);
+        return;
+      }
       setToast(
         response.ok
           ? { text: "Project saved.", tone: "ok" }
@@ -965,14 +1107,33 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
     }
   };
 
-  useEffect(() => { if (!dirty) return; const timer = window.setTimeout(() => void save(), 1500); return () => window.clearTimeout(timer); }, [dirty, schema, projectId, workspaceSlug]);
+  useEffect(() => {
+    if (!dirty) return;
+    const timer = window.setTimeout(() => void save(), 1500);
+    return () => window.clearTimeout(timer);
+  }, [dirty, schema, projectId, workspaceSlug]);
 
   useEffect(() => {
     if (schema.name === lastSavedNameRef.current) return;
     const timer = window.setTimeout(async () => {
-      const response = await fetch(`/api/projects/${projectId}${workspaceSlug ? `?workspace=${encodeURIComponent(workspaceSlug)}` : ""}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: schema.name, revision: schema.revision }) });
-      if (response.ok) { const next = (await response.json()) as Schema; setSchema((current) => ({ ...current, revision: next.revision })); lastSavedNameRef.current = next.name; setDirty(false); }
-      else if (response.status === 409) setToast({ text: "The name changed elsewhere.", tone: "error" });
+      const response = await fetch(
+        `/api/projects/${projectId}${workspaceSlug ? `?workspace=${encodeURIComponent(workspaceSlug)}` : ""}`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            name: schema.name,
+            revision: schema.revision,
+          }),
+        },
+      );
+      if (response.ok) {
+        const next = (await response.json()) as Schema;
+        setSchema((current) => ({ ...current, revision: next.revision }));
+        lastSavedNameRef.current = next.name;
+        setDirty(false);
+      } else if (response.status === 409)
+        setToast({ text: "The name changed elsewhere.", tone: "error" });
     }, 700);
     return () => window.clearTimeout(timer);
   }, [schema.name, schema.revision, projectId, workspaceSlug]);
@@ -1038,11 +1199,7 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
       ),
     [schema],
   );
-  const relationshipPoint = (
-    table: Table,
-    index: number,
-    other: Table,
-  ) => {
+  const relationshipPoint = (table: Table, index: number, other: Table) => {
     // Anchors follow the live position so edges stay attached mid-drag.
     const origin = livePosition(table);
     const otherOrigin = livePosition(other);
@@ -1089,7 +1246,27 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
   );
 
   const fileMenu: MenuItem[] = [
-    { label: "New diagram", onSelect: async () => { const response = await fetch("/api/projects", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...(workspaceSlug ? { workspace: workspaceSlug } : {}), name: "Untitled Diagram" }) }); if (response.ok) { const created = await response.json() as Schema; router.push(workspaceSlug ? `/${workspaceSlug}/${created.id}` : `/project/${created.id}`); } else setToast({ text: "Could not create project.", tone: "error" }); } },
+    {
+      label: "New diagram",
+      onSelect: async () => {
+        const response = await fetch("/api/projects", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            ...(workspaceSlug ? { workspace: workspaceSlug } : {}),
+            name: "Untitled Diagram",
+          }),
+        });
+        if (response.ok) {
+          const created = (await response.json()) as Schema;
+          router.push(
+            workspaceSlug
+              ? `/${workspaceSlug}/${created.id}`
+              : `/project/${created.id}`,
+          );
+        } else setToast({ text: "Could not create project.", tone: "error" });
+      },
+    },
     { separator: true },
     { label: "Import DDL…", onSelect: () => setModal("import") },
     { label: "Export…", onSelect: () => setModal("export"), hint: "⌘E" },
@@ -1101,7 +1278,11 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
     { label: "Redo", onSelect: redo, disabled: !future.length, hint: "⇧⌘Z" },
     { separator: true },
     { label: "Add table", onSelect: addTable },
-    { label: "Add junction table", onSelect: makeJunction, disabled: !selected },
+    {
+      label: "Add junction table",
+      onSelect: makeJunction,
+      disabled: !selected,
+    },
     { separator: true },
     {
       label: "Delete selected table",
@@ -1127,7 +1308,10 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
     {
       label: "Oracle target: 12.2+",
       onSelect: () =>
-        setToast({ text: "Generating DDL for Oracle 12.2 and later.", tone: "ok" }),
+        setToast({
+          text: "Generating DDL for Oracle 12.2 and later.",
+          tone: "ok",
+        }),
     },
   ];
 
@@ -1142,18 +1326,28 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
   return (
     <div className="app">
       <header className="appbar">
-        <a className="appbar-brand" aria-label="DrawSQL home" href="/"><BrandMark compact /></a>
+        <a className="appbar-brand" aria-label="DrawSQL home" href="/">
+          <BrandMark compact />
+        </a>
         <div className="appbar-main">
           <div className="appbar-title">
             <Database size={17} className="appbar-title-icon" />
-            <a className="appbar-crumb" href={workspaceSlug ? `/${workspaceSlug}` : "/"}>{workspaceSlug ? "Diagrams" : "My diagrams"}</a>
+            <a
+              className="appbar-crumb"
+              href={workspaceSlug ? `/${workspaceSlug}` : "/"}
+            >
+              {workspaceSlug ? "Diagrams" : "My diagrams"}
+            </a>
             <span className="appbar-slash">/</span>
             <input
               className="appbar-name"
               aria-label="Diagram name"
               value={schema.name}
               onChange={(event) => {
-                setSchema((current) => ({ ...current, name: event.target.value }));
+                setSchema((current) => ({
+                  ...current,
+                  name: event.target.value,
+                }));
                 setDirty(true);
               }}
             />
@@ -1195,7 +1389,9 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
                 <button
                   type="button"
                   role="menuitem"
-                  onClick={() => void authClient.signOut().then(() => router.push("/login"))}
+                  onClick={() =>
+                    void authClient.signOut().then(() => router.push("/login"))
+                  }
                 >
                   <UserRound size={15} /> Sign out
                 </button>
@@ -1287,7 +1483,9 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
                         className="entity-head"
                         aria-expanded={selectedId === table.id}
                         onClick={() =>
-                          setSelectedId(selectedId === table.id ? null : table.id)
+                          setSelectedId(
+                            selectedId === table.id ? null : table.id,
+                          )
                         }
                       >
                         <span
@@ -1314,32 +1512,40 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
                                 className="input"
                                 value={table.name}
                                 onChange={(event) =>
-                                  patchTable(table.id, { name: event.target.value })
+                                  patchTable(table.id, {
+                                    name: event.target.value,
+                                  })
                                 }
                               />
                             </label>
                             <label className="field">
-                              <span className="field-label">Key generation</span>
+                              <span className="field-label">
+                                Key generation
+                              </span>
                               <select
                                 className="select"
                                 value={table.keyStrategy}
                                 onChange={(event) =>
                                   patchTable(table.id, {
-                                    keyStrategy: event.target.value as KeyStrategy,
+                                    keyStrategy: event.target
+                                      .value as KeyStrategy,
                                   })
                                 }
                               >
                                 <option value="sequence-trigger">
                                   Sequence + trigger
                                 </option>
-                                <option value="identity">Generated identity</option>
+                                <option value="identity">
+                                  Generated identity
+                                </option>
                                 <option value="none">Manual / none</option>
                               </select>
                             </label>
                           </div>
                           {primaryKeyColumns(table).length > 1 && (
                             <p className="hint">
-                              Composite primary key — manual key generation required.
+                              Composite primary key — manual key generation
+                              required.
                             </p>
                           )}
 
@@ -1359,7 +1565,9 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
                                 <Button
                                   className="icon-btn danger"
                                   aria-label={`Delete column ${column.name}`}
-                                  onClick={() => deleteColumn(table.id, column.id)}
+                                  onClick={() =>
+                                    deleteColumn(table.id, column.id)
+                                  }
                                 >
                                   <Trash2 size={14} />
                                 </Button>
@@ -1371,7 +1579,8 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
                                   value={column.type}
                                   onChange={(event) =>
                                     patchColumn(table.id, column.id, {
-                                      type: event.target.value as Column["type"],
+                                      type: event.target
+                                        .value as Column["type"],
                                     })
                                   }
                                 >
@@ -1383,7 +1592,9 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
                                   <Input
                                     className="input"
                                     aria-label={`Size for ${column.name}`}
-                                    placeholder={typeSizePlaceholder(column.type)}
+                                    placeholder={typeSizePlaceholder(
+                                      column.type,
+                                    )}
                                     value={column.size}
                                     onChange={(event) =>
                                       patchColumn(table.id, column.id, {
@@ -1595,7 +1806,9 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
                       type="button"
                       className={`issue ${issue.severity}`}
                       key={`${issue.message}-${issue.columnId ?? issue.tableId ?? ""}`}
-                      onClick={() => issue.tableId && setSelectedId(issue.tableId)}
+                      onClick={() =>
+                        issue.tableId && setSelectedId(issue.tableId)
+                      }
                     >
                       {issue.message}
                     </button>
@@ -1621,9 +1834,16 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
           ref={canvasRef}
           className={`canvas-wrap ${grabbing ? "grabbing" : ""}`}
           onPointerDown={onCanvasDown}
-          onPointerMove={(event) => linking && setLinking((current) => current ? { ...current, ...canvasPoint(event) } : current)}
+          onPointerMove={(event) =>
+            linking &&
+            setLinking((current) =>
+              current ? { ...current, ...canvasPoint(event) } : current,
+            )
+          }
           onPointerUp={finishLinking}
-          onPointerCancel={(event) => { if (linking?.pointerId === event.pointerId) setLinking(null); }}
+          onPointerCancel={(event) => {
+            if (linking?.pointerId === event.pointerId) setLinking(null);
+          }}
         >
           <div
             className="canvas"
@@ -1669,6 +1889,40 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
                       d={path}
                       className={`relationship-path ${active ? "active" : ""}`}
                     />
+                    <circle
+                      className="relationship-marker"
+                      cx={from.x}
+                      cy={from.y}
+                      r="8"
+                    />
+                    <text
+                      className="relationship-marker-text"
+                      x={from.x}
+                      y={from.y + 3}
+                    >
+                      1
+                    </text>
+                    <circle
+                      className="relationship-marker"
+                      cx={to.x}
+                      cy={to.y}
+                      r="8"
+                    />
+                    <text
+                      className="relationship-marker-text"
+                      x={to.x}
+                      y={to.y + 3}
+                    >
+                      *
+                    </text>
+                    <text
+                      className="relationship-label"
+                      x={(from.x + to.x) / 2}
+                      y={(from.y + to.y) / 2 - 8}
+                      textAnchor="middle"
+                    >
+                      {`${relationship.from.name}.${relationship.from.columns[relationship.fromIndex].name} → ${relationship.to.name}.${relationship.to.columns[relationship.toIndex].name}`}
+                    </text>
                   </g>
                 );
               })}
@@ -1703,7 +1957,9 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
                     className="table-head"
                     onPointerDown={(event) => onHeaderDown(event, table)}
                   >
-                    <span className="table-name">{table.name.toUpperCase()}</span>
+                    <span className="table-name">
+                      {table.name.toUpperCase()}
+                    </span>
                     <span className="table-strategy">
                       {table.keyStrategy === "sequence-trigger"
                         ? "SEQ+TRG"
@@ -1713,13 +1969,38 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
                     </span>
                   </div>
                   {table.columns.map((column) => (
-                    <div className="table-row" key={column.id} data-table-id={table.id} data-column-id={column.id}>
-                      <span className="row-grip" role="button" tabIndex={0} aria-label={`Link ${table.name}.${column.name}`} onPointerDown={(event) => startLinking(event, table, column, table.columns.indexOf(column))} aria-hidden="false" />
-                      <span className="row-name">{column.name.toUpperCase()}</span>
+                    <div
+                      className="table-row"
+                      key={column.id}
+                      data-table-id={table.id}
+                      data-column-id={column.id}
+                    >
+                      <span
+                        className="row-grip"
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Link ${table.name}.${column.name}`}
+                        onPointerDown={(event) =>
+                          startLinking(
+                            event,
+                            table,
+                            column,
+                            table.columns.indexOf(column),
+                          )
+                        }
+                        aria-hidden="false"
+                      />
+                      <span className="row-name">
+                        {column.name.toUpperCase()}
+                      </span>
                       <span className="row-meta">
                         {column.pk && <KeyRound size={13} aria-hidden="true" />}
                         {column.fk && (
-                          <Link2 size={13} className="fk-dot" aria-hidden="true" />
+                          <Link2
+                            size={13}
+                            className="fk-dot"
+                            aria-hidden="true"
+                          />
                         )}
                         {!column.notNull && !column.pk && (
                           <span className="row-nullable" title="Nullable">
@@ -1741,7 +2022,21 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
             })}
           </div>
 
-          {linking && <svg className="linking-overlay" width={CANVAS_WIDTH} height={CANVAS_HEIGHT} style={{ transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})` }} aria-hidden="true"><path d={`M ${linking.startX} ${linking.startY} L ${linking.x} ${linking.y}`} /></svg>}
+          {linking && (
+            <svg
+              className="linking-overlay"
+              width={CANVAS_WIDTH}
+              height={CANVAS_HEIGHT}
+              style={{
+                transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
+              }}
+              aria-hidden="true"
+            >
+              <path
+                d={`M ${linking.startX} ${linking.startY} L ${linking.x} ${linking.y}`}
+              />
+            </svg>
+          )}
 
           <div className="dock" role="toolbar" aria-label="Canvas controls">
             <button
@@ -1752,13 +2047,21 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
               <LayoutGrid size={17} />
             </button>
             <span className="dock-divider" />
-            <button type="button" aria-label="Zoom out" onClick={() => zoomBy(-0.1)}>
+            <button
+              type="button"
+              aria-label="Zoom out"
+              onClick={() => zoomBy(-0.1)}
+            >
               <ZoomOut size={17} />
             </button>
             <span className="dock-zoom" aria-live="polite" aria-atomic="true">
               {Math.round(zoom * 100)}%
             </span>
-            <button type="button" aria-label="Zoom in" onClick={() => zoomBy(0.1)}>
+            <button
+              type="button"
+              aria-label="Zoom in"
+              onClick={() => zoomBy(0.1)}
+            >
               <ZoomIn size={17} />
             </button>
             <span className="dock-divider" />
@@ -1794,7 +2097,11 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
               <Maximize2 size={17} />
             </button>
             <span className="dock-divider" />
-            <button type="button" aria-label="Save to database" onClick={() => void save()}>
+            <button
+              type="button"
+              aria-label="Save to database"
+              onClick={() => void save()}
+            >
               <Save size={17} />
             </button>
             <button
@@ -1805,15 +2112,6 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
               <Download size={17} />
             </button>
           </div>
-
-          <button
-            type="button"
-            className="fab"
-            aria-label="Add table"
-            onClick={addTable}
-          >
-            <Plus size={22} />
-          </button>
         </div>
       </div>
 
@@ -1959,7 +2257,9 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
 
       <div className="toast-region" role="status" aria-live="polite">
         {toast && (
-          <div className={`toast ${toast.tone === "error" ? "toast-error" : ""}`}>
+          <div
+            className={`toast ${toast.tone === "error" ? "toast-error" : ""}`}
+          >
             {toast.tone === "error" ? <X size={14} /> : <Check size={14} />}
             {toast.text}
           </div>

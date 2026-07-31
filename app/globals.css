@@ -857,6 +857,9 @@ button {
   stroke: #0084d1;
   stroke-width: 4;
 }
+.relationship-marker { fill: #71717a; stroke: #fff; stroke-width: 2; pointer-events: none; }
+.relationship-marker-text { fill: #fff; font: 700 9px/1 var(--font-sans), sans-serif; text-anchor: middle; pointer-events: none; }
+.relationship-label { fill: var(--ink-3); font: 600 10px/1 var(--font-sans), sans-serif; letter-spacing: .01em; paint-order: stroke; stroke: #fff; stroke-width: 5px; stroke-linejoin: round; pointer-events: none; }
 /* Marching ants on hover make it obvious which two fields are joined. */
 .relationship:hover .relationship-path {
   stroke: #0084d1;
