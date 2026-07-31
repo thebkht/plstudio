@@ -1,42 +1,15 @@
-import { eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { projects } from "@/db/schema";
-import { SCHEMA_FORMAT_VERSION, type Schema } from "@/app/lib/schema";
+import { makeDemoSchema, SCHEMA_FORMAT_VERSION } from "@/app/lib/schema";
+import { requireWorkspace } from "@/app/lib/session";
 
-export async function GET() {
-  try {
-    const rows = await getDb().select().from(projects).orderBy(projects.updatedAt);
-    return Response.json(rows);
-  } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "Database unavailable" }, { status: 503 });
-  }
+export async function GET(request: Request) {
+  try { const workspace = new URL(request.url).searchParams.get("workspace"); if (!workspace) return Response.json({ error: "workspace is required" }, { status: 400 }); const { organization } = await requireWorkspace(workspace); return Response.json(await getDb().select().from(projects).where(eq(projects.organizationId, organization.id)).orderBy(desc(projects.updatedAt))); }
+  catch (error) { return Response.json({ error: error instanceof Error ? error.message : "Database unavailable" }, { status: 503 }); }
 }
 
 export async function POST(request: Request) {
-  try {
-    const input = (await request.json()) as { schema: Schema };
-    const schema = input.schema;
-    const row = { id: schema.id, name: schema.name, schemaJson: schema, revision: schema.revision, schemaFormatVersion: SCHEMA_FORMAT_VERSION };
-    await getDb().insert(projects).values(row);
-    return Response.json(schema, { status: 201 });
-  } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "Could not save project" }, { status: 400 });
-  }
-}
-
-export async function PUT(request: Request) {
-  try {
-    const input = (await request.json()) as { schema: Schema; overwrite?: boolean };
-    const schema = input.schema;
-    const db = getDb();
-    const current = await db.select().from(projects).where(eq(projects.id, schema.id));
-    if (!current[0]) return Response.json({ error: "Project not found" }, { status: 404 });
-    if (!input.overwrite && current[0].revision !== schema.revision) return Response.json({ error: "REVISION_CONFLICT", current: current[0] }, { status: 409 });
-    const nextRevision = Math.max(current[0].revision, schema.revision) + 1;
-    const nextSchema = { ...schema, revision: nextRevision, schemaFormatVersion: SCHEMA_FORMAT_VERSION };
-    await db.update(projects).set({ name: nextSchema.name, schemaJson: nextSchema, revision: nextRevision, updatedAt: new Date() }).where(eq(projects.id, schema.id));
-    return Response.json(nextSchema);
-  } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "Could not update project" }, { status: 400 });
-  }
+  try { const input = (await request.json()) as { workspace?: string; name?: string }; if (!input.workspace || !input.name?.trim()) return Response.json({ error: "workspace and name are required" }, { status: 400 }); const { organization, session } = await requireWorkspace(input.workspace); const starter = { ...makeDemoSchema(), id: crypto.randomUUID(), name: input.name.trim() }; const row = { id: starter.id, name: starter.name, organizationId: organization.id, createdBy: session.user.id, schemaJson: starter, revision: 1, schemaFormatVersion: SCHEMA_FORMAT_VERSION }; await getDb().insert(projects).values(row); return Response.json(starter, { status: 201 }); }
+  catch (error) { return Response.json({ error: error instanceof Error ? error.message : "Could not create project" }, { status: 400 }); }
 }
