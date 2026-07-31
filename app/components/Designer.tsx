@@ -12,12 +12,11 @@ import {
   LayoutGrid,
   Link2,
   Minus,
-  Moon,
+  PanelLeft,
   Plus,
   Redo2,
   Search,
   Save,
-  Sun,
   Trash2,
   Undo2,
   X,
@@ -55,7 +54,6 @@ const ROW_HEIGHT = 30;
 
 export default function Designer() {
   const [schema, setSchema] = useState<Schema>(() => makeDemoSchema());
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [history, setHistory] = useState<Schema[]>([]);
   const [future, setFuture] = useState<Schema[]>([]);
@@ -83,6 +81,7 @@ export default function Designer() {
   } | null>(null);
   const [copied, setCopied] = useState(false);
   const [tableQuery, setTableQuery] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const canvasRef = useRef<HTMLDivElement>(null);
   const selected =
     schema.tables.find((table) => table.id === selectedId) ?? null;
@@ -476,10 +475,22 @@ export default function Designer() {
             <Database size={18} />
           </div>
           <div>
-            <div className="brand-title">Schema Designer</div>
+            <div className="brand-title">drawSQL</div>
             <div className="brand-sub">Oracle PL/SQL · 12.2+</div>
           </div>
         </div>
+        <div className="workspace-context">
+          <span>Diagrams</span>
+          <b>/</b>
+          <strong>Oracle Demo</strong>
+        </div>
+        <Button
+          className="btn ghost sidebar-toggle"
+          aria-label="Open tables sidebar"
+          onClick={() => setSidebarOpen((open) => !open)}
+        >
+          <PanelLeft size={16} />
+        </Button>
         <div className="toolbar">
           <div className="toolbar-group">
             <Button
@@ -516,7 +527,10 @@ export default function Designer() {
         </div>
       </header>
       <section className="workspace">
-        <aside className="tables-sidebar" aria-label="Tables">
+        <aside
+          className={`tables-sidebar ${sidebarOpen ? "open" : ""}`}
+          aria-label="Tables"
+        >
           <div className="sidebar-head">
             <div className="sidebar-title">
               <Database size={16} />
@@ -526,7 +540,10 @@ export default function Designer() {
             <Button
               className="btn ghost sidebar-collapse"
               aria-label="Collapse tables sidebar"
-              onClick={() => setTableQuery("")}
+              onClick={() => {
+                setTableQuery("");
+                setSidebarOpen(false);
+              }}
             >
               <ChevronDown size={15} />
             </Button>
