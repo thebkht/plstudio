@@ -14,6 +14,11 @@ describe("Oracle schema model", () => {
     expect(ddl).not.toContain("CREATE OR REPLACE TRIGGER");
   });
 
+  it("creates tables before sequence triggers reference them", () => {
+    const ddl = generateDDL(makeDemoSchema());
+    expect(ddl.indexOf("CREATE TABLE STUDENT")).toBeLessThan(ddl.indexOf("CREATE OR REPLACE TRIGGER TRG_STUDENT"));
+  });
+
   it("blocks foreign keys into composite primary keys", () => {
     const schema = makeDemoSchema();
     const parent = schema.tables[0];

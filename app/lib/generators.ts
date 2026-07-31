@@ -41,7 +41,6 @@ export function generateDDL(schema: Schema) {
     const tableName = normalizeIdentifier(table.name);
     const pk = primaryKeyColumns(table);
     const strategy = table.keyStrategy;
-    out.push(...keyStrategyArtifacts(table, strategy, usedNames));
     out.push(`\nCREATE TABLE ${tableName} (`);
     const lines = table.columns.map((column) => {
       const attrs = [column.notNull || column.pk ? "NOT NULL" : "", column.unique ? "UNIQUE" : "", column.defaultValue.trim() ? `DEFAULT ${column.defaultValue.trim()}` : ""].filter(Boolean).join(" ");
@@ -51,6 +50,9 @@ export function generateDDL(schema: Schema) {
     if (pk.length) lines.push(`  CONSTRAINT ${generatedName("PK", table, undefined, usedNames)} PRIMARY KEY (${pk.map((column) => normalizeIdentifier(column.name)).join(", ")})`);
     table.columns.filter((column) => column.check.trim()).forEach((column) => lines.push(`  CONSTRAINT ${generatedName("CK", table, column, usedNames)} CHECK (${column.check.trim()})`));
     out.push(lines.join(",\n"), ");", "");
+  });
+  schema.tables.forEach((table) => {
+    out.push(...keyStrategyArtifacts(table, table.keyStrategy, usedNames));
   });
   const fks: string[] = [];
   schema.tables.forEach((table) => table.columns.forEach((column) => {
