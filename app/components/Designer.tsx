@@ -299,7 +299,6 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
   const startLinking = (event: ReactPointerEvent, table: Table, column: Column, columnIndex: number) => {
     event.stopPropagation();
     const point = rowPoint(table, columnIndex);
-    canvasRef.current?.setPointerCapture(event.pointerId);
     setLinking({ pointerId: event.pointerId, sourceTableId: table.id, sourceColumnId: column.id, startX: point.x, startY: point.y, x: point.x, y: point.y });
   };
   const finishLinking = (event: ReactPointerEvent) => {
@@ -321,7 +320,6 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
         }
       }
     }
-    canvasRef.current?.releasePointerCapture(event.pointerId);
     setLinking(null);
   };
   const selected =
