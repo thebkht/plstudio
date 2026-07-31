@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateDDL } from "@/app/lib/generators";
 import { parseCreateTable } from "@/app/lib/parser";
-import { makeDemoSchema, makeTable } from "@/app/lib/schema";
+import { makeDemoSchema, makeMemo, makeTable, normalizeMemos } from "@/app/lib/schema";
 import { validateCheckExpression, validateSchema, validateTypeSpec } from "@/app/lib/validation";
 
 describe("Oracle schema model", () => {
@@ -61,5 +61,15 @@ describe("Oracle schema model", () => {
     table.columns[0].pk = true;
     table.columns.push({ ...table.columns[0], id: "other", name: "OTHER_ID" });
     expect(table.columns.filter((column) => column.pk)).toHaveLength(2);
+  });
+
+  it("creates memo defaults and normalizes legacy memo data", () => {
+    const memo = makeMemo("Note", 20, 30, "blue");
+    expect(memo).toMatchObject({ text: "Note", x: 20, y: 30, color: "blue" });
+    expect(normalizeMemos([memo, { id: "legacy", text: 12, color: "invalid" }])).toEqual([
+      memo,
+      { id: "legacy", text: "", x: 160, y: 120, width: 280, height: 170, color: "yellow" },
+    ]);
+    expect(normalizeMemos(undefined)).toEqual([]);
   });
 });

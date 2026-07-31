@@ -25,6 +25,7 @@ export const ORACLE_TYPES = [
 
 export type OracleType = (typeof ORACLE_TYPES)[number];
 export type KeyStrategy = "none" | "sequence-trigger" | "identity";
+export type MemoColor = "yellow" | "blue" | "green" | "pink";
 
 export type ForeignKeyRef = { tableId: string; columnId: string };
 
@@ -51,12 +52,23 @@ export type Table = {
   columns: Column[];
 };
 
+export type Memo = {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color: MemoColor;
+};
+
 export type Schema = {
   id: string;
   name: string;
   revision: number;
   schemaFormatVersion: number;
   tables: Table[];
+  memos?: Memo[];
   updatedAt?: string;
 };
 
@@ -109,6 +121,43 @@ export function makeTable(name: string, x: number, y: number, colorIndex = 0): T
   };
 }
 
+export function makeMemo(
+  text = "",
+  x = 160,
+  y = 120,
+  color: MemoColor = "yellow",
+): Memo {
+  return {
+    id: nextId("memo"),
+    text,
+    x,
+    y,
+    width: 280,
+    height: 170,
+    color,
+  };
+}
+
+const MEMO_COLORS: MemoColor[] = ["yellow", "blue", "green", "pink"];
+
+export function normalizeMemos(value: unknown): Memo[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const memo = item as Partial<Memo>;
+    if (typeof memo.id !== "string") return [];
+    return [{
+      id: memo.id,
+      text: typeof memo.text === "string" ? memo.text : "",
+      x: typeof memo.x === "number" && Number.isFinite(memo.x) ? memo.x : 160,
+      y: typeof memo.y === "number" && Number.isFinite(memo.y) ? memo.y : 120,
+      width: typeof memo.width === "number" && Number.isFinite(memo.width) ? Math.max(180, memo.width) : 280,
+      height: typeof memo.height === "number" && Number.isFinite(memo.height) ? Math.max(100, memo.height) : 170,
+      color: MEMO_COLORS.includes(memo.color as MemoColor) ? memo.color as MemoColor : "yellow",
+    }];
+  });
+}
+
 export function makeDemoSchema(): Schema {
   const student = makeTable("STUDENT", 80, 90, 0);
   const enrollment = makeTable("ENROLLMENT", 460, 270, 1);
@@ -125,6 +174,7 @@ export function makeDemoSchema(): Schema {
     revision: 1,
     schemaFormatVersion: SCHEMA_FORMAT_VERSION,
     tables: [student, enrollment],
+    memos: [],
   };
 }
 
@@ -135,6 +185,7 @@ export function makeEmptySchema(name = "Untitled Diagram", id = nextId("schema")
     revision: 1,
     schemaFormatVersion: SCHEMA_FORMAT_VERSION,
     tables: [],
+    memos: [],
   };
 }
 
