@@ -304,7 +304,7 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
   };
   const finishLinking = (event: ReactPointerEvent) => {
     if (!linking || linking.pointerId !== event.pointerId) return;
-    const target = (event.target as HTMLElement).closest<HTMLElement>("[data-table-id][data-column-id]");
+    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-table-id][data-column-id]");
     const targetTableId = target?.dataset.tableId;
     const targetColumnId = target?.dataset.columnId;
     if (targetTableId && targetColumnId && !(targetTableId === linking.sourceTableId && targetColumnId === linking.sourceColumnId)) {
