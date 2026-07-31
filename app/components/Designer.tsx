@@ -36,6 +36,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -54,7 +55,6 @@ import {
 import {
   cloneSchema,
   makeColumn,
-  makeDemoSchema,
   makeTable,
   ORACLE_TYPES,
   primaryKeyColumns,
@@ -71,6 +71,7 @@ import {
   type KeyStrategy,
 } from "@/app/lib/schema";
 import { validateSchema } from "@/app/lib/validation";
+import { authClient } from "@/app/lib/auth-client";
 
 /** Header offset for row anchors: the colour strip sits above the title bar. */
 const HEADER_HEIGHT = TABLE_COLOR_STRIP_HEIGHT + TABLE_HEADER_HEIGHT;
@@ -200,8 +201,9 @@ function Menu({
   );
 }
 
-export default function Designer() {
-  const [schema, setSchema] = useState<Schema>(() => makeDemoSchema());
+export default function Designer({ initialSchema, projectId, workspaceSlug }: { initialSchema: Schema; projectId: string; workspaceSlug: string }) {
+  const router = useRouter();
+  const [schema, setSchema] = useState<Schema>(() => initialSchema);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [history, setHistory] = useState<Schema[]>([]);
   const [future, setFuture] = useState<Schema[]>([]);
@@ -233,8 +235,8 @@ export default function Designer() {
   const [panelMode, setPanelMode] = useState<"structure" | "code">("structure");
   const [issuesOpen, setIssuesOpen] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
-  const [diagramName, setDiagramName] = useState("Untitled Diagram");
   const [dirty, setDirty] = useState(false);
+  const lastSavedNameRef = useRef(initialSchema.name);
   const canvasRef = useRef<HTMLDivElement>(null);
   const importHighlightRef = useRef<HTMLPreElement>(null);
   /**
@@ -894,14 +896,15 @@ export default function Designer() {
     commit(next);
   };
 
-  const save = async () => {
+  const save = async (overwrite = false) => {
     try {
-      const response = await fetch("/api/projects", {
-        method: "POST",
+      const response = await fetch(`/api/projects/${projectId}?workspace=${encodeURIComponent(workspaceSlug)}`, {
+        method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ schema }),
+        body: JSON.stringify({ schema, overwrite }),
       });
-      if (response.ok) setDirty(false);
+      if (response.ok) { const next = (await response.json()) as Schema; setSchema((current) => ({ ...current, revision: next.revision })); setDirty(false); lastSavedNameRef.current = next.name; }
+      else if (response.status === 409) { setToast({ text: "This project changed elsewhere. Overwrite your save?", tone: "error" }); if (window.confirm("This project changed elsewhere. Overwrite the other changes?")) await save(true); return; }
       setToast(
         response.ok
           ? { text: "Project saved.", tone: "ok" }
@@ -914,6 +917,18 @@ export default function Designer() {
       setToast({ text: "Could not reach the server.", tone: "error" });
     }
   };
+
+  useEffect(() => { if (!dirty) return; const timer = window.setTimeout(() => void save(), 1500); return () => window.clearTimeout(timer); }, [dirty, schema, projectId, workspaceSlug]);
+
+  useEffect(() => {
+    if (schema.name === lastSavedNameRef.current) return;
+    const timer = window.setTimeout(async () => {
+      const response = await fetch(`/api/projects/${projectId}?workspace=${encodeURIComponent(workspaceSlug)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: schema.name, revision: schema.revision }) });
+      if (response.ok) { const next = (await response.json()) as Schema; setSchema((current) => ({ ...current, revision: next.revision })); lastSavedNameRef.current = next.name; setDirty(false); }
+      else if (response.status === 409) setToast({ text: "The name changed elsewhere.", tone: "error" });
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [schema.name, schema.revision, projectId, workspaceSlug]);
 
   useEffect(() => {
     if (!toast) return;
@@ -1026,7 +1041,7 @@ export default function Designer() {
   );
 
   const fileMenu: MenuItem[] = [
-    { label: "New diagram", onSelect: () => commit(makeDemoSchema()) },
+    { label: "New diagram", onSelect: async () => { const response = await fetch("/api/projects", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ workspace: workspaceSlug, name: "Untitled Diagram" }) }); if (response.ok) { const created = await response.json() as Schema; router.push(`/${workspaceSlug}/${created.id}`); } else setToast({ text: "Could not create project.", tone: "error" }); } },
     { separator: true },
     { label: "Import DDL…", onSelect: () => setModal("import") },
     { label: "Export…", onSelect: () => setModal("export"), hint: "⌘E" },
@@ -1085,18 +1100,19 @@ export default function Designer() {
         <div className="appbar-main">
           <div className="appbar-title">
             <Database size={17} className="appbar-title-icon" />
-            <span className="appbar-crumb">Diagrams</span>
+            <a className="appbar-crumb" href={`/${workspaceSlug}`}>Diagrams</a>
             <span className="appbar-slash">/</span>
             <input
               className="appbar-name"
               aria-label="Diagram name"
-              value={diagramName}
+              value={schema.name}
               onChange={(event) => {
-                setDiagramName(event.target.value);
+                setSchema((current) => ({ ...current, name: event.target.value }));
                 setDirty(true);
               }}
             />
           </div>
+          <button className="appbar-user" type="button" onClick={() => void authClient.signOut().then(() => router.push("/login"))}><UserRound size={16} /> Sign out</button>
           <div className="menubar">
             {menus.map((menu) => (
               <Menu
@@ -1708,7 +1724,7 @@ export default function Designer() {
               <Maximize2 size={17} />
             </button>
             <span className="dock-divider" />
-            <button type="button" aria-label="Save to database" onClick={save}>
+            <button type="button" aria-label="Save to database" onClick={() => void save()}>
               <Save size={17} />
             </button>
             <button
