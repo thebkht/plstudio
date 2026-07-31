@@ -15,6 +15,7 @@ import {
   Moon,
   Plus,
   Redo2,
+  Search,
   Save,
   Sun,
   Trash2,
@@ -81,9 +82,16 @@ export default function Designer() {
     text: string;
   } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [tableQuery, setTableQuery] = useState("");
   const canvasRef = useRef<HTMLDivElement>(null);
   const selected =
     schema.tables.find((table) => table.id === selectedId) ?? null;
+  const filteredTables = useMemo(() => {
+    const query = tableQuery.trim().toUpperCase();
+    return query
+      ? schema.tables.filter((table) => table.name.toUpperCase().includes(query))
+      : schema.tables;
+  }, [schema.tables, tableQuery]);
   const compatibleForeignKeyTargets = (column: Column) =>
     schema.tables
       .filter(
@@ -461,7 +469,7 @@ export default function Designer() {
   });
 
   return (
-    <div className={`designer`}>
+    <div className={`designer light`}>
       <header className="topbar">
         <div className="brand">
           <div className="brand-mark">
@@ -508,6 +516,57 @@ export default function Designer() {
         </div>
       </header>
       <section className="workspace">
+        <aside className="tables-sidebar" aria-label="Tables">
+          <div className="sidebar-head">
+            <div className="sidebar-title">
+              <Database size={16} />
+              <strong>Tables</strong>
+              <Badge variant="secondary">{schema.tables.length}</Badge>
+            </div>
+            <Button
+              className="btn ghost sidebar-collapse"
+              aria-label="Collapse tables sidebar"
+              onClick={() => setTableQuery("")}
+            >
+              <ChevronDown size={15} />
+            </Button>
+          </div>
+          <label className="sidebar-search">
+            <Search size={14} />
+            <Input
+              aria-label="Search tables"
+              placeholder="Search tables"
+              value={tableQuery}
+              onChange={(event) => setTableQuery(event.target.value)}
+            />
+          </label>
+          <div className="table-list" role="list">
+            {filteredTables.map((table) => (
+              <button
+                className={`table-list-item ${selectedId === table.id ? "active" : ""}`}
+                key={table.id}
+                type="button"
+                onClick={() => setSelectedId(table.id)}
+              >
+                <span
+                  className="table-list-swatch"
+                  style={{ background: table.color.a }}
+                />
+                <span className="table-list-copy">
+                  <strong>{table.name.toUpperCase()}</strong>
+                  <small>{table.columns.length} columns</small>
+                </span>
+                <span className="table-list-more">···</span>
+              </button>
+            ))}
+            {!filteredTables.length && (
+              <div className="sidebar-empty">No tables found</div>
+            )}
+          </div>
+          <Button className="sidebar-add" onClick={addTable}>
+            <Plus size={15} /> Add table
+          </Button>
+        </aside>
         <div
           ref={canvasRef}
           className="canvas-wrap"

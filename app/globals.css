@@ -5,7 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
   --bg: var(--background);
   --panel: var(--card);
   --surface: var(--card);
@@ -213,10 +213,141 @@ button {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  background: var(--background);
+}
+.designer.light {
+  --background: oklch(0.985 0.006 240);
+  --foreground: oklch(0.31 0.035 245);
+  --card: oklch(1 0 0 / 0.92);
+  --card-foreground: oklch(0.31 0.035 245);
+  --border: oklch(0.87 0.025 235);
+  --input: oklch(0.91 0.02 235);
+  --muted-foreground: oklch(0.54 0.035 240);
+  --primary: oklch(0.56 0.19 265);
+  --primary-foreground: oklch(0.99 0.01 250);
+  --accent: oklch(0.65 0.14 185);
+  --accent-foreground: oklch(0.27 0.045 185);
+  --line: oklch(0.83 0.025 235 / 0.8);
+  --bg: var(--background);
+  --surface: var(--card);
+  --text: var(--foreground);
+  color: var(--foreground);
+}
+.tables-sidebar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 3;
+  width: 248px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid var(--line);
+  background: color-mix(in oklch, var(--card) 94%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
+  backdrop-filter: blur(18px) saturate(130%);
+}
+.sidebar-head {
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--line);
+}
+.sidebar-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--foreground);
+  font-size: 14px;
+}
+.sidebar-title svg { color: var(--primary); }
+.sidebar-title .badge { margin-left: 2px; }
+.sidebar-collapse { min-width: 32px; min-height: 32px; padding: 0; }
+.sidebar-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px;
+  padding: 0 10px;
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: color-mix(in oklch, var(--background) 82%, transparent);
+  color: var(--muted-foreground);
+}
+.sidebar-search input {
+  height: 34px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.sidebar-search input:focus { box-shadow: none; }
+.table-list {
+  flex: 1;
+  overflow: auto;
+  padding: 0 8px 10px;
+}
+.table-list-item {
+  width: 100%;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-foreground);
+  text-align: left;
+  transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease;
+}
+.table-list-item:hover {
+  background: color-mix(in oklch, var(--primary) 7%, transparent);
+  color: var(--foreground);
+}
+.table-list-item:active { transform: scale(0.98); }
+.table-list-item.active {
+  background: color-mix(in oklch, var(--primary) 14%, transparent);
+  color: var(--primary);
+}
+.table-list-swatch {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+}
+.table-list-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.table-list-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+.table-list-copy small { font-size: 10px; color: var(--muted-foreground); }
+.table-list-more { margin-left: auto; font-weight: 800; letter-spacing: 1px; }
+.sidebar-empty { padding: 18px 10px; color: var(--muted-foreground); font-size: 12px; }
+.sidebar-add {
+  min-height: 40px;
+  margin: 10px 12px 14px;
+  border: 1px solid color-mix(in oklch, var(--primary) 35%, var(--line));
+  border-radius: 9px;
+  background: color-mix(in oklch, var(--primary) 7%, var(--card));
+  color: var(--primary);
+  font-size: 12px;
 }
 .canvas-wrap {
   position: absolute;
-  inset: 0;
+  inset: 0 0 0 248px;
   overflow: hidden;
   touch-action: none;
   background-color: var(--background);
@@ -332,7 +463,7 @@ button {
 }
 .drawer {
   position: absolute;
-  left: 16px;
+  left: 264px;
   right: 16px;
   bottom: 16px;
   top: 16px;
@@ -607,6 +738,12 @@ button {
     width: auto;
     max-height: 70%;
   }
+  .tables-sidebar {
+    width: 220px;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+  }
+  .canvas-wrap { inset: 0; }
   .column-grid.header {
     display: none;
   }
