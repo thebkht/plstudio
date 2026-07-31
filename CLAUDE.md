@@ -20,7 +20,7 @@ pnpm drizzle-kit push         # sync db/schema.ts to DATABASE_URL (no npm script
 
 The spec's definition of done (`docs/superpowers/specs/`) is: `pnpm test`, `pnpm build`, `pnpm typecheck`, and `git diff --check` all pass.
 
-`DATABASE_URL` (Neon Postgres) is the only env var; without it the app still runs fully — only the `/api/projects` persistence layer returns 503.
+`DATABASE_URL` (Neon Postgres), `BETTER_AUTH_SECRET`, and `BETTER_AUTH_URL` are required. Auth initializes the database at module load, so the app does not boot without `DATABASE_URL`.
 
 ## Architecture
 
@@ -56,11 +56,12 @@ Wheel handling is attached natively with `{ passive: false }` because React regi
 
 ### Persistence
 
-`app/api/projects/route.ts` + `db/schema.ts` (Drizzle, Neon serverless HTTP driver). The `projects` table stores the whole `Schema` as a `jsonb` blob alongside a mirrored `revision` and `schema_format_version`.
+`app/api/projects/route.ts`, `app/api/projects/[id]/route.ts`, `app/lib/session.ts`, and `db/schema.ts` (Drizzle, Neon serverless HTTP driver). Projects are scoped to Better Auth organizations and addressable at `/[workspace]/[projectId]`. The `projects` table stores the whole `Schema` as a `jsonb` blob alongside a mirrored `revision` and `schema_format_version`.
 
 `PUT` implements optimistic concurrency: if the stored `revision` differs from the client's it returns **409 `REVISION_CONFLICT`** with the current row, unless `{ overwrite: true }` is passed. The new revision is `max(stored, incoming) + 1`. `SCHEMA_FORMAT_VERSION` (currently `1`) is stamped server-side on every write — bump it in `app/lib/schema.ts` when the JSON shape changes.
 
 `getDb()` throws if `DATABASE_URL` is unset; every route catches and returns 503/400 rather than crashing.
+`PATCH` renames use the same optimistic revision scheme as `PUT`; a successful rename bumps the revision and updates `schemaJson.name`.
 
 ## Conventions
 
