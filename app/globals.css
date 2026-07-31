@@ -10,7 +10,7 @@
   --panel: var(--card);
   --surface: var(--card);
   --line: color-mix(in oklch, var(--border) 55%, transparent);
-  --muted: var(--muted-foreground);
+  --muted: oklch(0.97 0 0);
   --text: var(--foreground);
   --gold: var(--primary);
   --cyan: var(--accent);
@@ -43,8 +43,8 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --background: oklch(0.145 0.012 255);
-  --foreground: oklch(0.93 0.02 255);
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
 }
 .dark {
   --background: oklch(0.145 0.012 255);
