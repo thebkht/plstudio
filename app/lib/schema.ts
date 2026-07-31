@@ -152,7 +152,7 @@ export function primaryKeyColumns(table: Table) {
 }
 
 export function tableHeight(table: Table) {
-  return 48 + table.columns.length * 30 + 12;
+  return 38 + table.columns.length * 27;
 }
 
 export function cloneSchema(schema: Schema): Schema {
