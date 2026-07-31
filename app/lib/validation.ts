@@ -36,6 +36,7 @@ export function validateCheckExpression(expression: string) {
 export function validateTypeSpec(type: string, size: string) {
   const value = size.trim();
   if (!typeUsesSize(type as never)) return value ? `${type} does not accept a size or precision.` : null;
+  if (!value && ["NUMBER", "FLOAT", "TIMESTAMP"].includes(type)) return null;
   if (!value) return `${type} requires a size or precision.`;
   if (type === "TIMESTAMP") return /^(?:[0-9])$/.test(value) ? null : "TIMESTAMP precision must be an integer from 0 to 9.";
   if (type === "FLOAT") return /^(?:[1-9]|[1-9][0-9]|1[01][0-9]|12[0-6])$/.test(value) ? null : "FLOAT precision must be an integer from 1 to 126.";

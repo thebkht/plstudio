@@ -39,6 +39,7 @@ describe("Oracle schema model", () => {
     expect(validateTypeSpec("TIMESTAMP", "9")).toBeNull();
     expect(validateTypeSpec("TIMESTAMP", "10")).toContain("0 to 9");
     expect(validateTypeSpec("NUMBER", "38,4")).toBeNull();
+    expect(validateTypeSpec("NUMBER", "")).toBeNull();
     expect(validateTypeSpec("NUMBER", "39,4")).toContain("1–38");
     expect(validateTypeSpec("BLOB", "")).toBeNull();
   });

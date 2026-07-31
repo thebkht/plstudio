@@ -335,7 +335,10 @@ button {
   left: 16px;
   right: 16px;
   bottom: 16px;
-  max-height: 48%;
+  top: 16px;
+  right: auto;
+  width: min(520px, calc(100% - 32px));
+  max-height: none;
   display: flex;
   flex-direction: column;
   border: 1px solid color-mix(in oklch, var(--foreground) 14%, transparent);
@@ -358,9 +361,11 @@ button {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
 }
 .drawer-title input {
-  width: 230px;
+  width: min(230px, 100%);
+  min-width: 0;
   border: 0;
   outline: 0;
   background: transparent;
@@ -368,14 +373,17 @@ button {
   font-size: 14px;
   font-weight: 700;
 }
+.drawer-actions { display: flex; align-items: center; gap: 8px; }
 .drawer-content {
   overflow: auto;
+  min-width: 0;
   padding: 14px 16px 18px;
 }
 .drawer-separator { background: color-mix(in oklch, var(--foreground) 10%, transparent); }
 .drawer-toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 12px;
 }
@@ -388,6 +396,7 @@ button {
 .strategy {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 .strategy select {
@@ -395,17 +404,27 @@ button {
 }
 .column-grid {
   display: grid;
-  grid-template-columns: minmax(130px, 1.5fr) 100px 72px 1fr 86px 28px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
   align-items: center;
+  padding: 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in oklch, var(--card) 72%, transparent);
 }
 .column-grid.header {
+  display: none;
   padding: 0 10px 7px;
   color: var(--muted-foreground);
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
+.column-grid > .cell:first-child,
+.column-grid > .cell:nth-child(4),
+.column-grid > .cell:nth-child(5) { grid-column: 1 / -1; }
+.column-grid > button { justify-self: end; }
 .column-editor {
   display: contents;
 }
@@ -545,7 +564,7 @@ button {
 @keyframes drawer-in {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateX(-12px);
   }
   to {
     opacity: 1;
@@ -584,9 +603,9 @@ button {
     left: 8px;
     right: 8px;
     bottom: 8px;
-  }
-  .column-grid {
-    grid-template-columns: 1.2fr 90px 60px 1fr 72px 28px;
+    top: auto;
+    width: auto;
+    max-height: 70%;
   }
   .column-grid.header {
     display: none;
