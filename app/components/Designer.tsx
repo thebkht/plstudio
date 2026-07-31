@@ -29,6 +29,7 @@ import {
   Save,
   Search,
   Share2,
+  StickyNote,
   TablePropertiesIcon as TablePlus,
   Trash2,
   Undo2,
@@ -56,6 +57,7 @@ import {
 import {
   cloneSchema,
   makeColumn,
+  makeMemo,
   makeTable,
   ORACLE_TYPES,
   primaryKeyColumns,
@@ -70,6 +72,8 @@ import {
   type Table,
   type Column,
   type KeyStrategy,
+  type Memo,
+  type MemoColor,
 } from "@/app/lib/schema";
 import { validateSchema } from "@/app/lib/validation";
 import { authClient } from "@/app/lib/auth-client";
@@ -86,6 +90,16 @@ const MAX_ZOOM = 1.8;
 const DRAG_THRESHOLD = 4;
 /** Arrow-key nudge for keyboard positioning. */
 const NUDGE = 8;
+const MEMO_MIN_WIDTH = 180;
+const MEMO_MIN_HEIGHT = 100;
+const MEMO_MAX_WIDTH = 560;
+const MEMO_MAX_HEIGHT = 520;
+const MEMO_COLORS: { id: MemoColor; label: string; background: string; border: string }[] = [
+  { id: "yellow", label: "Yellow", background: "#fff7bf", border: "#6b58f5" },
+  { id: "blue", label: "Blue", background: "#dff3ff", border: "#287da8" },
+  { id: "green", label: "Green", background: "#e8f7d7", border: "#72b92d" },
+  { id: "pink", label: "Pink", background: "#ffe4e9", border: "#d85d78" },
+];
 
 function repairInitialLayout(schema: Schema): Schema {
   const next = cloneSchema(schema);
@@ -245,6 +259,8 @@ export default function Designer({
   const router = useRouter();
   const [schema, setSchema] = useState<Schema>(() => repairInitialLayout(initialSchema));
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedMemoId, setSelectedMemoId] = useState<string | null>(null);
+  const [editingMemoId, setEditingMemoId] = useState<string | null>(null);
   const [history, setHistory] = useState<Schema[]>([]);
   const [future, setFuture] = useState<Schema[]>([]);
   const [zoom, setZoom] = useState(1);
@@ -255,6 +271,8 @@ export default function Designer({
     x: number;
     y: number;
   } | null>(null);
+  const [dragMemoPosition, setDragMemoPosition] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [resizeMemo, setResizeMemo] = useState<{ id: string; width: number; height: number } | null>(null);
   const [grabbing, setGrabbing] = useState(false);
   const [toast, setToast] = useState<{
     text: string;
@@ -306,13 +324,16 @@ export default function Designer({
    * must not schedule a React render per frame.
    */
   const gestureRef = useRef<{
-    mode: "table" | "pan";
+    mode: "table" | "memo" | "memo-resize" | "pan";
     pointerId: number;
     tableId?: string;
+    memoId?: string;
     grabX: number;
     grabY: number;
     originX: number;
     originY: number;
+    originWidth?: number;
+    originHeight?: number;
     startX: number;
     startY: number;
     moved: boolean;
@@ -336,6 +357,14 @@ export default function Designer({
         ? { x: dragPosition.x, y: dragPosition.y }
         : { x: table.x, y: table.y },
     [dragPosition],
+  );
+  const liveMemo = useCallback(
+    (memo: Memo) => {
+      const position = dragMemoPosition?.id === memo.id ? dragMemoPosition : memo;
+      const size = resizeMemo?.id === memo.id ? resizeMemo : memo;
+      return { x: position.x, y: position.y, width: size.width, height: size.height };
+    },
+    [dragMemoPosition, resizeMemo],
   );
   const canvasPoint = useCallback(
     (event: { clientX: number; clientY: number }) => {
@@ -791,6 +820,30 @@ export default function Designer({
       }
 
       const rect = canvasRef.current?.getBoundingClientRect();
+      const memo = schemaRef.current.memos?.find((item) => item.id === gesture.memoId);
+      if (gesture.mode === "memo" || gesture.mode === "memo-resize") {
+        if (!rect || !memo) return;
+        const point = {
+          x: (event.clientX - rect.left - panRef.current.x) / zoomRef.current,
+          y: (event.clientY - rect.top - panRef.current.y) / zoomRef.current,
+        };
+        if (gesture.mode === "memo") {
+          const bounds = memoBounds(memo);
+          setDragMemoPosition({
+            id: memo.id,
+            x: Math.max(bounds.minX, Math.min(bounds.maxX, point.x - gesture.grabX)),
+            y: Math.max(bounds.minY, Math.min(bounds.maxY, point.y - gesture.grabY)),
+          });
+        } else {
+          setResizeMemo({
+            id: memo.id,
+            width: Math.max(MEMO_MIN_WIDTH, Math.min(MEMO_MAX_WIDTH, gesture.originWidth! + point.x - gesture.grabX)),
+            height: Math.max(MEMO_MIN_HEIGHT, Math.min(MEMO_MAX_HEIGHT, gesture.originHeight! + point.y - gesture.grabY)),
+          });
+        }
+        return;
+      }
+
       const table = schemaRef.current.tables.find(
         (item) => item.id === gesture.tableId,
       );
@@ -841,6 +894,26 @@ export default function Designer({
         return;
       }
 
+      const memo = schemaRef.current.memos?.find((item) => item.id === gesture.memoId);
+      if (gesture.mode === "memo" && memo) {
+        const live = dragMemoPosition;
+        if (gesture.moved && live?.id === memo.id) {
+          commitMemoPosition(memo.id, live.x, live.y);
+        } else {
+          setDragMemoPosition(null);
+        }
+        return;
+      }
+      if (gesture.mode === "memo-resize" && memo) {
+        const live = resizeMemo;
+        if (gesture.moved && live?.id === memo.id) {
+          commitMemoSize(memo.id, live.width, live.height);
+        } else {
+          setResizeMemo(null);
+        }
+        return;
+      }
+
       const table = schemaRef.current.tables.find(
         (item) => item.id === gesture.tableId,
       );
@@ -888,7 +961,7 @@ export default function Designer({
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", cancel);
     };
-  }, [animateTo, commitPosition, panBounds, resolveTablePosition, tableBounds]);
+  }, [animateTo, commitMemoPosition, commitMemoSize, commitPosition, dragMemoPosition, memoBounds, panBounds, resolveTablePosition, resizeMemo, tableBounds]);
 
   /**
    * Wheel handling is attached natively because React registers `wheel`
@@ -972,6 +1045,8 @@ export default function Designer({
     stopAnimation();
     event.currentTarget.setPointerCapture(event.pointerId);
     setSelectedId(null);
+    setSelectedMemoId(null);
+    setEditingMemoId(null);
     setGrabbing(true);
     const tracker = new VelocityTracker();
     tracker.add(pan.x, pan.y, event.timeStamp || performance.now());
@@ -1001,6 +1076,8 @@ export default function Designer({
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
     setSelectedId(table.id);
+    setSelectedMemoId(null);
+    setEditingMemoId(null);
     setGrabbing(true);
     const origin = livePosition(table);
     const tracker = new VelocityTracker();
@@ -1020,6 +1097,131 @@ export default function Designer({
       moved: false,
       tracker,
     };
+  };
+
+  const onMemoDown = (event: React.PointerEvent<HTMLElement>, memo: Memo) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    stopAnimation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const position = liveMemo(memo);
+    setSelectedId(null);
+    setSelectedMemoId(memo.id);
+    setGrabbing(true);
+    gestureRef.current = {
+      mode: "memo",
+      pointerId: event.pointerId,
+      memoId: memo.id,
+      grabX: (event.clientX - rect.left - pan.x) / zoom - position.x,
+      grabY: (event.clientY - rect.top - pan.y) / zoom - position.y,
+      originX: position.x,
+      originY: position.y,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+      tracker: new VelocityTracker(),
+    };
+  };
+
+  const onMemoResizeDown = (event: React.PointerEvent<HTMLButtonElement>, memo: Memo) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const position = liveMemo(memo);
+    const pointer = {
+      x: (event.clientX - rect.left - pan.x) / zoom,
+      y: (event.clientY - rect.top - pan.y) / zoom,
+    };
+    setSelectedId(null);
+    setSelectedMemoId(memo.id);
+    setGrabbing(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    gestureRef.current = {
+      mode: "memo-resize",
+      pointerId: event.pointerId,
+      memoId: memo.id,
+      grabX: pointer.x,
+      grabY: pointer.y,
+      originX: position.x,
+      originY: position.y,
+      originWidth: position.width,
+      originHeight: position.height,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+      tracker: new VelocityTracker(),
+    };
+  };
+
+  function memoBounds(memo: Memo) {
+    return {
+      minX: 0,
+      maxX: CANVAS_WIDTH - memo.width,
+      minY: 0,
+      maxY: CANVAS_HEIGHT - memo.height,
+    };
+  }
+
+  function commitMemoPosition(id: string, x: number, y: number) {
+    const current = schemaRef.current;
+    const memo = current.memos?.find((item) => item.id === id);
+    if (!memo) return;
+    const bounds = memoBounds(memo);
+    setHistory((items) => [...items.slice(-49), cloneSchema(current)]);
+    setFuture([]);
+    setSchema((next) => ({
+      ...next,
+      memos: (next.memos ?? []).map((item) => item.id === id ? {
+        ...item,
+        x: Math.max(bounds.minX, Math.min(bounds.maxX, Math.round(x))),
+        y: Math.max(bounds.minY, Math.min(bounds.maxY, Math.round(y))),
+      } : item),
+    }));
+    setDragMemoPosition(null);
+  }
+
+  function commitMemoSize(id: string, width: number, height: number) {
+    const current = schemaRef.current;
+    if (!current.memos?.some((item) => item.id === id)) return;
+    setHistory((items) => [...items.slice(-49), cloneSchema(current)]);
+    setFuture([]);
+    setSchema((next) => ({
+      ...next,
+      memos: (next.memos ?? []).map((item) => item.id === id ? {
+        ...item,
+        width: Math.max(MEMO_MIN_WIDTH, Math.min(MEMO_MAX_WIDTH, Math.round(width))),
+        height: Math.max(MEMO_MIN_HEIGHT, Math.min(MEMO_MAX_HEIGHT, Math.round(height))),
+      } : item),
+    }));
+    setResizeMemo(null);
+  }
+
+  const addMemo = () => {
+    const index = schema.memos?.length ?? 0;
+    const memo = makeMemo("", 120 + (index % 4) * 70, 100 + (index % 3) * 70, "yellow");
+    commit({ ...schema, memos: [...(schema.memos ?? []), memo] });
+    setSelectedId(null);
+    setSelectedMemoId(memo.id);
+    setEditingMemoId(memo.id);
+  };
+
+  const patchMemo = (id: string, patch: Partial<Memo>) => {
+    setSchema((current) => ({
+      ...current,
+      memos: (current.memos ?? []).map((memo) => memo.id === id ? { ...memo, ...patch } : memo),
+    }));
+    setDirty(true);
+  };
+
+  const deleteMemo = (id: string) => {
+    commit({ ...schema, memos: (schema.memos ?? []).filter((memo) => memo.id !== id) });
+    if (selectedMemoId === id) setSelectedMemoId(null);
+    if (editingMemoId === id) setEditingMemoId(null);
   };
 
   /** Keyboard parity for positioning a card that has focus. */
@@ -1934,8 +2136,91 @@ export default function Designer({
               width={CANVAS_WIDTH}
               height={CANVAS_HEIGHT}
               aria-hidden="true"
-            >
-              {relationships.map((relationship) => {
+          >
+            {(schema.memos ?? []).map((memo) => {
+              const position = liveMemo(memo);
+              const color = MEMO_COLORS.find((item) => item.id === memo.color) ?? MEMO_COLORS[0];
+              const selectedMemo = selectedMemoId === memo.id;
+              return (
+                <article
+                  className={`memo-card ${selectedMemo ? "selected" : ""}`}
+                  key={memo.id}
+                  role="group"
+                  tabIndex={0}
+                  aria-label="Memo"
+                  style={{
+                    transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
+                    width: position.width,
+                    height: position.height,
+                    background: color.background,
+                    borderColor: color.border,
+                    zIndex: selectedMemo ? 4 : 1,
+                  }}
+                  onPointerDown={(event) => onMemoDown(event, memo)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setSelectedId(null);
+                    setSelectedMemoId(memo.id);
+                  }}
+                  onKeyDown={(event) => {
+                    if ((event.key === "Delete" || event.key === "Backspace") && document.activeElement?.tagName !== "TEXTAREA") {
+                      event.preventDefault();
+                      deleteMemo(memo.id);
+                    }
+                  }}
+                >
+                  <div className="memo-toolbar" onPointerDown={(event) => onMemoDown(event, memo)}>
+                    <StickyNote size={14} aria-hidden="true" />
+                    <span className="memo-drag-label">Memo</span>
+                    <div className="memo-actions" onPointerDown={(event) => event.stopPropagation()}>
+                      {MEMO_COLORS.map((option) => (
+                        <button
+                          type="button"
+                          key={option.id}
+                          className={`memo-color memo-color-${option.id} ${memo.color === option.id ? "active" : ""}`}
+                          aria-label={`Use ${option.label} memo color`}
+                          aria-pressed={memo.color === option.id}
+                          onClick={() => patchMemo(memo.id, { color: option.id })}
+                        />
+                      ))}
+                      <button
+                        type="button"
+                        className="memo-delete"
+                        aria-label="Delete memo"
+                        onClick={() => deleteMemo(memo.id)}
+                      >
+                        <Trash2 size={13} aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
+                  <textarea
+                    className="memo-text"
+                    value={memo.text}
+                    aria-label="Memo text"
+                    placeholder="Write a memo..."
+                    onFocus={() => {
+                      setSelectedId(null);
+                      setSelectedMemoId(memo.id);
+                      setEditingMemoId(memo.id);
+                    }}
+                    onChange={(event) => patchMemo(memo.id, { text: event.target.value })}
+                    onBlur={() => {
+                      setEditingMemoId((current) => current === memo.id ? null : current);
+                      if (!memo.text.trim()) deleteMemo(memo.id);
+                    }}
+                    onPointerDown={(event) => event.stopPropagation()}
+                  />
+                  <button
+                    type="button"
+                    className="memo-resize"
+                    aria-label="Resize memo"
+                    onPointerDown={(event) => onMemoResizeDown(event, memo)}
+                  />
+                  {editingMemoId === memo.id && <span className="memo-edit-hint">Editing</span>}
+                </article>
+              );
+            })}
+            {relationships.map((relationship) => {
                 const from = relationshipPoint(
                   relationship.from,
                   relationship.fromIndex,
@@ -2156,6 +2441,9 @@ export default function Designer({
             <span className="dock-divider" />
             <button type="button" aria-label="Add table" onClick={addTable}>
               <TablePlus size={17} />
+            </button>
+            <button type="button" aria-label="Add memo" onClick={addMemo}>
+              <StickyNote size={17} />
             </button>
             <button
               type="button"

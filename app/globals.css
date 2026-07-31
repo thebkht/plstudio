@@ -873,6 +873,86 @@ button {
 @media (prefers-reduced-motion: reduce) {
   .relationship:hover .relationship-path { animation: none; }
 }
+
+.memo-card {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 2px solid;
+  border-radius: 10px;
+  color: #493c2d;
+  box-shadow: 0 10px 18px rgb(51 43 34 / 13%);
+  transform-origin: 0 0;
+  transition: box-shadow var(--duration-base) var(--ease-out), border-color var(--duration-base) var(--ease-out);
+}
+.memo-card:hover,
+.memo-card.selected {
+  box-shadow: 0 16px 26px rgb(51 43 34 / 18%);
+}
+.memo-card.selected { outline: 2px solid color-mix(in srgb, #287da8 72%, transparent); outline-offset: 3px; }
+.memo-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 8px;
+  border-bottom: 1px solid rgb(73 60 45 / 15%);
+  cursor: move;
+  user-select: none;
+  touch-action: none;
+}
+.memo-toolbar svg { opacity: .7; }
+.memo-drag-label { flex: 1; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; opacity: .62; }
+.memo-actions { display: flex; align-items: center; gap: 4px; }
+.memo-color,
+.memo-delete {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgb(73 60 45 / 20%);
+  border-radius: 50%;
+  background: transparent;
+  color: #493c2d;
+  cursor: pointer;
+}
+.memo-color.active { box-shadow: 0 0 0 2px #fff, 0 0 0 3px #493c2d; }
+.memo-color-yellow { background: #f6dc58; }
+.memo-color-blue { background: #72b8db; }
+.memo-color-green { background: #91cf4d; }
+.memo-color-pink { background: #e98b9f; }
+.memo-delete { border-radius: 5px; margin-left: 3px; }
+.memo-delete:hover { color: #b42318; background: rgb(255 255 255 / 45%); }
+.memo-text {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  padding: 13px 14px;
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: transparent;
+  color: inherit;
+  font: 500 15px/1.45 var(--font-sans), sans-serif;
+}
+.memo-text::placeholder { color: rgb(73 60 45 / 52%); }
+.memo-edit-hint { position: absolute; right: 10px; bottom: 7px; color: rgb(73 60 45 / 46%); font-size: 10px; pointer-events: none; }
+.memo-resize {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: linear-gradient(135deg, transparent 0 47%, rgb(73 60 45 / 42%) 48% 53%, transparent 54% 62%, rgb(73 60 45 / 42%) 63% 68%, transparent 69%);
+  cursor: nwse-resize;
+  touch-action: none;
+}
 /*
  * Table card. The accent colour is a strip across the top rather than a filled
  * header, so the title sits on the card surface and stays legible whatever
