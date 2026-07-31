@@ -235,6 +235,7 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
   const [panelMode, setPanelMode] = useState<"structure" | "code">("structure");
   const [issuesOpen, setIssuesOpen] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const lastSavedNameRef = useRef(initialSchema.name);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -942,6 +943,7 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
       if (event.key === "Escape") {
         if (modal) setModal(null);
         else if (openMenu) setOpenMenu(null);
+        else if (userMenuOpen) setUserMenuOpen(false);
         else if (selectedId) setSelectedId(null);
         return;
       }
@@ -1112,7 +1114,6 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
               }}
             />
           </div>
-          <button className="appbar-user" type="button" onClick={() => void authClient.signOut().then(() => router.push("/login"))}><UserRound size={16} /> Sign out</button>
           <div className="menubar">
             {menus.map((menu) => (
               <Menu
@@ -1133,10 +1134,30 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
           <Button className="share-btn" onClick={() => setModal("export")}>
             <Share2 size={15} /> Share
           </Button>
-          <button type="button" className="avatar-btn" aria-label="Account">
-            <UserRound size={17} />
-            <ChevronDown size={13} />
-          </button>
+          <div className="user-menu">
+            <button
+              type="button"
+              className="avatar-btn"
+              aria-label="Account menu"
+              aria-haspopup="menu"
+              aria-expanded={userMenuOpen}
+              onClick={() => setUserMenuOpen((open) => !open)}
+            >
+              <UserRound size={17} />
+              <ChevronDown size={13} />
+            </button>
+            {userMenuOpen && (
+              <div className="user-menu-popup" role="menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => void authClient.signOut().then(() => router.push("/login"))}
+                >
+                  <UserRound size={15} /> Sign out
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 

@@ -350,6 +350,34 @@ button {
   border-radius: 999px;
   background: var(--surface-3);
 }
+.user-menu { position: relative; }
+.user-menu-popup {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  min-width: 140px;
+  padding: 5px;
+  border: 1px solid var(--hairline);
+  border-radius: 9px;
+  background: var(--surface-0);
+  box-shadow: var(--shadow-pop);
+}
+.user-menu-popup button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-1);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.user-menu-popup button:hover { background: var(--surface-2); }
 
 /* ── Side panel ────────────────────────────────────────────────────── */
 .panel {
