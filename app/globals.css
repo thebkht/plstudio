@@ -121,27 +121,27 @@ button {
   backdrop-filter: blur(20px) saturate(140%);
 }
 .designer.light .topbar {
-  border-bottom-color: color-mix(in oklch, white 20%, transparent);
-  background: linear-gradient(110deg, oklch(0.55 0.22 274), oklch(0.52 0.18 250));
-  color: white;
+  border-bottom-color: var(--line);
+  background: var(--card);
+  color: var(--foreground);
 }
 .designer.light .topbar .brand-sub,
-.designer.light .topbar .toolbar-label { color: color-mix(in oklch, white 72%, transparent); }
+.designer.light .topbar .toolbar-label { color: var(--muted-foreground); }
 .designer.light .topbar .brand-mark {
-  background: color-mix(in oklch, white 18%, transparent);
-  color: white;
-  box-shadow: inset 0 1px color-mix(in oklch, white 25%, transparent);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: none;
 }
 .designer.light .topbar .btn {
-  border-color: color-mix(in oklch, white 32%, transparent);
-  background: color-mix(in oklch, white 10%, transparent);
-  color: white;
+  border-color: var(--line);
+  background: var(--secondary);
+  color: var(--foreground);
 }
-.designer.light .topbar .btn:hover { background: color-mix(in oklch, white 20%, transparent); }
+.designer.light .topbar .btn:hover { background: color-mix(in oklch, var(--primary) 8%, var(--secondary)); }
 .designer.light .topbar .btn.primary {
   border-color: transparent;
-  background: white;
-  color: oklch(0.5 0.18 260);
+  background: var(--primary);
+  color: var(--primary-foreground);
 }
 .workspace-context {
   display: flex;
@@ -154,6 +154,32 @@ button {
 }
 .workspace-context b { color: color-mix(in oklch, white 38%, transparent); font-weight: 400; }
 .workspace-context strong { color: white; font-weight: 700; }
+.reference-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.reference-nav-button {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.reference-nav-button:hover { background: color-mix(in oklch, var(--primary) 7%, transparent); color: var(--foreground); }
+.reference-separator { color: var(--muted-foreground); }
+.reference-page-title { color: var(--foreground); font-size: 14px; }
+.diagram-name {
+  width: 145px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+.diagram-name:focus { color: var(--foreground); }
 .sidebar-toggle { min-width: 36px; min-height: 36px; padding: 0; }
 .brand {
   display: flex;
@@ -521,6 +547,31 @@ button {
   box-shadow: 0 18px 44px color-mix(in oklch, var(--background) 38%, transparent);
   animation: drawer-in 0.22s cubic-bezier(0.2, 0, 0, 1);
 }
+.table-edit-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in oklch, var(--foreground) 12%, transparent);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+.table-edit-modal {
+  width: min(1040px, 100%);
+  max-height: min(820px, 92%);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: 0 24px 70px color-mix(in oklch, var(--foreground) 20%, transparent);
+}
+.table-edit-modal .drawer-content { overflow: auto; }
+.table-edit-modal .drawer-head { background: var(--card); }
+.table-edit-modal .drawer-title input { font-size: 16px; }
 .designer.light .drawer {
   background: color-mix(in oklch, white 95%, transparent);
   border-color: color-mix(in oklch, var(--primary) 14%, var(--line));
@@ -838,6 +889,8 @@ button {
     width: auto;
     max-height: 70%;
   }
+  .table-edit-modal-backdrop { padding: 8px; }
+  .table-edit-modal { max-height: calc(100% - 16px); }
   .tables-sidebar {
     width: 220px;
     transform: translateX(-100%);

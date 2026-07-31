@@ -15,6 +15,8 @@ import {
   Database,
   Download,
   FileUp,
+  Grid3X3,
+  Home,
   KeyRound,
   LayoutGrid,
   Link2,
@@ -507,19 +509,13 @@ export default function Designer() {
   return (
     <div className={`designer light`}>
       <header className="topbar">
-        <div className="brand">
-          <div className="brand-mark">
-            <Database size={18} />
-          </div>
-          <div>
-            <div className="brand-title">drawSQL</div>
-            <div className="brand-sub">Oracle PL/SQL · 12.2+</div>
-          </div>
-        </div>
-        <div className="workspace-context">
-          <span>Diagrams</span>
-          <b>/</b>
-          <strong>Oracle Demo</strong>
+        <div className="reference-nav">
+          <Button className="reference-nav-button"><Home size={15} /> Dashboard</Button>
+          <Button className="reference-nav-button"><Grid3X3 size={15} /> Diagrams</Button>
+          <span className="reference-separator">•</span>
+          <strong className="reference-page-title">Diagram Editor</strong>
+          <span className="reference-separator">•</span>
+          <input className="diagram-name" aria-label="Diagram name" defaultValue="Oracle Demo" />
         </div>
         <Button
           className="btn ghost sidebar-toggle"
@@ -571,7 +567,7 @@ export default function Designer() {
           <div className="sidebar-head">
             <div className="sidebar-title">
               <Database size={16} />
-              <strong>Tables</strong>
+              <strong>Database Tables</strong>
               <Badge variant="secondary">{schema.tables.length}</Badge>
             </div>
             <Button
@@ -585,6 +581,9 @@ export default function Designer() {
               <ChevronDown size={15} />
             </Button>
           </div>
+          <Button className="sidebar-add" onClick={addTable}>
+            <Plus size={15} /> Add table
+          </Button>
           <label className="sidebar-search">
             <Search size={14} />
             <Input
@@ -617,9 +616,6 @@ export default function Designer() {
               <div className="sidebar-empty">No tables found</div>
             )}
           </div>
-          <Button className="sidebar-add" onClick={addTable}>
-            <Plus size={15} /> Add table
-          </Button>
         </aside>
         <div
           ref={canvasRef}
@@ -734,7 +730,14 @@ export default function Designer() {
           </Button>
         </div>
         {selected && (
-          <div className="drawer">
+          <div
+            className="table-edit-modal-backdrop"
+            onMouseDown={() => setSelectedId(null)}
+          >
+          <div
+            className="table-edit-modal"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
             <div className="drawer-head">
               <div className="drawer-title">
                 <Database size={16} color="var(--primary)" />
@@ -960,6 +963,7 @@ export default function Designer() {
                   {issue.message}
                 </div>
               ))}
+          </div>
           </div>
         )}
       </section>
