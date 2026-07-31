@@ -1296,3 +1296,21 @@ button {
     @apply font-sans;
   }
 }
+
+.auth-shell, .dashboard-shell { min-height: 100vh; padding: 3rem; background: var(--background); }
+.auth-shell { display: grid; place-items: center; }
+.auth-card, .settings-card { display: grid; gap: 1rem; width: min(100%, 28rem); padding: 2rem; border: 1px solid var(--border); border-radius: 1rem; background: var(--card); box-shadow: 0 1rem 3rem rgb(0 0 0 / 8%); }
+.auth-card h1, .dashboard-shell h1 { margin: 0; font-size: 1.75rem; }
+.auth-card a, .dashboard-shell a { color: var(--primary); }
+.error-text { color: var(--destructive); }
+.dashboard-shell { max-width: 78rem; margin: auto; }
+.dashboard-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 2rem; }
+.dashboard-actions { display: flex; align-items: center; gap: 1rem; }
+.eyebrow { margin: 0 0 .25rem; color: var(--muted-foreground); font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; }
+.project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1rem; }
+.project-card { display: block; padding: 1.25rem; border: 1px solid var(--border); border-radius: .75rem; background: var(--card); color: inherit !important; text-decoration: none; transition: transform .15s ease, box-shadow .15s ease; }
+.project-card:hover { transform: translateY(-2px); box-shadow: 0 .75rem 2rem rgb(0 0 0 / 8%); }
+.project-card h2 { margin: 0 0 .75rem; font-size: 1.05rem; }
+.project-card p, .project-card small { color: var(--muted-foreground); }
+.settings-card { margin-top: 2rem; }
+.appbar-user { display: inline-flex; align-items: center; gap: .4rem; margin-left: auto; border: 0; background: transparent; color: inherit; cursor: pointer; }
