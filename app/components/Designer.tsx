@@ -59,6 +59,7 @@ import {
   makeColumn,
   makeMemo,
   makeTable,
+  normalizeMemos,
   ORACLE_TYPES,
   primaryKeyColumns,
   tableHeight,
@@ -124,6 +125,12 @@ function repairInitialLayout(schema: Schema): Schema {
       if (free) { table.x = free.x; table.y = free.y; break; }
     }
   });
+  return next;
+}
+
+function prepareCanvasSchema(schema: Schema): Schema {
+  const next = repairInitialLayout(schema);
+  next.memos = normalizeMemos(next.memos);
   return next;
 }
 
@@ -257,7 +264,7 @@ export default function Designer({
   workspaceSlug?: string;
 }) {
   const router = useRouter();
-  const [schema, setSchema] = useState<Schema>(() => repairInitialLayout(initialSchema));
+  const [schema, setSchema] = useState<Schema>(() => prepareCanvasSchema(initialSchema));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedMemoId, setSelectedMemoId] = useState<string | null>(null);
   const [editingMemoId, setEditingMemoId] = useState<string | null>(null);
@@ -309,7 +316,7 @@ export default function Designer({
   const [dirty, setDirty] = useState(false);
   const lastSavedNameRef = useRef(initialSchema.name);
   useEffect(() => {
-    const repaired = repairInitialLayout(initialSchema);
+    const repaired = prepareCanvasSchema(initialSchema);
     const changed = repaired.tables.some((table, index) => table.x !== initialSchema.tables[index]?.x || table.y !== initialSchema.tables[index]?.y);
     if (changed) {
       setSchema(repaired);
@@ -2131,12 +2138,6 @@ export default function Designer({
               willChange: grabbing || dragPosition ? "transform" : undefined,
             }}
           >
-            <svg
-              className="edges"
-              width={CANVAS_WIDTH}
-              height={CANVAS_HEIGHT}
-              aria-hidden="true"
-          >
             {(schema.memos ?? []).map((memo) => {
               const position = liveMemo(memo);
               const color = MEMO_COLORS.find((item) => item.id === memo.color) ?? MEMO_COLORS[0];
@@ -2220,6 +2221,12 @@ export default function Designer({
                 </article>
               );
             })}
+            <svg
+              className="edges"
+              width={CANVAS_WIDTH}
+              height={CANVAS_HEIGHT}
+              aria-hidden="true"
+            >
             {relationships.map((relationship) => {
                 const from = relationshipPoint(
                   relationship.from,
