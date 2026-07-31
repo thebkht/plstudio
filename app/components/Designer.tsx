@@ -84,6 +84,20 @@ export default function Designer() {
   const canvasRef = useRef<HTMLDivElement>(null);
   const selected =
     schema.tables.find((table) => table.id === selectedId) ?? null;
+  const compatibleForeignKeyTargets = (column: Column) =>
+    schema.tables
+      .filter(
+        (table) =>
+          table.id !== selectedId && primaryKeyColumns(table).length <= 1,
+      )
+      .flatMap((table) =>
+        table.columns
+          .filter(
+            (target) =>
+              target.type === column.type || target.id === column.fk?.columnId,
+          )
+          .map((target) => ({ table, target })),
+      );
   const issues = useMemo(() => validateSchema(schema), [schema]);
   const errors = issues.filter((issue) => issue.severity === "error");
   const ddl = useMemo(() => generateDDL(schema), [schema]);
@@ -371,6 +385,31 @@ export default function Designer() {
     commit(result.schema);
     setSelectedId(result.schema.tables[0]?.id ?? null);
   };
+  const clearInvalidForeignKeys = () => {
+    const next = {
+      ...schema,
+      tables: schema.tables.map((table) => ({
+        ...table,
+        columns: table.columns.map((column) => {
+          if (!column.fk) return column;
+          const targetTable = schema.tables.find(
+            (candidate) => candidate.id === column.fk?.tableId,
+          );
+          const targetColumn = targetTable?.columns.find(
+            (candidate) => candidate.id === column.fk?.columnId,
+          );
+          const isValid =
+            targetTable &&
+            targetColumn &&
+            primaryKeyColumns(targetTable).length <= 1 &&
+            targetColumn.type === column.type;
+          return isValid ? column : { ...column, fk: null };
+        }),
+      })),
+    };
+    commit(next);
+  };
+
   const save = async () => {
     const response = await fetch("/api/projects", {
       method: "POST",
@@ -775,23 +814,17 @@ export default function Designer() {
                         }}
                       >
                         <option value="">No reference</option>
-                        {schema.tables
-                          .filter(
-                            (table) =>
-                              table.id !== selected.id &&
-                              primaryKeyColumns(table).length <= 1,
-                          )
-                          .flatMap((table) =>
-                            table.columns.map((target) => (
-                              <option
-                                key={`${table.id}::${target.id}`}
-                                value={`${table.id}::${target.id}`}
-                              >
-                                {table.name.toUpperCase()}.
-                                {target.name.toUpperCase()}
-                              </option>
-                            )),
-                          )}
+                        {compatibleForeignKeyTargets(column).map(
+                          ({ table, target }) => (
+                            <option
+                              key={`${table.id}::${target.id}`}
+                              value={`${table.id}::${target.id}`}
+                            >
+                              {table.name.toUpperCase()}.
+                              {target.name.toUpperCase()}
+                            </option>
+                          ),
+                        )}
                       </select>
                     )}
                   </div>
@@ -873,6 +906,9 @@ export default function Designer() {
               <div className="issue-strip danger">
                 <X size={14} />
                 Export blocked: {errors[0].message} ({errors.length} error(s))
+                <Button className="btn" onClick={clearInvalidForeignKeys}>
+                  Clear invalid references
+                </Button>
               </div>
             )}
             <pre className="code">{output}</pre>
