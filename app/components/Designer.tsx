@@ -1230,6 +1230,11 @@ export default function Designer({
     };
   };
 
+  const endpointCardinality = (table: Table, column: Column) =>
+    column.unique || (column.pk && primaryKeyColumns(table).length === 1)
+      ? "1"
+      : "n";
+
   const relationshipRows = useMemo(
     () =>
       relationships.map((relationship) => {
@@ -1239,6 +1244,7 @@ export default function Designer({
           id: relationship.id,
           from: `${relationship.from.name.toUpperCase()}.${column.name.toUpperCase()}`,
           to: `${relationship.to.name.toUpperCase()}.${target.name.toUpperCase()}`,
+          cardinality: `${endpointCardinality(relationship.from, column)}:${endpointCardinality(relationship.to, target)}`,
           fromId: relationship.from.id,
         };
       }),
@@ -1744,7 +1750,7 @@ export default function Designer({
                     <Link2 size={14} aria-hidden="true" />
                     <span className="relationship-copy">
                       <strong>{row.from}</strong>
-                      <small>references {row.to}</small>
+                    <small>references {row.to} · {row.cardinality}</small>
                     </span>
                   </button>
                 ))
@@ -1873,6 +1879,10 @@ export default function Designer({
                 );
                 const midpointX = from.x + (to.x - from.x) / 2;
                 const path = `M ${from.x} ${from.y} H ${midpointX} V ${to.y} H ${to.x}`;
+                const fromColumn = relationship.from.columns[relationship.fromIndex];
+                const toColumn = relationship.to.columns[relationship.toIndex];
+                const fromCardinality = endpointCardinality(relationship.from, fromColumn);
+                const toCardinality = endpointCardinality(relationship.to, toColumn);
                 const active =
                   selectedId === relationship.from.id ||
                   selectedId === relationship.to.id;
@@ -1894,7 +1904,7 @@ export default function Designer({
                       className="relationship-marker-text"
                       x={from.x}
                       y={from.y + 3}
-                    >*
+                    >{fromCardinality}
                     </text>
                     <circle
                       className="relationship-marker"
@@ -1906,7 +1916,7 @@ export default function Designer({
                       className="relationship-marker-text"
                       x={to.x}
                       y={to.y + 3}
-                    >1
+                    >{toCardinality}
                     </text>
                     <text
                       className="relationship-label"
