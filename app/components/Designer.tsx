@@ -1224,8 +1224,8 @@ export default function Designer({
     }
 
     return {
-      x: origin.x + TABLE_WIDTH / 2,
-      y: origin.y + (dy >= 0 ? tableHeight(table) : 0),
+      x: origin.x + TABLE_WIDTH,
+      y: rowY,
       axis: "vertical" as const,
     };
   };
@@ -1871,13 +1871,8 @@ export default function Designer({
                   relationship.toIndex,
                   relationship.from,
                 );
-                const horizontal = from.axis === "horizontal";
-                const midpoint = horizontal
-                  ? (to.x - from.x) / 2
-                  : (to.y - from.y) / 2;
-                const path = horizontal
-                  ? `M ${from.x} ${from.y} C ${from.x + midpoint} ${from.y}, ${to.x - midpoint} ${to.y}, ${to.x} ${to.y}`
-                  : `M ${from.x} ${from.y} C ${from.x} ${from.y + midpoint}, ${to.x} ${to.y - midpoint}, ${to.x} ${to.y}`;
+                const midpointX = from.x + (to.x - from.x) / 2;
+                const path = `M ${from.x} ${from.y} H ${midpointX} V ${to.y} H ${to.x}`;
                 const active =
                   selectedId === relationship.from.id ||
                   selectedId === relationship.to.id;
@@ -1899,8 +1894,7 @@ export default function Designer({
                       className="relationship-marker-text"
                       x={from.x}
                       y={from.y + 3}
-                    >
-                      1
+                    >*
                     </text>
                     <circle
                       className="relationship-marker"
@@ -1912,8 +1906,7 @@ export default function Designer({
                       className="relationship-marker-text"
                       x={to.x}
                       y={to.y + 3}
-                    >
-                      *
+                    >1
                     </text>
                     <text
                       className="relationship-label"
@@ -1921,7 +1914,7 @@ export default function Designer({
                       y={(from.y + to.y) / 2 - 8}
                       textAnchor="middle"
                     >
-                      {`${relationship.from.name}.${relationship.from.columns[relationship.fromIndex].name} → ${relationship.to.name}.${relationship.to.columns[relationship.toIndex].name}`}
+                      {`fk_${relationship.from.name}_${relationship.from.columns[relationship.fromIndex].name}_${relationship.to.name}`}
                     </text>
                   </g>
                 );
