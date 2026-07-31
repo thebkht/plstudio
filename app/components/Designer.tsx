@@ -87,6 +87,32 @@ const DRAG_THRESHOLD = 4;
 /** Arrow-key nudge for keyboard positioning. */
 const NUDGE = 8;
 
+function repairInitialLayout(schema: Schema): Schema {
+  const next = cloneSchema(schema);
+  const gap = 24;
+  const overlaps = (table: Table, x: number, y: number) => next.tables.some((other) => {
+    if (other.id === table.id) return false;
+    return x < other.x + TABLE_WIDTH + gap && x + TABLE_WIDTH + gap > other.x && y < other.y + tableHeight(other) + gap && y + tableHeight(table) + gap > other.y;
+  });
+  next.tables.forEach((table, index) => {
+    if (index === 0 || !overlaps(table, table.x, table.y)) return;
+    const startX = table.x;
+    const startY = table.y;
+    for (let ring = 1; ring <= 24; ring += 1) {
+      const step = 48 * ring;
+      const candidates = [
+        { x: startX + step, y: startY }, { x: startX - step, y: startY },
+        { x: startX, y: startY + step }, { x: startX, y: startY - step },
+        { x: startX + step, y: startY + step }, { x: startX - step, y: startY + step },
+        { x: startX + step, y: startY - step }, { x: startX - step, y: startY - step },
+      ];
+      const free = candidates.find((candidate) => candidate.x >= 0 && candidate.y >= 0 && candidate.x <= CANVAS_WIDTH - TABLE_WIDTH && candidate.y <= CANVAS_HEIGHT - tableHeight(table) && !overlaps(table, candidate.x, candidate.y));
+      if (free) { table.x = free.x; table.y = free.y; break; }
+    }
+  });
+  return next;
+}
+
 /** Momentum handoff wants a little overshoot; everything else settles flat. */
 const FLICK_SPRING = { damping: 0.82, response: 0.42 };
 const SETTLE_SPRING = { damping: 1, response: 0.34 };
@@ -217,7 +243,7 @@ export default function Designer({
   workspaceSlug?: string;
 }) {
   const router = useRouter();
-  const [schema, setSchema] = useState<Schema>(() => initialSchema);
+  const [schema, setSchema] = useState<Schema>(() => repairInitialLayout(initialSchema));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [history, setHistory] = useState<Schema[]>([]);
   const [future, setFuture] = useState<Schema[]>([]);
@@ -264,6 +290,15 @@ export default function Designer({
   } | null>(null);
   const [dirty, setDirty] = useState(false);
   const lastSavedNameRef = useRef(initialSchema.name);
+  useEffect(() => {
+    const repaired = repairInitialLayout(initialSchema);
+    const changed = repaired.tables.some((table, index) => table.x !== initialSchema.tables[index]?.x || table.y !== initialSchema.tables[index]?.y);
+    if (changed) {
+      setSchema(repaired);
+      setDirty(true);
+      setToast({ text: "Overlapping tables were separated.", tone: "ok" });
+    }
+  }, [initialSchema]);
   const canvasRef = useRef<HTMLDivElement>(null);
   const importHighlightRef = useRef<HTMLPreElement>(null);
   /**
