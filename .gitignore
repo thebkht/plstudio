@@ -8,3 +8,5 @@ coverage
 
 .cursor
 .codegraph
+
+.pnpm-store
