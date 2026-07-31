@@ -72,6 +72,7 @@ import {
 } from "@/app/lib/schema";
 import { validateSchema } from "@/app/lib/validation";
 import { authClient } from "@/app/lib/auth-client";
+import BrandMark from "@/app/components/BrandMark";
 
 /** Header offset for row anchors: the colour strip sits above the title bar. */
 const HEADER_HEIGHT = TABLE_COLOR_STRIP_HEIGHT + TABLE_HEADER_HEIGHT;
@@ -201,7 +202,7 @@ function Menu({
   );
 }
 
-export default function Designer({ initialSchema, projectId, workspaceSlug }: { initialSchema: Schema; projectId: string; workspaceSlug: string }) {
+export default function Designer({ initialSchema, projectId, workspaceSlug }: { initialSchema: Schema; projectId: string; workspaceSlug?: string }) {
   const router = useRouter();
   const [schema, setSchema] = useState<Schema>(() => initialSchema);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -899,7 +900,7 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
 
   const save = async (overwrite = false) => {
     try {
-      const response = await fetch(`/api/projects/${projectId}?workspace=${encodeURIComponent(workspaceSlug)}`, {
+      const response = await fetch(`/api/projects/${projectId}${workspaceSlug ? `?workspace=${encodeURIComponent(workspaceSlug)}` : ""}`, {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ schema, overwrite }),
@@ -924,7 +925,7 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
   useEffect(() => {
     if (schema.name === lastSavedNameRef.current) return;
     const timer = window.setTimeout(async () => {
-      const response = await fetch(`/api/projects/${projectId}?workspace=${encodeURIComponent(workspaceSlug)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: schema.name, revision: schema.revision }) });
+      const response = await fetch(`/api/projects/${projectId}${workspaceSlug ? `?workspace=${encodeURIComponent(workspaceSlug)}` : ""}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: schema.name, revision: schema.revision }) });
       if (response.ok) { const next = (await response.json()) as Schema; setSchema((current) => ({ ...current, revision: next.revision })); lastSavedNameRef.current = next.name; setDirty(false); }
       else if (response.status === 409) setToast({ text: "The name changed elsewhere.", tone: "error" });
     }, 700);
@@ -1043,7 +1044,7 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
   );
 
   const fileMenu: MenuItem[] = [
-    { label: "New diagram", onSelect: async () => { const response = await fetch("/api/projects", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ workspace: workspaceSlug, name: "Untitled Diagram" }) }); if (response.ok) { const created = await response.json() as Schema; router.push(`/${workspaceSlug}/${created.id}`); } else setToast({ text: "Could not create project.", tone: "error" }); } },
+    { label: "New diagram", onSelect: async () => { const response = await fetch("/api/projects", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...(workspaceSlug ? { workspace: workspaceSlug } : {}), name: "Untitled Diagram" }) }); if (response.ok) { const created = await response.json() as Schema; router.push(workspaceSlug ? `/${workspaceSlug}/${created.id}` : `/project/${created.id}`); } else setToast({ text: "Could not create project.", tone: "error" }); } },
     { separator: true },
     { label: "Import DDL…", onSelect: () => setModal("import") },
     { label: "Export…", onSelect: () => setModal("export"), hint: "⌘E" },
@@ -1096,13 +1097,11 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
   return (
     <div className="app">
       <header className="appbar">
-        <div className="appbar-brand" aria-hidden="true">
-          <Database size={22} />
-        </div>
+        <a className="appbar-brand" aria-label="DrawSQL home" href="/"><BrandMark compact /></a>
         <div className="appbar-main">
           <div className="appbar-title">
             <Database size={17} className="appbar-title-icon" />
-            <a className="appbar-crumb" href={`/${workspaceSlug}`}>Diagrams</a>
+            <a className="appbar-crumb" href={workspaceSlug ? `/${workspaceSlug}` : "/"}>{workspaceSlug ? "Diagrams" : "My diagrams"}</a>
             <span className="appbar-slash">/</span>
             <input
               className="appbar-name"

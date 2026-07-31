@@ -17,7 +17,7 @@ DrawDB is the visual and structural reference: page hierarchy, navigation rhythm
 
 | DrawDB concept | DrawSQL implementation |
 | --- | --- |
-| Landing page CTA into `/editor` | CTA into the authenticated workspace/project flow |
+| Direct editor entry | Signed-in users without a workspace can create a personal project at `/editor` |
 | Local diagrams/templates | Existing `projects` records and native template-start flow |
 | Editor save state | Existing project API and Designer autosave |
 | Anonymous/local user | Existing Better Auth session and guest behavior |
@@ -102,12 +102,13 @@ Use the existing component library where it already provides accessible behavior
 
 ## Data flow and behavior
 
-1. Root route checks the existing Better Auth session and directs users to auth, onboarding, or their workspace.
+1. Root route checks the existing Better Auth session and directs users to auth, their workspace, or a new personal editor project.
 2. Workspace loads projects through the existing organization-scoped query.
-3. New diagram and template actions submit through the existing project creation path.
-4. Editor loads the existing schema and continues to persist changes through the current API/autosave path.
-5. Settings and membership actions continue through current permission checks and client components.
-6. Visual state such as menus, tabs, dialogs, hover, focus, and responsive panel visibility stays local to the UI components unless it is already part of Designer state.
+3. New personal diagrams submit through the same project creation path with a nullable organization and `createdBy` ownership.
+4. New diagram and template actions submit through the existing project creation path.
+5. Editor loads the existing schema and continues to persist changes through the current API/autosave path.
+6. Settings and membership actions continue through current permission checks and client components.
+7. Visual state such as menus, tabs, dialogs, hover, focus, and responsive panel visibility stays local to the UI components unless it is already part of Designer state.
 
 ## Accessibility and responsive requirements
 
@@ -132,6 +133,7 @@ Use the existing component library where it already provides accessible behavior
 - A user familiar with DrawDB recognizes the same visual language and page structure throughout DrawSQL.
 - The editor shell is structurally DrawDB-like without losing existing schema editing capabilities.
 - All current auth, organization, project, permissions, and autosave behavior still works.
+- Signed-in users can create and edit a personal project without a workspace.
 - Templates can start a persisted project.
 - The app passes typecheck, tests, and production build.
 - No live external analytics or social API is required for the core experience.

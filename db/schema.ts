@@ -37,11 +37,11 @@ export const rateLimit = pgTable("rate_limit", {
 export const projects = pgTable("projects", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
-  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
+  organizationId: text("organization_id").references(() => organization.id, { onDelete: "cascade" }),
   createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   schemaJson: jsonb("schema_json").notNull(),
   revision: integer("revision").notNull().default(1),
   schemaFormatVersion: integer("schema_format_version").notNull().default(1),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => [index("projects_organization_idx").on(table.organizationId)]);
+}, (table) => [index("projects_organization_idx").on(table.organizationId), index("projects_created_by_idx").on(table.createdBy)]);
