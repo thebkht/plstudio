@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
 import {
@@ -237,6 +238,15 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
   const [issuesOpen, setIssuesOpen] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [linking, setLinking] = useState<{
+    pointerId: number;
+    sourceTableId: string;
+    sourceColumnId: string;
+    startX: number;
+    startY: number;
+    x: number;
+    y: number;
+  } | null>(null);
   const [dirty, setDirty] = useState(false);
   const lastSavedNameRef = useRef(initialSchema.name);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -277,6 +287,43 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
         : { x: table.x, y: table.y },
     [dragPosition],
   );
+  const canvasPoint = useCallback((event: { clientX: number; clientY: number }) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return { x: 0, y: 0 };
+    return { x: (event.clientX - rect.left - pan.x) / zoom, y: (event.clientY - rect.top - pan.y) / zoom };
+  }, [pan.x, pan.y, zoom]);
+  const rowPoint = useCallback((table: Table, columnIndex: number) => {
+    const position = livePosition(table);
+    return { x: position.x, y: position.y + HEADER_HEIGHT + columnIndex * ROW_HEIGHT + ROW_HEIGHT / 2 };
+  }, [livePosition]);
+  const startLinking = (event: ReactPointerEvent, table: Table, column: Column, columnIndex: number) => {
+    event.stopPropagation();
+    const point = rowPoint(table, columnIndex);
+    canvasRef.current?.setPointerCapture(event.pointerId);
+    setLinking({ pointerId: event.pointerId, sourceTableId: table.id, sourceColumnId: column.id, startX: point.x, startY: point.y, x: point.x, y: point.y });
+  };
+  const finishLinking = (event: ReactPointerEvent) => {
+    if (!linking || linking.pointerId !== event.pointerId) return;
+    const target = (event.target as HTMLElement).closest<HTMLElement>("[data-table-id][data-column-id]");
+    const targetTableId = target?.dataset.tableId;
+    const targetColumnId = target?.dataset.columnId;
+    if (targetTableId && targetColumnId && !(targetTableId === linking.sourceTableId && targetColumnId === linking.sourceColumnId)) {
+      const sourceTable = schema.tables.find((table) => table.id === linking.sourceTableId);
+      const sourceColumn = sourceTable?.columns.find((column) => column.id === linking.sourceColumnId);
+      const targetTable = schema.tables.find((table) => table.id === targetTableId);
+      const targetColumn = targetTable?.columns.find((column) => column.id === targetColumnId);
+      if (sourceTable && sourceColumn && targetTable && targetColumn && sourceColumn.type === targetColumn.type) {
+        const child = sourceColumn.pk ? { table: targetTable, column: targetColumn } : { table: sourceTable, column: sourceColumn };
+        const parent = sourceColumn.pk ? { table: sourceTable, column: sourceColumn } : { table: targetTable, column: targetColumn };
+        if (!child.column.pk && parent.column.pk) {
+          commit({ ...schema, tables: schema.tables.map((table) => table.id === child.table.id ? { ...table, columns: table.columns.map((column) => column.id === child.column.id ? { ...column, fk: { tableId: parent.table.id, columnId: parent.column.id } } : column) } : table) });
+          setToast({ text: `Linked ${child.table.name}.${child.column.name} to ${parent.table.name}.${parent.column.name}.`, tone: "ok" });
+        }
+      }
+    }
+    canvasRef.current?.releasePointerCapture(event.pointerId);
+    setLinking(null);
+  };
   const selected =
     schema.tables.find((table) => table.id === selectedId) ?? null;
   const filteredTables = useMemo(() => {
@@ -1576,6 +1623,9 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
           ref={canvasRef}
           className={`canvas-wrap ${grabbing ? "grabbing" : ""}`}
           onPointerDown={onCanvasDown}
+          onPointerMove={(event) => linking && setLinking((current) => current ? { ...current, ...canvasPoint(event) } : current)}
+          onPointerUp={finishLinking}
+          onPointerCancel={(event) => { if (linking?.pointerId === event.pointerId) setLinking(null); }}
         >
           <div
             className="canvas"
@@ -1665,8 +1715,8 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
                     </span>
                   </div>
                   {table.columns.map((column) => (
-                    <div className="table-row" key={column.id}>
-                      <span className="row-grip" aria-hidden="true" />
+                    <div className="table-row" key={column.id} data-table-id={table.id} data-column-id={column.id}>
+                      <span className="row-grip" role="button" tabIndex={0} aria-label={`Link ${table.name}.${column.name}`} onPointerDown={(event) => startLinking(event, table, column, table.columns.indexOf(column))} aria-hidden="false" />
                       <span className="row-name">{column.name.toUpperCase()}</span>
                       <span className="row-meta">
                         {column.pk && <KeyRound size={13} aria-hidden="true" />}
@@ -1692,6 +1742,8 @@ export default function Designer({ initialSchema, projectId, workspaceSlug }: { 
               );
             })}
           </div>
+
+          {linking && <svg className="linking-overlay" width={CANVAS_WIDTH} height={CANVAS_HEIGHT} style={{ transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})` }} aria-hidden="true"><path d={`M ${linking.startX} ${linking.startY} L ${linking.x} ${linking.y}`} /></svg>}
 
           <div className="dock" role="toolbar" aria-label="Canvas controls">
             <button

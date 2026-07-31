@@ -957,7 +957,12 @@ button {
   height: 10px;
   border-radius: 50%;
   background: #2f68adcc;
+  cursor: crosshair;
+  transition: transform var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
 }
+.row-grip:hover, .row-grip:focus-visible { transform: scale(1.45); background: #175e7a; }
+.linking-overlay { position: absolute; inset: 0; z-index: 5; overflow: visible; pointer-events: none; transform-origin: 0 0; }
+.linking-overlay path { fill: none; stroke: #175e7a; stroke-width: 3; stroke-dasharray: 9 7; animation: dash-right .55s linear infinite; }
 .row-name {
   overflow: hidden;
   text-overflow: ellipsis;
