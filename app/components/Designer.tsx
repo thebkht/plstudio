@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Check,
   ChevronDown,
@@ -52,6 +59,35 @@ const TABLE_WIDTH = 260;
 const HEADER_HEIGHT = 48;
 const ROW_HEIGHT = 30;
 
+const SQL_TOKEN =
+  /(--[^\n]*|'(?:''|[^'])*'|\b\d+(?:\.\d+)?\b|\b(?:SELECT|FROM|WHERE|INSERT|INTO|VALUES|UPDATE|SET|DELETE|CREATE|TABLE|SEQUENCE|TRIGGER|OR|REPLACE|BEFORE|AFTER|INSERTING|UPDATING|DELETING|ON|FOR|EACH|ROW|BEGIN|END|IF|THEN|ELSE|NULL|NOT|PRIMARY|KEY|FOREIGN|REFERENCES|CONSTRAINT|UNIQUE|CHECK|DEFAULT|AS|IS|AND|OR|NUMBER|VARCHAR2|CHAR|DATE|TIMESTAMP|CLOB|BLOB|RAW|IDENTITY|GENERATED|ALWAYS|BY|COMMIT|RETURNING|PACKAGE|BODY|FUNCTION|PROCEDURE|OPEN|CURSOR|VALUES)\b)/gi;
+
+function highlightSql(source: string): ReactNode[] {
+  const pieces: ReactNode[] = [];
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+  SQL_TOKEN.lastIndex = 0;
+  while ((match = SQL_TOKEN.exec(source))) {
+    if (match.index > cursor) pieces.push(source.slice(cursor, match.index));
+    const token = match[0];
+    const kind = token.startsWith("--")
+      ? "comment"
+      : token.startsWith("'")
+        ? "string"
+        : /^\d/.test(token)
+          ? "number"
+          : "keyword";
+    pieces.push(
+      <span className={`sql-token ${kind}`} key={`${match.index}-${token}`}>
+        {token}
+      </span>,
+    );
+    cursor = match.index + token.length;
+  }
+  if (cursor < source.length) pieces.push(source.slice(cursor));
+  return pieces;
+}
+
 export default function Designer() {
   const [schema, setSchema] = useState<Schema>(() => makeDemoSchema());
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -83,6 +119,7 @@ export default function Designer() {
   const [tableQuery, setTableQuery] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const importHighlightRef = useRef<HTMLPreElement>(null);
   const selected =
     schema.tables.find((table) => table.id === selectedId) ?? null;
   const filteredTables = useMemo(() => {
@@ -987,7 +1024,7 @@ export default function Designer() {
                 </Button>
               </div>
             )}
-            <pre className="code">{output}</pre>
+            <pre className="code"><code>{highlightSql(output)}</code></pre>
           </div>
         </div>
       )}
@@ -1013,13 +1050,28 @@ export default function Designer() {
               </Button>
             </div>
             <div className="import-area">
-              <Textarea
-                aria-label="Oracle DDL input"
-                className="textarea"
-                placeholder="CREATE TABLE STUDENT ( ID NUMBER NOT NULL, NAME VARCHAR2(100), CONSTRAINT PK_STUDENT PRIMARY KEY (ID) );"
-                value={importText}
-                onChange={(event) => setImportText(event.target.value)}
-              />
+              <div className="sql-editor">
+                <pre
+                  ref={importHighlightRef}
+                  className="sql-highlight"
+                  aria-hidden="true"
+                >
+                  <code>{highlightSql(importText)}</code>
+                </pre>
+                <Textarea
+                  aria-label="Oracle DDL input"
+                  className="textarea sql-input"
+                  placeholder="CREATE TABLE STUDENT ( ID NUMBER NOT NULL, NAME VARCHAR2(100), CONSTRAINT PK_STUDENT PRIMARY KEY (ID) );"
+                  value={importText}
+                  onScroll={(event) => {
+                    if (importHighlightRef.current) {
+                      importHighlightRef.current.scrollTop = event.currentTarget.scrollTop;
+                      importHighlightRef.current.scrollLeft = event.currentTarget.scrollLeft;
+                    }
+                  }}
+                  onChange={(event) => setImportText(event.target.value)}
+                />
+              </div>
               {importMessage && (
                 <div
                   className={`parse-result ${importMessage.ok ? "" : "parse-error"}`}

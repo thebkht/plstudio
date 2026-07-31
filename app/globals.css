@@ -712,7 +712,63 @@ button {
     Menlo,
     monospace;
   white-space: pre-wrap;
+  tab-size: 2;
 }
+.code code,
+.sql-highlight code {
+  font: inherit;
+}
+.sql-token.keyword { color: oklch(0.52 0.19 285); font-weight: 700; }
+.sql-token.string { color: oklch(0.55 0.16 55); }
+.sql-token.number { color: oklch(0.52 0.15 210); }
+.sql-token.comment { color: oklch(0.55 0.07 155); font-style: italic; }
+.sql-editor {
+  position: relative;
+  flex: 1;
+  min-height: 250px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in oklch, var(--background) 92%, var(--primary));
+}
+.sql-highlight,
+.sql-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 14px;
+  border: 0;
+  font:
+    12px/1.65 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  white-space: pre-wrap;
+  overflow: auto;
+  tab-size: 2;
+}
+.sql-highlight {
+  color: var(--foreground);
+  pointer-events: none;
+}
+.sql-input {
+  z-index: 1;
+  resize: none;
+  outline: none;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--foreground);
+  -webkit-text-fill-color: transparent;
+}
+.sql-input::selection { background: color-mix(in oklch, var(--primary) 25%, transparent); }
+.sql-input:focus { box-shadow: inset 0 0 0 2px color-mix(in oklch, var(--primary) 45%, transparent); }
+.designer.light .sql-editor { background: oklch(0.98 0.012 240); }
+.designer.light .sql-token.keyword { color: oklch(0.5 0.19 285); }
+.designer.light .sql-token.string { color: oklch(0.53 0.16 55); }
+.designer.light .sql-token.number { color: oklch(0.48 0.16 220); }
+.designer.light .sql-token.comment { color: oklch(0.48 0.08 155); }
 .import-area {
   flex: 1;
   display: flex;
@@ -723,7 +779,6 @@ button {
 .import-area textarea {
   flex: 1;
   min-height: 250px;
-  resize: none;
 }
 .parse-result {
   padding: 10px 12px;
