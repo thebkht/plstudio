@@ -784,10 +784,9 @@ button {
 /* ── Floating dock ─────────────────────────────────────────────────── */
 .dock {
   position: absolute;
-  left: 50%;
+  right: 22px;
   bottom: 22px;
   z-index: 10;
-  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 2px;
@@ -1426,7 +1425,7 @@ button {
   }
   .appbar { flex-wrap: wrap; gap: 10px; }
   .appbar-actions { margin-left: auto; }
-  .dock { bottom: 14px; padding: 4px; }
+  .dock { right: 14px; bottom: 14px; padding: 4px; }
   .dock button { width: 34px; height: 34px; }
   .fab { right: 14px; bottom: 74px; }
 }
