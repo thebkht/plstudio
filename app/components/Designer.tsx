@@ -9,35 +9,36 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  AlertTriangle,
-  Check,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Code2,
-  Copy,
-  Database,
-  Download,
-  FileUp,
-  KeyRound,
-  LayoutGrid,
-  Link2,
-  Maximize2,
-  Plus,
-  Redo2,
-  Save,
-  Search,
-  Share2,
-  StickyNote,
-  TablePropertiesIcon as TablePlus,
-  Trash2,
-  Undo2,
-  UserRound,
-  X,
-  ZoomIn,
-  ZoomOut,
-} from "lucide-react";
+  Alert02Icon,
+  ArrowDown01Icon,
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+  ArrowTurnBackwardIcon,
+  ArrowTurnForwardIcon,
+  Cancel01Icon,
+  Copy01Icon,
+  DatabaseIcon,
+  Delete02Icon,
+  Download04Icon,
+  FileUploadIcon,
+  FloppyDiskIcon,
+  GridViewIcon,
+  Key01Icon,
+  Link01Icon,
+  Maximize01Icon,
+  PlusSignIcon,
+  Search01Icon,
+  Share08Icon,
+  SourceCodeIcon,
+  StickyNote01Icon,
+  Table01Icon,
+  Tick02Icon,
+  UserCircleIcon,
+  ZoomInAreaIcon,
+  ZoomOutAreaIcon,
+} from "@hugeicons/core-free-icons";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1971,7 +1972,7 @@ export default function Designer({
         </a>
         <div className="appbar-main">
           <div className="appbar-title">
-            <Database size={17} className="appbar-title-icon" />
+            <HugeiconsIcon icon={DatabaseIcon} size={17} className="appbar-title-icon" />
             <a
               className="appbar-crumb"
               href={workspaceSlug ? `/${workspaceSlug}` : "/"}
@@ -2011,7 +2012,7 @@ export default function Designer({
         </div>
         <div className="appbar-actions">
           <Button className="share-btn" onClick={() => setModal("share")}>
-            <Share2 size={15} /> Share
+            <HugeiconsIcon icon={Share08Icon} size={15} /> Share
           </Button>
           <div className="user-menu">
             <button
@@ -2022,8 +2023,8 @@ export default function Designer({
               aria-expanded={userMenuOpen}
               onClick={() => setUserMenuOpen((open) => !open)}
             >
-              <UserRound size={17} />
-              <ChevronDown size={13} />
+              <HugeiconsIcon icon={UserCircleIcon} size={17} />
+              <HugeiconsIcon icon={ArrowDown01Icon} size={13} />
             </button>
             {userMenuOpen && (
               <div className="user-menu-popup" role="menu">
@@ -2034,7 +2035,7 @@ export default function Designer({
                     void authClient.signOut().then(() => router.push("/login"))
                   }
                 >
-                  <UserRound size={15} /> Sign out
+                  <HugeiconsIcon icon={UserCircleIcon} size={15} /> Sign out
                 </button>
               </div>
             )}
@@ -2051,7 +2052,7 @@ export default function Designer({
               aria-label="Hide side panel"
               onClick={() => setSidebarOpen(false)}
             >
-              <ChevronLeft size={15} />
+              <HugeiconsIcon icon={ArrowLeft01Icon} size={15} />
             </button>
             <button
               type="button"
@@ -2081,7 +2082,7 @@ export default function Designer({
             <>
               <div className="panel-toolbar">
                 <label className="panel-search">
-                  <Search size={15} />
+                  <HugeiconsIcon icon={Search01Icon} size={15} />
                   <input
                     aria-label="Search tables"
                     placeholder="Search..."
@@ -2090,22 +2091,22 @@ export default function Designer({
                   />
                 </label>
                 <Button className="add-link" onClick={addTable}>
-                  <Plus size={15} /> Add table
+                  <HugeiconsIcon icon={PlusSignIcon} size={15} /> Add table
                 </Button>
               </div>
               <div className="panel-body">
                 {!schema.tables.length ? (
                   <div className="empty-state">
                     <div className="empty-art" aria-hidden="true">
-                      <Database size={40} />
+                      <HugeiconsIcon icon={DatabaseIcon} size={40} />
                       <span className="empty-badge">
-                        <Plus size={16} />
+                        <HugeiconsIcon icon={PlusSignIcon} size={16} />
                       </span>
                     </div>
                     <strong>No tables</strong>
                     <p>Start building your diagram!</p>
                     <Button className="btn primary" onClick={addTable}>
-                      <Plus size={15} /> Add table
+                      <HugeiconsIcon icon={PlusSignIcon} size={15} /> Add table
                     </Button>
                   </div>
                 ) : !filteredTables.length ? (
@@ -2138,7 +2139,7 @@ export default function Designer({
                           <strong>{table.name.toUpperCase()}</strong>
                           <small>{table.columns.length} columns</small>
                         </span>
-                        <ChevronDown
+                        <HugeiconsIcon icon={ArrowDown01Icon}
                           size={15}
                           className="entity-chevron"
                           aria-hidden="true"
@@ -2236,7 +2237,7 @@ export default function Designer({
                                     deleteColumn(table.id, column.id)
                                   }
                                 >
-                                  <Trash2 size={14} />
+                                  <HugeiconsIcon icon={Delete02Icon} size={14} />
                                 </Button>
                               </div>
                               <div className="column-card-row">
@@ -2382,16 +2383,16 @@ export default function Designer({
                               className="btn"
                               onClick={() => addColumn(table.id)}
                             >
-                              <Plus size={14} /> Add column
+                              <HugeiconsIcon icon={PlusSignIcon} size={14} /> Add column
                             </Button>
                             <Button className="btn" onClick={makeJunction}>
-                              <Link2 size={14} /> Junction
+                              <HugeiconsIcon icon={Link01Icon} size={14} /> Junction
                             </Button>
                             <Button
                               className="btn danger"
                               onClick={() => deleteTable(table.id)}
                             >
-                              <Trash2 size={14} /> Delete
+                              <HugeiconsIcon icon={Delete02Icon} size={14} /> Delete
                             </Button>
                           </div>
                         </div>
@@ -2404,7 +2405,7 @@ export default function Designer({
           ) : (
             <div className="panel-body relationship-panel-body">
               <label className="panel-search relationship-search">
-                <Search size={15} />
+                <HugeiconsIcon icon={Search01Icon} size={15} />
                 <input
                   aria-label="Search relationships"
                   placeholder="Search relationships..."
@@ -2415,7 +2416,7 @@ export default function Designer({
               {!relationshipRows.length ? (
                 <div className="empty-state">
                   <div className="empty-art" aria-hidden="true">
-                    <Link2 size={38} />
+                    <HugeiconsIcon icon={Link01Icon} size={38} />
                   </div>
                   <strong>No relationships</strong>
                   <p>Give a column a foreign key to link two tables.</p>
@@ -2431,19 +2432,19 @@ export default function Designer({
                     return (
                       <section className={`relationship-editor ${openRelationshipId === relationship.id ? "open" : ""}`} key={relationship.id}>
                         <button type="button" className="relationship-row relationship-editor-head" aria-expanded={openRelationshipId === relationship.id} onClick={() => setOpenRelationshipId(openRelationshipId === relationship.id ? null : relationship.id)}>
-                          <Link2 size={14} aria-hidden="true" />
+                          <HugeiconsIcon icon={Link01Icon} size={14} aria-hidden="true" />
                           <span className="relationship-copy"><strong>{relationship.name}</strong><small>{row.from} → {row.to} · {row.cardinality}</small></span>
-                          <ChevronDown size={15} className="entity-chevron" />
+                          <HugeiconsIcon icon={ArrowDown01Icon} size={15} className="entity-chevron" />
                         </button>
                         {openRelationshipId === relationship.id && (
                           <div className="relationship-editor-body">
                             <label className="field"><span className="field-label">Name</span><Input value={relationship.name} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { name: event.target.value })} /></label>
-                            <div className="relationship-endpoints"><span><b>Foreign</b>{startTable?.name}</span><button type="button" className="icon-btn" aria-label="Swap relationship endpoints" disabled={readOnly} onClick={() => swapRelationship(relationship)}><Link2 size={14} /></button><span><b>Primary</b>{endTable?.name}</span></div>
+                            <div className="relationship-endpoints"><span><b>Foreign</b>{startTable?.name}</span><button type="button" className="icon-btn" aria-label="Swap relationship endpoints" disabled={readOnly} onClick={() => swapRelationship(relationship)}><HugeiconsIcon icon={Link01Icon} size={14} /></button><span><b>Primary</b>{endTable?.name}</span></div>
                             <label className="field"><span className="field-label">Cardinality</span><select className="select" value={relationship.cardinality} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { cardinality: event.target.value as Cardinality })}><option value="one_to_one">One to one</option><option value="one_to_many">One to many</option><option value="many_to_one">Many to one</option></select></label>
                             {relationship.cardinality !== "one_to_one" && <label className="field"><span className="field-label">Many-side label</span><Input value={relationship.manyLabel} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { manyLabel: event.target.value })} /></label>}
                             <div className="field-row"><label className="field"><span className="field-label">On update</span><select className="select" value={relationship.updateConstraint} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { updateConstraint: event.target.value as Relationship["updateConstraint"] })}>{RELATIONSHIP_CONSTRAINTS.map((constraint) => <option key={constraint}>{constraint}</option>)}</select></label><label className="field"><span className="field-label">On delete</span><select className="select" value={relationship.deleteConstraint} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { deleteConstraint: event.target.value as Relationship["deleteConstraint"] })}>{RELATIONSHIP_CONSTRAINTS.map((constraint) => <option key={constraint}>{constraint}</option>)}</select></label></div>
-                            <div className="relationship-pairs"><div className="field-label">Composite key</div>{pairs.map((pair, index) => { const start = schema.tables.find((table) => table.id === relationship.startTableId); const end = schema.tables.find((table) => table.id === relationship.endTableId); return <div className="relationship-pair" key={`${pair.startFieldId}-${pair.endFieldId}-${index}`}><select className="select" value={pair.startFieldId} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { fields: pairs.map((item, pairIndex) => pairIndex === index ? { ...item, startFieldId: event.target.value } : item) })}>{start?.columns.map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select><select className="select" value={pair.endFieldId} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { fields: pairs.map((item, pairIndex) => pairIndex === index ? { ...item, endFieldId: event.target.value } : item) })}>{end?.columns.map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select>{pairs.length > 1 && <Button className="icon-btn danger" aria-label="Remove relationship field pair" isDisabled={readOnly} onClick={() => patchRelationship(relationship.id, { fields: pairs.filter((_, pairIndex) => pairIndex !== index) })}><Trash2 size={13} /></Button>}</div>; })}<Button className="btn" isDisabled={readOnly || pairs.length >= Math.min(startTable?.columns.length ?? 0, endTable?.columns.length ?? 0)} onClick={() => { const start = startTable?.columns.find((column) => !pairs.some((pair) => pair.startFieldId === column.id)); const end = endTable?.columns.find((column) => !pairs.some((pair) => pair.endFieldId === column.id)); if (start && end) patchRelationship(relationship.id, { fields: [...pairs, { startFieldId: start.id, endFieldId: end.id }] }); }}><Plus size={13} /> Add field</Button></div>
-                            <Button className="btn danger relationship-delete" isDisabled={readOnly} onClick={() => deleteRelationship(relationship.id)}><Trash2 size={14} /> Delete relationship</Button>
+                            <div className="relationship-pairs"><div className="field-label">Composite key</div>{pairs.map((pair, index) => { const start = schema.tables.find((table) => table.id === relationship.startTableId); const end = schema.tables.find((table) => table.id === relationship.endTableId); return <div className="relationship-pair" key={`${pair.startFieldId}-${pair.endFieldId}-${index}`}><select className="select" value={pair.startFieldId} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { fields: pairs.map((item, pairIndex) => pairIndex === index ? { ...item, startFieldId: event.target.value } : item) })}>{start?.columns.map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select><select className="select" value={pair.endFieldId} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { fields: pairs.map((item, pairIndex) => pairIndex === index ? { ...item, endFieldId: event.target.value } : item) })}>{end?.columns.map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select>{pairs.length > 1 && <Button className="icon-btn danger" aria-label="Remove relationship field pair" isDisabled={readOnly} onClick={() => patchRelationship(relationship.id, { fields: pairs.filter((_, pairIndex) => pairIndex !== index) })}><HugeiconsIcon icon={Delete02Icon} size={13} /></Button>}</div>; })}<Button className="btn" isDisabled={readOnly || pairs.length >= Math.min(startTable?.columns.length ?? 0, endTable?.columns.length ?? 0)} onClick={() => { const start = startTable?.columns.find((column) => !pairs.some((pair) => pair.startFieldId === column.id)); const end = endTable?.columns.find((column) => !pairs.some((pair) => pair.endFieldId === column.id)); if (start && end) patchRelationship(relationship.id, { fields: [...pairs, { startFieldId: start.id, endFieldId: end.id }] }); }}><HugeiconsIcon icon={PlusSignIcon} size={13} /> Add field</Button></div>
+                            <Button className="btn danger relationship-delete" isDisabled={readOnly} onClick={() => deleteRelationship(relationship.id)}><HugeiconsIcon icon={Delete02Icon} size={14} /> Delete relationship</Button>
                           </div>
                         )}
                       </section>
@@ -2455,10 +2456,10 @@ export default function Designer({
 
           <div className="panel-footer">
             <span className="counter" title="Tables">
-              <Database size={14} /> {schema.tables.length}
+              <HugeiconsIcon icon={DatabaseIcon} size={14} /> {schema.tables.length}
             </span>
             <span className="counter" title="Relationships">
-              <Link2 size={14} /> {relationshipRows.length}
+              <HugeiconsIcon icon={Link01Icon} size={14} /> {relationshipRows.length}
             </span>
             <div className="segmented" role="group" aria-label="Panel view">
               <button
@@ -2467,7 +2468,7 @@ export default function Designer({
                 aria-pressed={panelMode === "structure"}
                 onClick={() => setPanelMode("structure")}
               >
-                <LayoutGrid size={13} /> Structure
+                <HugeiconsIcon icon={GridViewIcon} size={13} /> Structure
               </button>
               <button
                 type="button"
@@ -2475,7 +2476,7 @@ export default function Designer({
                 aria-pressed={panelMode === "code"}
                 onClick={() => setPanelMode("code")}
               >
-                <Code2 size={13} /> Code
+                <HugeiconsIcon icon={SourceCodeIcon} size={13} /> Code
               </button>
             </div>
           </div>
@@ -2487,7 +2488,7 @@ export default function Designer({
               aria-expanded={issuesOpen}
               onClick={() => setIssuesOpen((open) => !open)}
             >
-              <AlertTriangle
+              <HugeiconsIcon icon={Alert02Icon}
                 size={15}
                 className={errors.length ? "warn danger" : "warn"}
               />
@@ -2495,7 +2496,7 @@ export default function Designer({
               <span className={`issue-count ${errors.length ? "bad" : ""}`}>
                 {issues.length}
               </span>
-              <ChevronDown size={15} className="issues-chevron" />
+              <HugeiconsIcon icon={ArrowDown01Icon} size={15} className="issues-chevron" />
             </button>
             {issuesOpen && (
               <div className="issues-list">
@@ -2527,7 +2528,7 @@ export default function Designer({
             aria-label="Show side panel"
             onClick={() => setSidebarOpen(true)}
           >
-            <ChevronRight size={16} />
+            <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
           </button>
         )}
 
@@ -2586,7 +2587,7 @@ export default function Designer({
                     style={{ background: palette.header, color: palette.text, borderColor: palette.border }}
                     onPointerDown={(event) => onGroupDown(event, group)}
                   >
-                    <Database size={15} aria-hidden="true" />
+                    <HugeiconsIcon icon={DatabaseIcon} size={15} aria-hidden="true" />
                     <input
                       className="schema-group-name"
                       aria-label={`Name of schema group ${group.name}`}
@@ -2609,7 +2610,7 @@ export default function Designer({
                         />
                       ))}
                       <button type="button" className="schema-group-delete" aria-label={`Delete schema group ${group.name}`} disabled={readOnly} onClick={() => deleteGroup(group.id)}>
-                        <Trash2 size={13} aria-hidden="true" />
+                        <HugeiconsIcon icon={Delete02Icon} size={13} aria-hidden="true" />
                       </button>
                     </div>
                   </div>
@@ -2650,7 +2651,7 @@ export default function Designer({
                   }}
                 >
                   <div className="memo-toolbar" onPointerDown={(event) => onMemoDown(event, memo)}>
-                    <StickyNote size={14} aria-hidden="true" />
+                    <HugeiconsIcon icon={StickyNote01Icon} size={14} aria-hidden="true" />
                     <span className="memo-drag-label">Memo</span>
                     <div className="memo-actions" onPointerDown={(event) => event.stopPropagation()}>
                       {MEMO_COLORS.map((option) => (
@@ -2669,7 +2670,7 @@ export default function Designer({
                         aria-label="Delete memo"
                         onClick={() => deleteMemo(memo.id)}
                       >
-                        <Trash2 size={13} aria-hidden="true" />
+                        <HugeiconsIcon icon={Delete02Icon} size={13} aria-hidden="true" />
                       </button>
                     </div>
                   </div>
@@ -2827,9 +2828,9 @@ export default function Designer({
                         {column.name.toUpperCase()}
                       </span>
                       <span className="row-meta">
-                        {column.pk && <KeyRound size={13} aria-hidden="true" />}
+                        {column.pk && <HugeiconsIcon icon={Key01Icon} size={13} aria-hidden="true" />}
                         {column.fk && (
-                          <Link2
+                          <HugeiconsIcon icon={Link01Icon}
                             size={13}
                             className="fk-dot"
                             aria-hidden="true"
@@ -2877,7 +2878,7 @@ export default function Designer({
               aria-label="Tidy up layout"
               onClick={autoLayout}
             >
-              <LayoutGrid size={17} />
+              <HugeiconsIcon icon={GridViewIcon} size={17} />
             </button>
             <span className="dock-divider" />
             <button
@@ -2885,7 +2886,7 @@ export default function Designer({
               aria-label="Zoom out"
               onClick={() => zoomBy(-0.1)}
             >
-              <ZoomOut size={17} />
+              <HugeiconsIcon icon={ZoomOutAreaIcon} size={17} />
             </button>
             <span className="dock-zoom" aria-live="polite" aria-atomic="true">
               {Math.round(zoom * 100)}%
@@ -2895,7 +2896,7 @@ export default function Designer({
               aria-label="Zoom in"
               onClick={() => zoomBy(0.1)}
             >
-              <ZoomIn size={17} />
+              <HugeiconsIcon icon={ZoomInAreaIcon} size={17} />
             </button>
             <span className="dock-divider" />
             <button
@@ -2904,7 +2905,7 @@ export default function Designer({
               disabled={!history.length}
               onClick={undo}
             >
-              <Undo2 size={17} />
+              <HugeiconsIcon icon={ArrowTurnBackwardIcon} size={17} />
             </button>
             <button
               type="button"
@@ -2912,17 +2913,17 @@ export default function Designer({
               disabled={!future.length}
               onClick={redo}
             >
-              <Redo2 size={17} />
+              <HugeiconsIcon icon={ArrowTurnForwardIcon} size={17} />
             </button>
             <span className="dock-divider" />
             <button type="button" aria-label="Add table" onClick={addTable}>
-              <TablePlus size={17} />
+              <HugeiconsIcon icon={Table01Icon} size={17} />
             </button>
             <button type="button" aria-label="Add schema group" onClick={addGroup}>
-              <Database size={17} />
+              <HugeiconsIcon icon={DatabaseIcon} size={17} />
             </button>
             <button type="button" aria-label="Add memo" onClick={addMemo}>
-              <StickyNote size={17} />
+              <HugeiconsIcon icon={StickyNote01Icon} size={17} />
             </button>
             <button
               type="button"
@@ -2930,10 +2931,10 @@ export default function Designer({
               disabled={!selected}
               onClick={makeJunction}
             >
-              <Link2 size={17} />
+              <HugeiconsIcon icon={Link01Icon} size={17} />
             </button>
             <button type="button" aria-label="Fit to screen" onClick={fitView}>
-              <Maximize2 size={17} />
+              <HugeiconsIcon icon={Maximize01Icon} size={17} />
             </button>
             <span className="dock-divider" />
             <button
@@ -2941,14 +2942,14 @@ export default function Designer({
               aria-label="Save to database"
               onClick={() => void save()}
             >
-              <Save size={17} />
+              <HugeiconsIcon icon={FloppyDiskIcon} size={17} />
             </button>
             <button
               type="button"
               aria-label="Export SQL"
               onClick={() => setModal("export")}
             >
-              <Download size={17} />
+              <HugeiconsIcon icon={Download04Icon} size={17} />
             </button>
           </div>
         </div>
@@ -2959,19 +2960,19 @@ export default function Designer({
           <div className="modal share-modal" role="dialog" aria-modal="true" aria-label="Share project" onMouseDown={(event) => event.stopPropagation()}>
             <div className="modal-head">
               <div><strong>Share project</strong><div className="brand-sub">Invite people to collaborate on this diagram.</div></div>
-              <Button className="btn ghost" aria-label="Close dialog" onClick={() => setModal(null)}><X size={15} /></Button>
+              <Button className="btn ghost" aria-label="Close dialog" onClick={() => setModal(null)}><HugeiconsIcon icon={Cancel01Icon} size={15} /></Button>
             </div>
             <section className="share-section">
               <h3>Project invite link</h3>
               <p>Anyone with the link can preview the project. Sign-in is required to edit.</p>
-              {shareLink ? <div className="share-link-row"><Input aria-label="Project invite link" value={shareLink} readOnly /><Button className="btn" onClick={() => void copyShareText(shareLink)}><Copy size={15} /> Copy</Button></div> : <Button className="btn primary" isDisabled={shareBusy} onClick={() => void generateShareLink()}>{shareBusy ? "Generating…" : "Generate invite link"}</Button>}
+              {shareLink ? <div className="share-link-row"><Input aria-label="Project invite link" value={shareLink} readOnly /><Button className="btn" onClick={() => void copyShareText(shareLink)}><HugeiconsIcon icon={Copy01Icon} size={15} /> Copy</Button></div> : <Button className="btn primary" isDisabled={shareBusy} onClick={() => void generateShareLink()}>{shareBusy ? "Generating…" : "Generate invite link"}</Button>}
               {shareLink && <Button className="btn danger" isDisabled={shareBusy} onClick={() => { if (window.confirm("Revoke this link and generate a new one?")) void generateShareLink(); }}>{shareBusy ? "Generating…" : "Revoke and generate new link"}</Button>}
             </section>
             {workspaceSlug && <section className="share-section">
               <h3>Invite to workspace</h3>
               <p>Send a single-use invitation to a workspace member.</p>
               <div className="share-link-row"><Input aria-label="Invitee email" type="email" placeholder="person@example.com" value={workspaceEmail} onChange={(event) => setWorkspaceEmail(event.target.value)} /><Button className="btn primary" isDisabled={workspaceInviteBusy || !workspaceEmail.trim()} onClick={() => void inviteToWorkspace()}>{workspaceInviteBusy ? "Generating…" : "Generate link"}</Button></div>
-              {workspaceInviteLink && <div className="share-link-row"><Input aria-label="Workspace invitation link" value={workspaceInviteLink} readOnly /><Button className="btn" onClick={() => void copyShareText(workspaceInviteLink)}><Copy size={15} /> Copy</Button></div>}
+              {workspaceInviteLink && <div className="share-link-row"><Input aria-label="Workspace invitation link" value={workspaceInviteLink} readOnly /><Button className="btn" onClick={() => void copyShareText(workspaceInviteLink)}><HugeiconsIcon icon={Copy01Icon} size={15} /> Copy</Button></div>}
             </section>}
             {shareError && <p className="error-text">{shareError}</p>}
           </div>
@@ -3012,9 +3013,9 @@ export default function Designer({
                   onClick={copyOutput}
                 >
                   {copied ? (
-                    <Check size={15} color="var(--type-binary)" />
+                    <HugeiconsIcon icon={Tick02Icon} size={15} color="var(--type-binary)" />
                   ) : (
-                    <Copy size={15} />
+                    <HugeiconsIcon icon={Copy01Icon} size={15} />
                   )}
                 </Button>
                 <Button
@@ -3022,20 +3023,20 @@ export default function Designer({
                   aria-label="Download export"
                   onClick={download}
                 >
-                  <Download size={15} />
+                  <HugeiconsIcon icon={Download04Icon} size={15} />
                 </Button>
                 <Button
                   className="btn ghost"
                   aria-label="Close dialog"
                   onClick={() => setModal(null)}
                 >
-                  <X size={15} />
+                  <HugeiconsIcon icon={Cancel01Icon} size={15} />
                 </Button>
               </div>
             </div>
             {errors.length > 0 && (
               <div className="issue-strip danger">
-                <X size={14} />
+                <HugeiconsIcon icon={Cancel01Icon} size={14} />
                 <span className="issue-strip-copy">
                   Export blocked: {errors[0].message} ({errors.length} error(s))
                 </span>
@@ -3072,7 +3073,7 @@ export default function Designer({
                 aria-label="Close dialog"
                 onClick={() => setModal(null)}
               >
-                <X size={15} />
+                <HugeiconsIcon icon={Cancel01Icon} size={15} />
               </Button>
             </div>
             <div className="import-area">
@@ -3112,7 +3113,7 @@ export default function Designer({
                   Use current export
                 </Button>
                 <Button className="btn primary" onClick={importSchema}>
-                  <FileUp size={15} /> Parse and replace
+                  <HugeiconsIcon icon={FileUploadIcon} size={15} /> Parse and replace
                 </Button>
               </div>
             </div>
@@ -3125,7 +3126,7 @@ export default function Designer({
           <div
             className={`toast ${toast.tone === "error" ? "toast-error" : ""}`}
           >
-            {toast.tone === "error" ? <X size={14} /> : <Check size={14} />}
+            {toast.tone === "error" ? <HugeiconsIcon icon={Cancel01Icon} size={14} /> : <HugeiconsIcon icon={Tick02Icon} size={14} />}
             {toast.text}
           </div>
         )}
