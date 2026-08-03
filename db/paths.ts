@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 
 /**
@@ -7,6 +8,11 @@ import path from "node:path";
  * data is without any of them hardcoding a path.
  */
 export const DATA_DIR = path.resolve(process.env.DATA_DIR ?? path.join(process.cwd(), "data"));
+
+// Created on import, not by the first writer: `drizzle-kit push` opens auth.db
+// directly from drizzle.config.ts and never goes through getDb(), so it would
+// otherwise fail on a fresh checkout.
+fs.mkdirSync(DATA_DIR, { recursive: true });
 
 export const AUTH_DB_PATH = path.join(DATA_DIR, "auth.db");
 export const PROJECTS_DIR = path.join(DATA_DIR, "projects");

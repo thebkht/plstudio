@@ -1,5 +1,3 @@
-import fs from "node:fs";
-import path from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { AUTH_DB_PATH } from "./paths";
@@ -14,7 +12,6 @@ let db: ReturnType<typeof drizzle<typeof schema>> | null = null;
  */
 export function getDb() {
   if (db) return db;
-  fs.mkdirSync(path.dirname(AUTH_DB_PATH), { recursive: true });
   const sqlite = new Database(AUTH_DB_PATH);
   // WAL keeps session reads from queueing behind a write; the busy timeout turns
   // the rare collision into a short wait instead of an immediate SQLITE_BUSY.
