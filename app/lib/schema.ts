@@ -129,10 +129,15 @@ export const GROUP_PALETTE: Record<GroupColor, { background: string; border: str
 };
 export const GROUP_COLORS = Object.keys(GROUP_PALETTE) as GroupColor[];
 
-let sequence = 0;
+/**
+ * Ids must be unique across *clients*, not just across a session: two browsers
+ * editing one schema would otherwise both mint `tbl_1` and their concurrent
+ * inserts would silently merge into a single table. Hence a UUID, not a counter.
+ * `randomUUID` is absent outside secure contexts, so fall back to random hex.
+ */
 export function nextId(prefix: string) {
-  sequence += 1;
-  return `${prefix}_${sequence}`;
+  const unique = globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+  return `${prefix}_${unique}`;
 }
 
 export function makeColumn(partial: Partial<Column> = {}): Column {
