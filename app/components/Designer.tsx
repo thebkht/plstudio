@@ -1326,15 +1326,26 @@ export default function Designer({
     if (readOnly) return;
     const current = schemaRef.current;
     if (!current.groups?.some((item) => item.id === id)) return;
+    const group = current.groups.find((item) => item.id === id);
+    if (!group) return;
+    const nextWidth = Math.max(GROUP_MIN_WIDTH, Math.min(CANVAS_WIDTH - group.x, Math.round(width)));
+    const nextHeight = Math.max(GROUP_MIN_HEIGHT, Math.min(CANVAS_HEIGHT - group.y, Math.round(height)));
     setHistory((items) => [...items.slice(-49), cloneSchema(current)]);
     setFuture([]);
     setSchema((next) => ({
       ...next,
       groups: (next.groups ?? []).map((item) => item.id === id ? {
         ...item,
-        width: Math.max(GROUP_MIN_WIDTH, Math.min(CANVAS_WIDTH - item.x, Math.round(width))),
-        height: Math.max(GROUP_MIN_HEIGHT, Math.min(CANVAS_HEIGHT - item.y, Math.round(height))),
+        width: nextWidth,
+        height: nextHeight,
       } : item),
+      tables: next.tables.map((table) => {
+        if (table.schemaId !== undefined && table.schemaId !== id) return table;
+        const centerX = table.x + tableWidth(table) / 2;
+        const centerY = table.y + tableHeight(table) / 2;
+        const inside = centerX >= group.x && centerX <= group.x + nextWidth && centerY >= group.y + GROUP_HEADER_HEIGHT && centerY <= group.y + nextHeight;
+        return { ...table, schemaId: inside ? id : undefined };
+      }),
     }));
     setResizeGroup(null);
   }
