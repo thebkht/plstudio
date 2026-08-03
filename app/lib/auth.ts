@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { anonymous } from "better-auth/plugins/anonymous";
 import { organization } from "better-auth/plugins/organization";
-import { defaultAc } from "better-auth/plugins/organization/access";
+import { adminAc, defaultAc, ownerAc } from "better-auth/plugins/organization/access";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import * as schema from "@/db/schema";
@@ -25,6 +25,8 @@ export const auth = betterAuth({
       organizationLimit: 10,
       membershipLimit: 50,
       roles: {
+        owner: ownerAc,
+        admin: adminAc,
         member: defaultAc.newRole({ invitation: ["create"], ac: ["read"] }),
       },
     }),
