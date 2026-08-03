@@ -1,5 +1,6 @@
 import {
   normalizeIdentifier,
+  normalizeGroups,
   normalizeRelationships,
   primaryKeyColumns,
   type Schema,
@@ -62,12 +63,13 @@ export function generateDDL(schema: Schema) {
     "-- ============================================================\n",
   ];
   const usedNames = new Set<string>();
-  const canonical = normalizeRelationships({
+  const canonical = normalizeGroups(normalizeRelationships({
     ...schema,
     relationships: schema.relationships?.length
       ? schema.relationships
       : undefined,
-  });
+  }));
+  const groupsById = new Map((canonical.groups ?? []).map((group) => [group.id, group]));
   const relationshipsByTable = new Map<
     string,
     typeof canonical.relationships
@@ -106,13 +108,16 @@ export function generateDDL(schema: Schema) {
           : "";
       return `  ${sqlIdentifier(column.name).padEnd(columnNameWidth + 3)}${typeString(column).toLowerCase()}${identity}${attrs ? ` ${attrs}` : ""}`;
     });
-    out.push(lines.join(",\n"), ") tablespace core_data;", "--");
+    const group = table.schemaId ? groupsById.get(table.schemaId) : undefined;
+    const dataTablespace = group ? ` tablespace ${sqlIdentifier(group.name)}_data` : "";
+    const indexTablespace = group ? ` tablespace ${sqlIdentifier(group.name)}_index` : "";
+    out.push(lines.join(",\n"), `)${dataTablespace};`, "--");
 
     if (pk.length)
       out.push(
         `alter table ${tableName}`,
         `  add constraint ${shorten(`${tableName}_pk`, usedNames)} primary key (${pk.map((column) => sqlIdentifier(column.name)).join(", ")})`,
-        "  using index tablespace core_index;",
+        `  using index${indexTablespace};`,
         "--",
       );
     table.columns
@@ -121,7 +126,7 @@ export function generateDDL(schema: Schema) {
         out.push(
           `alter table ${tableName}`,
           `  add constraint ${shorten(`${tableName}_u${index + 1}`, usedNames)} unique (${sqlIdentifier(column.name)})`,
-          "  using index tablespace core_index;",
+          `  using index${indexTablespace};`,
           "--",
         ),
       );

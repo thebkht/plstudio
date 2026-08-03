@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateDDL } from "@/app/lib/generators";
 import { parseCreateTable } from "@/app/lib/parser";
-import { makeDemoSchema, makeMemo, makeTable, normalizeMemos, normalizeRelationships } from "@/app/lib/schema";
+import { makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, normalizeMemos, normalizeGroups, normalizeRelationships } from "@/app/lib/schema";
 import { validateCheckExpression, validateSchema, validateTypeSpec } from "@/app/lib/validation";
 
 describe("Oracle schema model", () => {
@@ -25,7 +25,7 @@ describe("Oracle schema model", () => {
     const schema = makeDemoSchema();
     delete schema.relationships;
     const normalized = normalizeRelationships(schema);
-    expect(normalized.schemaFormatVersion).toBe(2);
+    expect(normalized.schemaFormatVersion).toBe(3);
     expect(normalized.relationships).toHaveLength(1);
     expect(normalized.relationships?.[0]).toMatchObject({
       cardinality: "many_to_one",
@@ -69,6 +69,9 @@ describe("Oracle schema model", () => {
     schema.tables[0].comment = "Student records";
     schema.tables[0].columns[0].comment = "Primary identifier";
     schema.tables[1].columns[2].unique = true;
+    const group = makeSchemaGroup("Core", 0, 0, 0);
+    schema.groups = [group];
+    schema.tables.forEach((table) => { table.schemaId = group.id; });
     const ddl = generateDDL(schema);
     expect(ddl).toContain("--drop table student;");
     expect(ddl).toContain(") tablespace core_data;");
@@ -77,6 +80,35 @@ describe("Oracle schema model", () => {
     expect(ddl).toContain("comment on table student is 'Student records';");
     expect(ddl).toContain("comment on column student.id is 'Primary identifier';");
     expect(ddl).not.toContain("status char(1) default 'A' not null unique");
+  });
+
+  it("uses each schema group's data and index tablespaces without changing table colors", () => {
+    const schema = makeDemoSchema();
+    const group = makeSchemaGroup("Library", 40, 40, 0);
+    schema.groups = [group];
+    schema.tables[0].schemaId = group.id;
+    const originalColor = schema.tables[0].color;
+    const ddl = generateDDL(schema);
+    expect(ddl).toContain(") tablespace library_data;");
+    expect(ddl).toContain("using index tablespace library_index;");
+    expect(schema.tables[0].color).toEqual(originalColor);
+  });
+
+  it("omits tablespaces for ungrouped tables", () => {
+    const ddl = generateDDL(makeDemoSchema());
+    expect(ddl).not.toContain("tablespace core_data");
+    expect(ddl).not.toContain("tablespace core_index");
+    expect(ddl).toContain("add constraint student_pk primary key");
+    expect(ddl).toContain("using index;");
+  });
+
+  it("normalizes invalid group references and legacy group values", () => {
+    const schema = makeDemoSchema();
+    schema.tables[0].schemaId = "missing";
+    const normalized = normalizeGroups({ ...schema, groups: [{ id: "group-1", name: "  Library  ", x: -4, y: -2, width: 10, height: 10, color: "invalid" as never }] });
+    expect(normalized.schemaFormatVersion).toBe(3);
+    expect(normalized.groups?.[0]).toMatchObject({ name: "Library", x: 0, y: 0, width: 360, height: 260, color: "orange" });
+    expect(normalized.tables[0].schemaId).toBeUndefined();
   });
 
   it("blocks foreign keys into composite primary keys", () => {
