@@ -6,7 +6,7 @@ import { requireWorkspace } from "@/app/lib/session";
 import NewProjectButton from "@/app/components/NewProjectButton";
 import ProjectCard from "@/app/components/ProjectCard";
 import WorkspaceTopbar from "@/app/components/WorkspaceTopbar";
-import { buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import {
   Empty,
   EmptyContent,

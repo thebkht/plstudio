@@ -7,7 +7,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import ProjectCard from "@/app/components/ProjectCard";
 import WorkspaceTopbar from "@/app/components/WorkspaceTopbar";
-import { buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import {
   Empty,
   EmptyContent,

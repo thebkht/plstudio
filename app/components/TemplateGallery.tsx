@@ -8,7 +8,8 @@ import { useRouter } from "next/navigation";
 import { makeDemoSchema, type Schema } from "@/app/lib/schema";
 import BrandMark from "@/app/components/BrandMark";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import {
   Card,
   CardAction,
