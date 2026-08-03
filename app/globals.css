@@ -755,6 +755,31 @@ button {
 }
 .issue.error { border-left-color: var(--danger); }
 .issue:hover { background: var(--surface-2); }
+.issue-strip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  margin: 0 20px 12px;
+  padding: 12px 14px;
+  border: 1px solid rgb(220 38 38 / 24%);
+  border-radius: 12px;
+  background: #fff7f7;
+  color: var(--danger);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+.issue-strip > svg { flex: 0 0 auto; margin-top: 2px; }
+.issue-strip-copy { min-width: 0; overflow-wrap: anywhere; }
+.issue-strip .btn {
+  min-height: 40px;
+  justify-self: end;
+  white-space: nowrap;
+}
+@media (max-width: 720px) {
+  .issue-strip { grid-template-columns: auto minmax(0, 1fr); }
+  .issue-strip .btn { grid-column: 2; justify-self: start; }
+}
 
 /* ── Floating dock ─────────────────────────────────────────────────── */
 .dock {

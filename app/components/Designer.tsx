@@ -2726,7 +2726,9 @@ export default function Designer({
             {errors.length > 0 && (
               <div className="issue-strip danger">
                 <X size={14} />
-                Export blocked: {errors[0].message} ({errors.length} error(s))
+                <span className="issue-strip-copy">
+                  Export blocked: {errors[0].message} ({errors.length} error(s))
+                </span>
                 <Button className="btn" onClick={clearInvalidForeignKeys}>
                   Clear invalid references
                 </Button>
