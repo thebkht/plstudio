@@ -47,7 +47,7 @@ function keyStrategyArtifacts(
   if (strategy === "identity") return [];
   return [
     `create sequence ${sequenceName}`,
-    "start with 500",
+    "start with 1",
     "increment by 1",
     "nocache",
     "nocycle;",
