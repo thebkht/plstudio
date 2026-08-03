@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { generateDDL } from "@/app/lib/generators";
 import { parseCreateTable } from "@/app/lib/parser";
-import { makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, normalizeMemos, normalizeGroups, normalizeRelationships } from "@/app/lib/schema";
+import { makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, normalizeMemos, normalizeGroups, normalizeRelationships, tableWidth } from "@/app/lib/schema";
 import { validateCheckExpression, validateSchema, validateTypeSpec } from "@/app/lib/validation";
 
 describe("Oracle schema model", () => {
+  it("sizes table cards from their names within readable bounds", () => {
+    expect(tableWidth({ name: "ID" })).toBe(220);
+    expect(tableWidth({ name: "A_VERY_LONG_TABLE_NAME_FOR_REPORTING" })).toBe(420);
+    expect(tableWidth({ name: "  CUSTOMER_ORDERS  " })).toBeGreaterThan(220);
+  });
+
   it("generates identity without sequence or trigger artifacts", () => {
     const schema = makeDemoSchema();
     schema.tables[0].keyStrategy = "identity";

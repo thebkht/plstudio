@@ -285,9 +285,16 @@ export function primaryKeyColumns(table: Table) {
  * anchor routing depends on the two agreeing, so change them together.
  */
 export const TABLE_WIDTH = 220;
+export const TABLE_MAX_WIDTH = 420;
 export const TABLE_COLOR_STRIP_HEIGHT = 7;
 export const TABLE_HEADER_HEIGHT = 50;
 export const TABLE_FIELD_HEIGHT = 36;
+
+/** Keep short names compact while giving long names room before ellipsis. */
+export function tableWidth(table: Pick<Table, "name">) {
+  const nameWidth = 130 + table.name.trim().length * 9;
+  return Math.max(TABLE_WIDTH, Math.min(TABLE_MAX_WIDTH, nameWidth));
+}
 
 export function tableHeight(table: Table) {
   return (

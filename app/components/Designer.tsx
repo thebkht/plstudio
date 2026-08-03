@@ -69,9 +69,9 @@ import {
   ORACLE_TYPES,
   primaryKeyColumns,
   tableHeight,
+  tableWidth,
   typeSizePlaceholder,
   typeUsesSize,
-  TABLE_WIDTH,
   TABLE_COLOR_STRIP_HEIGHT,
   TABLE_HEADER_HEIGHT,
   TABLE_FIELD_HEIGHT,
@@ -119,7 +119,9 @@ function repairInitialLayout(schema: Schema): Schema {
   const gap = 24;
   const overlaps = (table: Table, x: number, y: number) => next.tables.some((other) => {
     if (other.id === table.id) return false;
-    return x < other.x + TABLE_WIDTH + gap && x + TABLE_WIDTH + gap > other.x && y < other.y + tableHeight(other) + gap && y + tableHeight(table) + gap > other.y;
+    const width = tableWidth(table);
+    const otherWidth = tableWidth(other);
+    return x < other.x + otherWidth + gap && x + width + gap > other.x && y < other.y + tableHeight(other) + gap && y + tableHeight(table) + gap > other.y;
   });
   next.tables.forEach((table, index) => {
     if (index === 0 || !overlaps(table, table.x, table.y)) return;
@@ -133,7 +135,7 @@ function repairInitialLayout(schema: Schema): Schema {
         { x: startX + step, y: startY + step }, { x: startX - step, y: startY + step },
         { x: startX + step, y: startY - step }, { x: startX - step, y: startY - step },
       ];
-      const free = candidates.find((candidate) => candidate.x >= 0 && candidate.y >= 0 && candidate.x <= CANVAS_WIDTH - TABLE_WIDTH && candidate.y <= CANVAS_HEIGHT - tableHeight(table) && !overlaps(table, candidate.x, candidate.y));
+      const free = candidates.find((candidate) => candidate.x >= 0 && candidate.y >= 0 && candidate.x <= CANVAS_WIDTH - tableWidth(table) && candidate.y <= CANVAS_HEIGHT - tableHeight(table) && !overlaps(table, candidate.x, candidate.y));
       if (free) { table.x = free.x; table.y = free.y; break; }
     }
   });
@@ -734,7 +736,7 @@ export default function Designer({
       ...(schema.groups ?? []).map((group) => group.y),
     );
     const maxX = Math.max(
-      ...schema.tables.map((table) => table.x + TABLE_WIDTH),
+      ...schema.tables.map((table) => table.x + tableWidth(table)),
       ...(schema.groups ?? []).map((group) => group.x + group.width),
     );
     const maxY = Math.max(
@@ -763,7 +765,7 @@ export default function Designer({
   const tableBounds = useCallback(
     (table: Table) => ({
       minX: 0,
-      maxX: CANVAS_WIDTH - TABLE_WIDTH,
+      maxX: CANVAS_WIDTH - tableWidth(table),
       minY: 0,
       maxY: CANVAS_HEIGHT - tableHeight(table),
     }),
@@ -781,8 +783,10 @@ export default function Designer({
     });
     const collides = (position: Vec) => tables.some((other) => {
       if (other.id === id) return false;
-      return position.x < other.x + TABLE_WIDTH + 18 &&
-        position.x + TABLE_WIDTH + 18 > other.x &&
+      const width = tableWidth(table);
+      const otherWidth = tableWidth(other);
+      return position.x < other.x + otherWidth + 18 &&
+        position.x + width + 18 > other.x &&
         position.y < other.y + tableHeight(other) + 18 &&
         position.y + tableHeight(table) + 18 > other.y;
     });
@@ -1064,7 +1068,7 @@ export default function Designer({
         y: Math.max(bounds.minY, Math.min(bounds.maxY, projected.y)),
       };
       const target = resolveTablePosition(table.id, projectedTarget.x, projectedTarget.y);
-      const tableCenter = { x: target.x + TABLE_WIDTH / 2, y: target.y + tableHeight(table) / 2 };
+      const tableCenter = { x: target.x + tableWidth(table) / 2, y: target.y + tableHeight(table) / 2 };
       const targetGroup = (schemaRef.current.groups ?? []).find((group) => {
         const position = liveGroup(group);
         return tableCenter.x >= position.x && tableCenter.x <= position.x + position.width &&
@@ -1785,11 +1789,11 @@ export default function Designer({
     const origin = livePosition(table);
     const otherOrigin = livePosition(other);
     const tableCenter = {
-      x: origin.x + TABLE_WIDTH / 2,
+      x: origin.x + tableWidth(table) / 2,
       y: origin.y + tableHeight(table) / 2,
     };
     const otherCenter = {
-      x: otherOrigin.x + TABLE_WIDTH / 2,
+      x: otherOrigin.x + tableWidth(other) / 2,
       y: otherOrigin.y + tableHeight(other) / 2,
     };
     const dx = otherCenter.x - tableCenter.x;
@@ -1798,14 +1802,14 @@ export default function Designer({
 
     if (Math.abs(dx) >= Math.abs(dy)) {
       return {
-        x: origin.x + (dx >= 0 ? TABLE_WIDTH : 0),
+        x: origin.x + (dx >= 0 ? tableWidth(table) : 0),
         y: rowY,
         axis: "horizontal" as const,
       };
     }
 
     return {
-      x: origin.x + TABLE_WIDTH,
+      x: origin.x + tableWidth(table),
       y: rowY,
       axis: "vertical" as const,
     };
@@ -2757,6 +2761,7 @@ export default function Designer({
                   aria-label={`Table ${table.name}, ${table.columns.length} columns. Arrow keys move it.`}
                   style={{
                     transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
+                    width: tableWidth(table),
                     willChange: moving ? "transform" : undefined,
                   }}
                   onPointerDown={(event) => {
