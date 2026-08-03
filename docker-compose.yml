@@ -1,17 +1,19 @@
+# Run with:  docker compose --env-file .env.local up --build
+#
+# `--env-file` feeds ${...} interpolation below (compose reads `.env` otherwise);
+# `env_file:` puts the same values inside the containers at runtime.
 services:
   web:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Build-time only: Next inlines this into the client bundle.
+        NEXT_PUBLIC_COLLAB_URL: ${NEXT_PUBLIC_COLLAB_URL:-ws://localhost:1234}
+    env_file:
+      - .env.local
     ports:
       - "3000:3000"
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
-      # Shared with `collab`: the web app signs room tokens, the collab server verifies them.
-      COLLAB_TOKEN_SECRET: ${COLLAB_TOKEN_SECRET}
-      NEXT_PUBLIC_COLLAB_URL: ${NEXT_PUBLIC_COLLAB_URL:-ws://localhost:1234}
     depends_on:
       - collab
 
@@ -19,9 +21,9 @@ services:
     build:
       context: .
       dockerfile: collab/Dockerfile
+    env_file:
+      - .env.local
+    environment:
+      COLLAB_PORT: "1234"
     ports:
       - "1234:1234"
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      COLLAB_TOKEN_SECRET: ${COLLAB_TOKEN_SECRET}
-      COLLAB_PORT: "1234"
