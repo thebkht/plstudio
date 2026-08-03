@@ -857,6 +857,15 @@ button {
   color: var(--primary-foreground);
 }
 
+/*
+ * Keycaps inside a menu row inherit the row's colour rather than fighting it, so
+ * they stay legible through hover, focus, and the destructive variant.
+ */
+[data-slot="context-menu-shortcut"] [data-slot="kbd"] {
+  background: color-mix(in oklch, currentcolor 12%, transparent);
+  color: inherit;
+}
+
 /* Keyboard shortcut reference. Two columns where there is room, one when there is not. */
 .shortcut-sheet {
   display: grid;

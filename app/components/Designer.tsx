@@ -456,6 +456,19 @@ function DockButton({
   );
 }
 
+/** A chord as keycaps, one per token. Shared by the menus and the shortcuts sheet. */
+function ShortcutKeys({ id, isMac }: { id: ShortcutId; isMac: boolean }) {
+  const chord = shortcutById(id)?.chords[0];
+  if (!chord) return null;
+  return (
+    <KbdGroup>
+      {chordParts(chord, isMac).map((part) => (
+        <Kbd key={part}>{part}</Kbd>
+      ))}
+    </KbdGroup>
+  );
+}
+
 /**
  * A column constraint as a square icon toggle rather than a checkbox — the row is
  * scanned far more often than it is edited, so the lit state has to read at a glance.
@@ -3412,7 +3425,9 @@ export default function Designer({
                     >
                       <HugeiconsIcon icon={ColumnInsertIcon} />
                       Add column
-                      <ContextMenuShortcut>{hint("addColumn")}</ContextMenuShortcut>
+                      <ContextMenuShortcut>
+                        <ShortcutKeys id="addColumn" isMac={isMac} />
+                      </ContextMenuShortcut>
                     </ContextMenuItem>
                     <ContextMenuItem
                       isDisabled={readOnly}
@@ -3420,7 +3435,9 @@ export default function Designer({
                     >
                       <HugeiconsIcon icon={GitMergeIcon} />
                       Add junction table
-                      <ContextMenuShortcut>{hint("junction")}</ContextMenuShortcut>
+                      <ContextMenuShortcut>
+                        <ShortcutKeys id="junction" isMac={isMac} />
+                      </ContextMenuShortcut>
                     </ContextMenuItem>
                   </ContextMenuGroup>
                   <ContextMenuSeparator />
@@ -3432,7 +3449,9 @@ export default function Designer({
                     >
                       <HugeiconsIcon icon={Delete02Icon} />
                       Delete table
-                      <ContextMenuShortcut>{hint("deleteSelection")}</ContextMenuShortcut>
+                      <ContextMenuShortcut>
+                        <ShortcutKeys id="deleteSelection" isMac={isMac} />
+                      </ContextMenuShortcut>
                     </ContextMenuItem>
                   </ContextMenuGroup>
                 </ContextMenu>
@@ -3794,11 +3813,7 @@ export default function Designer({
                     >
                       <dt>{shortcut.label}</dt>
                       <dd>
-                        <KbdGroup>
-                          {chordParts(shortcut.chords[0], isMac).map((part) => (
-                            <Kbd key={part}>{part}</Kbd>
-                          ))}
-                        </KbdGroup>
+                        <ShortcutKeys id={shortcut.id} isMac={isMac} />
                       </dd>
                     </div>
                   ),
