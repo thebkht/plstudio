@@ -42,14 +42,16 @@ export default function ProjectCard({ projectId, href, name, tableCount, updated
     else toast.error("This project could not be deleted.");
   };
   return (
-    <Card className="project-card">
+    <Card size="sm" className="project-card">
       <CardHeader>
         <CardTitle>
           <Link href={href} className="project-card-link">
             {name}
           </Link>
         </CardTitle>
-        <CardDescription>{tableCount} tables</CardDescription>
+        <CardDescription>
+          {tableCount} {tableCount === 1 ? "table" : "tables"}
+        </CardDescription>
         {canDelete && (
           <CardAction>
             <DropdownMenuTrigger>

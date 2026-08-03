@@ -44,8 +44,8 @@ export default async function Page() {
           <h1>Your projects</h1>
         </div>
         <div className="dashboard-actions">
-          <Link className={buttonVariants()} href="/editor">New diagram</Link>
-          {workspaceRow && <Link className={buttonVariants({ variant: "outline" })} href={`/${workspaceRow.slug}`}>Open workspace</Link>}
+          <Link data-slot="button" className={buttonVariants()} href="/editor">New diagram</Link>
+          {workspaceRow && <Link data-slot="button" className={buttonVariants({ variant: "outline" })} href={`/${workspaceRow.slug}`}>Open workspace</Link>}
         </div>
       </header>
       {personalProjects.length ? (
@@ -64,7 +64,7 @@ export default async function Page() {
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
-            <Link className={buttonVariants()} href="/editor">Open a blank editor</Link>
+            <Link data-slot="button" className={buttonVariants()} href="/editor">Open a blank editor</Link>
           </EmptyContent>
         </Empty>
       )}

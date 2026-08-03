@@ -68,7 +68,7 @@ export default function InvitePage({ params }: { params: Promise<{ invitationId:
         <CardContent className="flex gap-2">
           {state.invite && !state.mismatch &&
             (needsSignIn ? (
-              <Link className={buttonVariants()} href={`/login?redirect=/invite/${state.invite.id}`}>Sign in</Link>
+              <Link data-slot="button" className={buttonVariants()} href={`/login?redirect=/invite/${state.invite.id}`}>Sign in</Link>
             ) : (
               <>
                 <Button onPress={accept}>Accept invitation</Button>
@@ -76,7 +76,7 @@ export default function InvitePage({ params }: { params: Promise<{ invitationId:
               </>
             ))}
           {state.mismatch && state.invite && (
-            <Link className={buttonVariants()} href={`/login?redirect=/invite/${state.invite.id}`}>Sign in as the invited account</Link>
+            <Link data-slot="button" className={buttonVariants()} href={`/login?redirect=/invite/${state.invite.id}`}>Sign in as the invited account</Link>
           )}
         </CardContent>
       </Card>

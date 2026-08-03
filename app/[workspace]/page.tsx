@@ -35,8 +35,8 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
           <h1>{organization.name}</h1>
         </div>
         <div className="dashboard-actions">
-          <Link className={buttonVariants({ variant: "outline" })} href="/editor">Personal diagram</Link>
-          <Link className={buttonVariants({ variant: "outline" })} href="/templates">Browse templates</Link>
+          <Link data-slot="button" className={buttonVariants({ variant: "outline" })} href="/editor">Personal diagram</Link>
+          <Link data-slot="button" className={buttonVariants({ variant: "outline" })} href="/templates">Browse templates</Link>
           <NewProjectButton workspace={workspace} />
         </div>
       </header>
@@ -56,7 +56,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
-            <Link className={buttonVariants()} href="/templates">Browse templates</Link>
+            <Link data-slot="button" className={buttonVariants()} href="/templates">Browse templates</Link>
           </EmptyContent>
         </Empty>
       )}

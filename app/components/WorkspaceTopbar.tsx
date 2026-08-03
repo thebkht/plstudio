@@ -24,6 +24,7 @@ export default function WorkspaceTopbar({
       <nav className="flex items-center gap-1">
         {links.map((link) => (
           <Link
+            data-slot="button"
             key={link.href}
             href={link.href}
             className={buttonVariants({ variant: "ghost", size: "sm" })}
@@ -33,6 +34,7 @@ export default function WorkspaceTopbar({
         ))}
       </nav>
       <Link
+        data-slot="button"
         href={account.href}
         className={buttonVariants({
           variant: "outline",

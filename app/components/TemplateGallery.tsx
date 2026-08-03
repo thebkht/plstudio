@@ -46,7 +46,7 @@ export default function TemplateGallery({ workspace }: { workspace?: string }) {
         <div className="templates-title">
           <HugeiconsIcon icon={Layout01Icon} /> Templates
         </div>
-        <Link className={buttonVariants({ variant: "ghost", size: "sm", className: "ml-auto" })} href={homeHref}>
+        <Link data-slot="button" className={buttonVariants({ variant: "ghost", size: "sm", className: "ml-auto" })} href={homeHref}>
           Back to projects
         </Link>
       </header>
