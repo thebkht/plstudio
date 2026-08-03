@@ -1,4 +1,4 @@
-import { makeColumn, makeTable, normalizeIdentifier, SCHEMA_FORMAT_VERSION, type Schema, type Table } from "./schema";
+import { makeColumn, makeTable, normalizeIdentifier, normalizeRelationships, SCHEMA_FORMAT_VERSION, type Schema, type Table } from "./schema";
 
 export type ParseResult = { schema: Schema | null; warnings: string[]; errors: string[] };
 
@@ -44,6 +44,7 @@ export function parseCreateTable(sql: string): ParseResult {
   const warnings: string[] = [];
   const errors: string[] = [];
   const tables: Table[] = [];
+  const importedRelationships: Array<Record<string, unknown>> = [];
   const tableRegex = /CREATE\s+TABLE\s+([A-Z0-9_$#]+)\s*\(([\s\S]*?)\)\s*(?:TABLESPACE\s+[A-Z0-9_$#]+\s*)?;/gi;
   let match: RegExpExecArray | null;
   while ((match = tableRegex.exec(sql))) {
@@ -99,13 +100,25 @@ export function parseCreateTable(sql: string): ParseResult {
     return _statement;
   });
 
-  sql.replace(/ALTER\s+TABLE\s+([A-Z0-9_$#]+)\s+ADD\s+CONSTRAINT\s+[A-Z0-9_$#]+\s+FOREIGN\s+KEY\s*\(([^)]+)\)\s+REFERENCES\s+([A-Z0-9_$#]+)\s*\(([^)]+)\)\s*;/gi, (_statement, tableName: string, columnName: string, targetName: string, targetColumnName: string) => {
+  sql.replace(/ALTER\s+TABLE\s+([A-Z0-9_$#]+)\s+ADD\s+CONSTRAINT\s+([A-Z0-9_$#]+)\s+FOREIGN\s+KEY\s*\(([^)]+)\)\s+REFERENCES\s+([A-Z0-9_$#]+)\s*\(([^)]+)\)(?:\s+ON\s+DELETE\s+(CASCADE|SET\s+NULL))?\s*;/gi, (_statement, tableName: string, constraintName: string, columnNames: string, targetName: string, targetColumnNames: string, deleteAction?: string) => {
     const table = findTable(tables, tableName);
     const target = findTable(tables, targetName);
-    const column = table && findColumn(table, columnName.trim());
-    const targetColumn = target && findColumn(target, targetColumnName.trim());
-    if (column && targetColumn && target) column.fk = { tableId: target.id, columnId: targetColumn.id };
-    else warnings.push(`${tableName}: skipped foreign key to ${targetName}.${targetColumnName}.`);
+    const columns = columnNames.split(",").map((name) => name.trim());
+    const targetColumns = targetColumnNames.split(",").map((name) => name.trim());
+    const pairs = columns.map((columnName, index) => ({ column: table && findColumn(table, columnName), targetColumn: target && findColumn(target, targetColumns[index]) }));
+    if (table && target && pairs.length && pairs.every((pair) => pair.column && pair.targetColumn)) {
+      pairs.forEach((pair) => { pair.column!.fk = { tableId: target.id, columnId: pair.targetColumn!.id }; });
+      importedRelationships.push({
+        id: `rel_${importedRelationships.length + 1}`,
+        startTableId: table.id,
+        startFieldId: pairs[0].column!.id,
+        endTableId: target.id,
+        endFieldId: pairs[0].targetColumn!.id,
+        fields: pairs.map((pair) => ({ startFieldId: pair.column!.id, endFieldId: pair.targetColumn!.id })),
+        name: constraintName,
+        deleteConstraint: deleteAction?.toUpperCase() === "CASCADE" ? "Cascade" : deleteAction ? "Set null" : "No action",
+      });
+    } else warnings.push(`${tableName}: skipped foreign key to ${targetName}.${targetColumnNames}.`);
     return _statement;
   });
 
@@ -128,5 +141,6 @@ export function parseCreateTable(sql: string): ParseResult {
 
   if (!tables.length) errors.push("No supported CREATE TABLE statements found.");
   if (errors.length) return { schema: null, warnings, errors };
-  return { schema: { id: `schema_import_${Date.now()}`, name: "Imported Oracle Schema", revision: 1, schemaFormatVersion: SCHEMA_FORMAT_VERSION, tables }, warnings, errors };
+  const imported = normalizeRelationships({ id: `schema_import_${Date.now()}`, name: "Imported Oracle Schema", revision: 1, schemaFormatVersion: SCHEMA_FORMAT_VERSION, tables, relationships: importedRelationships as never[] });
+  return { schema: imported, warnings, errors };
 }

@@ -1,5 +1,5 @@
 export const ORACLE_VERSION = "12.2+" as const;
-export const SCHEMA_FORMAT_VERSION = 1 as const;
+export const SCHEMA_FORMAT_VERSION = 2 as const;
 
 export const ORACLE_TYPES = [
   "VARCHAR2",
@@ -28,6 +28,23 @@ export type KeyStrategy = "none" | "sequence-trigger" | "identity";
 export type MemoColor = "yellow" | "blue" | "green" | "pink";
 
 export type ForeignKeyRef = { tableId: string; columnId: string };
+export type Cardinality = "one_to_one" | "one_to_many" | "many_to_one";
+export type RelationshipConstraint = "No action" | "Restrict" | "Cascade" | "Set null" | "Set default";
+export type RelationshipFieldPair = { startFieldId: string; endFieldId: string };
+
+export type Relationship = {
+  id: string;
+  startTableId: string;
+  startFieldId: string;
+  endTableId: string;
+  endFieldId: string;
+  fields: RelationshipFieldPair[];
+  name: string;
+  cardinality: Cardinality;
+  manyLabel: string;
+  updateConstraint: RelationshipConstraint;
+  deleteConstraint: RelationshipConstraint;
+};
 
 export type Column = {
   id: string;
@@ -70,6 +87,7 @@ export type Schema = {
   revision: number;
   schemaFormatVersion: number;
   tables: Table[];
+  relationships?: Relationship[];
   memos?: Memo[];
   updatedAt?: string;
 };
@@ -176,6 +194,7 @@ export function makeDemoSchema(): Schema {
     revision: 1,
     schemaFormatVersion: SCHEMA_FORMAT_VERSION,
     tables: [student, enrollment],
+    relationships: [],
     memos: [],
   };
 }
@@ -187,6 +206,7 @@ export function makeEmptySchema(name = "Untitled Diagram", id = nextId("schema")
     revision: 1,
     schemaFormatVersion: SCHEMA_FORMAT_VERSION,
     tables: [],
+    relationships: [],
     memos: [],
   };
 }
@@ -238,4 +258,91 @@ export function tableHeight(table: Table) {
 
 export function cloneSchema(schema: Schema): Schema {
   return structuredClone(schema);
+}
+
+export const RELATIONSHIP_CONSTRAINTS: RelationshipConstraint[] = [
+  "No action",
+  "Restrict",
+  "Cascade",
+  "Set null",
+  "Set default",
+];
+
+function relationshipName(tables: Table[], startTableId: string, startFieldId: string, endTableId: string) {
+  const start = tables.find((table) => table.id === startTableId);
+  const field = start?.columns.find((column) => column.id === startFieldId);
+  const end = tables.find((table) => table.id === endTableId);
+  return `fk_${start?.name ?? "table"}_${field?.name ?? "field"}_${end?.name ?? "table"}`;
+}
+
+function isCardinality(value: unknown): value is Cardinality {
+  return value === "one_to_one" || value === "one_to_many" || value === "many_to_one";
+}
+
+function isConstraint(value: unknown): value is RelationshipConstraint {
+  return RELATIONSHIP_CONSTRAINTS.includes(value as RelationshipConstraint);
+}
+
+/** Normalize persisted relationship data and migrate the original column.fk format. */
+export function normalizeRelationships(schema: Schema): Schema {
+  const next = cloneSchema(schema);
+  const raw = Array.isArray(next.relationships) ? next.relationships : [];
+  const relationships: Relationship[] = [];
+  const used = new Set<string>();
+
+  const add = (value: Partial<Relationship>, fallbackId: string) => {
+    const startTable = next.tables.find((table) => table.id === value.startTableId);
+    const endTable = next.tables.find((table) => table.id === value.endTableId);
+    const startField = startTable?.columns.find((column) => column.id === value.startFieldId);
+    const endField = endTable?.columns.find((column) => column.id === value.endFieldId);
+    if (!startTable || !endTable || !startField || !endField) return;
+    const pairs = Array.isArray(value.fields) && value.fields.length
+      ? value.fields.filter((pair): pair is RelationshipFieldPair => Boolean(pair?.startFieldId && pair?.endFieldId))
+      : [{ startFieldId: startField.id, endFieldId: endField.id }];
+    const validPairs = pairs.filter((pair) => startTable.columns.some((column) => column.id === pair.startFieldId) && endTable.columns.some((column) => column.id === pair.endFieldId));
+    if (!validPairs.length) return;
+    const id = typeof value.id === "string" && value.id ? value.id : fallbackId;
+    if (used.has(id)) return;
+    used.add(id);
+    relationships.push({
+      id,
+      startTableId: startTable.id,
+      startFieldId: validPairs[0].startFieldId,
+      endTableId: endTable.id,
+      endFieldId: validPairs[0].endFieldId,
+      fields: validPairs,
+      name: typeof value.name === "string" && value.name ? value.name : relationshipName(next.tables, startTable.id, validPairs[0].startFieldId, endTable.id),
+      cardinality: isCardinality(value.cardinality) ? value.cardinality : "many_to_one",
+      manyLabel: typeof value.manyLabel === "string" ? value.manyLabel : "n",
+      updateConstraint: isConstraint(value.updateConstraint) ? value.updateConstraint : "No action",
+      deleteConstraint: isConstraint(value.deleteConstraint) ? value.deleteConstraint : "No action",
+    });
+  };
+
+  raw.forEach((relationship, index) => add(relationship, `rel_${index + 1}`));
+  if (!raw.length) {
+    next.tables.forEach((table) => table.columns.forEach((column) => {
+      if (!column.fk) return;
+      add({
+        id: `rel_${relationships.length + 1}`,
+        startTableId: table.id,
+        startFieldId: column.id,
+        endTableId: column.fk.tableId,
+        endFieldId: column.fk.columnId,
+      }, `rel_${relationships.length + 1}`);
+    }));
+  }
+
+  next.tables = next.tables.map((table) => ({
+    ...table,
+    columns: table.columns.map((column) => ({ ...column, fk: null })),
+  }));
+  relationships.forEach((relationship) => relationship.fields.forEach((pair) => {
+    next.tables = next.tables.map((table) => table.id === relationship.startTableId
+      ? { ...table, columns: table.columns.map((column) => column.id === pair.startFieldId ? { ...column, fk: { tableId: relationship.endTableId, columnId: pair.endFieldId } } : column) }
+      : table);
+  }));
+  next.relationships = relationships;
+  next.schemaFormatVersion = SCHEMA_FORMAT_VERSION;
+  return next;
 }

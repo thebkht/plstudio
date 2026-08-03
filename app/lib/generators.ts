@@ -1,4 +1,4 @@
-import { normalizeIdentifier, primaryKeyColumns, type Schema, type Table, type Column, type KeyStrategy, type ForeignKeyRef, typeString } from "./schema";
+import { normalizeIdentifier, normalizeRelationships, primaryKeyColumns, type Schema, type Table, type Column, type KeyStrategy, type ForeignKeyRef, typeString } from "./schema";
 
 function shorten(value: string, used: Set<string>) {
   const clean = normalizeIdentifier(value);
@@ -67,13 +67,31 @@ export function generateDDL(schema: Schema) {
   schema.tables.forEach((table) => out.push(...keyStrategyArtifacts(table, table.keyStrategy, usedNames), "--"));
 
   const fks: string[] = [];
-  schema.tables.forEach((table) => table.columns.forEach((column) => {
-    if (!column.fk) return;
-    const target = schema.tables.find((candidate) => candidate.id === column.fk?.tableId);
-    const targetColumn = target?.columns.find((candidate) => candidate.id === column.fk?.columnId);
-    if (!target || !targetColumn || primaryKeyColumns(target).length > 1) return;
-    fks.push(`alter table ${normalizeIdentifier(table.name)}`, `  add constraint ${generatedName("F", table, column, usedNames)}`, `  foreign key (${normalizeIdentifier(column.name)}) references ${normalizeIdentifier(target.name)}(${normalizeIdentifier(targetColumn.name)});`, "--");
-  }));
+  const canonical = normalizeRelationships({ ...schema, relationships: schema.relationships?.length ? schema.relationships : undefined });
+  canonical.relationships?.forEach((relationship) => {
+    const startTable = canonical.tables.find((table) => table.id === relationship.startTableId);
+    const endTable = canonical.tables.find((table) => table.id === relationship.endTableId);
+    if (!startTable || !endTable) return;
+    const pairs = relationship.fields.length ? relationship.fields : [{ startFieldId: relationship.startFieldId, endFieldId: relationship.endFieldId }];
+    const startColumns = pairs.map((pair) => startTable.columns.find((column) => column.id === pair.startFieldId)).filter((column): column is Column => Boolean(column));
+    const endColumns = pairs.map((pair) => endTable.columns.find((column) => column.id === pair.endFieldId)).filter((column): column is Column => Boolean(column));
+    if (startColumns.length !== pairs.length || endColumns.length !== pairs.length) return;
+    const constraintName = generatedName("F", startTable, startColumns[0], usedNames);
+    const deleteAction = relationship.deleteConstraint === "Cascade" || relationship.deleteConstraint === "Set null"
+      ? ` on delete ${relationship.deleteConstraint.toLowerCase()}`
+      : "";
+    const unsupportedActions = [
+      relationship.updateConstraint !== "No action" ? `-- DrawDB ON UPDATE: ${relationship.updateConstraint}` : "",
+      relationship.deleteConstraint !== "No action" && !deleteAction ? `-- DrawDB ON DELETE: ${relationship.deleteConstraint}` : "",
+    ].filter(Boolean);
+    fks.push(
+      ...unsupportedActions,
+      `alter table ${normalizeIdentifier(startTable.name)}`,
+      `  add constraint ${shorten(relationship.name || constraintName, usedNames)}`,
+      `  foreign key (${startColumns.map((column) => normalizeIdentifier(column.name)).join(", ")}) references ${normalizeIdentifier(endTable.name)}(${endColumns.map((column) => normalizeIdentifier(column.name)).join(", ")})${deleteAction};`,
+      "--",
+    );
+  });
   if (fks.length) out.push(...fks, "");
   return out.join("\n");
 }

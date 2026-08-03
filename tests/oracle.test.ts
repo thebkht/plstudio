@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateDDL } from "@/app/lib/generators";
 import { parseCreateTable } from "@/app/lib/parser";
-import { makeDemoSchema, makeMemo, makeTable, normalizeMemos } from "@/app/lib/schema";
+import { makeDemoSchema, makeMemo, makeTable, normalizeMemos, normalizeRelationships } from "@/app/lib/schema";
 import { validateCheckExpression, validateSchema, validateTypeSpec } from "@/app/lib/validation";
 
 describe("Oracle schema model", () => {
@@ -17,6 +17,49 @@ describe("Oracle schema model", () => {
   it("creates tables before sequence triggers reference them", () => {
     const ddl = generateDDL(makeDemoSchema());
     expect(ddl.toLowerCase().indexOf("create table student")).toBeLessThan(ddl.indexOf("CREATE OR REPLACE TRIGGER TRG_STUDENT"));
+  });
+
+  it("migrates legacy foreign keys into DrawDB-style relationships", () => {
+    const schema = makeDemoSchema();
+    delete schema.relationships;
+    const normalized = normalizeRelationships(schema);
+    expect(normalized.schemaFormatVersion).toBe(2);
+    expect(normalized.relationships).toHaveLength(1);
+    expect(normalized.relationships?.[0]).toMatchObject({
+      cardinality: "many_to_one",
+      manyLabel: "n",
+      updateConstraint: "No action",
+      deleteConstraint: "No action",
+    });
+  });
+
+  it("exports named composite relationships with delete actions", () => {
+    const schema = makeDemoSchema();
+    const parent = schema.tables[0];
+    const secondParentKey = { ...parent.columns[0], id: "parent_tenant", name: "TENANT_ID", pk: true, fk: null };
+    parent.columns.push(secondParentKey);
+    const child = schema.tables[1];
+    const secondChildKey = { ...child.columns[0], id: "child_tenant", name: "TENANT_ID", fk: null };
+    child.columns.push(secondChildKey);
+    schema.relationships = [{
+      id: "rel_composite",
+      startTableId: child.id,
+      startFieldId: child.columns[0].id,
+      endTableId: parent.id,
+      endFieldId: parent.columns[0].id,
+      fields: [
+        { startFieldId: child.columns[0].id, endFieldId: parent.columns[0].id },
+        { startFieldId: secondChildKey.id, endFieldId: secondParentKey.id },
+      ],
+      name: "FK_ENROLLMENT_STUDENT_COMPOSITE",
+      cardinality: "many_to_one",
+      manyLabel: "n",
+      updateConstraint: "No action",
+      deleteConstraint: "Cascade",
+    }];
+    const ddl = generateDDL(schema);
+    expect(ddl).toContain("constraint FK_ENROLLMENT_STUDENT_COMPOSITE");
+    expect(ddl).toContain("foreign key (STUDENT_ID, TENANT_ID) references STUDENT(ID, TENANT_ID) on delete cascade;");
   });
 
   it("exports deployment-style tablespace and out-of-line constraints", () => {
@@ -84,6 +127,14 @@ describe("Oracle schema model", () => {
       tableId: result.schema?.tables[0].id,
       columnId: result.schema?.tables[0].columns[0].id,
     });
+  });
+
+  it("imports relationship names, composite pairs, and delete actions", () => {
+    const result = parseCreateTable(`CREATE TABLE PARENT ( ID NUMBER NOT NULL, TENANT_ID NUMBER NOT NULL, CONSTRAINT PK_PARENT PRIMARY KEY (ID, TENANT_ID) ); CREATE TABLE CHILD ( PARENT_ID NUMBER NOT NULL, TENANT_ID NUMBER NOT NULL ); ALTER TABLE CHILD ADD CONSTRAINT FK_CHILD_PARENT FOREIGN KEY (PARENT_ID, TENANT_ID) REFERENCES PARENT(ID, TENANT_ID) ON DELETE CASCADE;`);
+    expect(result.errors).toEqual([]);
+    expect(result.schema?.relationships).toHaveLength(1);
+    expect(result.schema?.relationships?.[0]).toMatchObject({ name: "FK_CHILD_PARENT", deleteConstraint: "Cascade" });
+    expect(result.schema?.relationships?.[0].fields).toHaveLength(2);
   });
 
   it("does not create a generated key strategy for composite keys", () => {
