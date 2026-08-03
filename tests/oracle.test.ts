@@ -71,6 +71,21 @@ describe("Oracle schema model", () => {
     expect(result.schema?.tables[0].columns[0].pk).toBe(true);
   });
 
+  it("imports deployment-style DDL with out-of-line constraints and comments", () => {
+    const source = makeDemoSchema();
+    source.tables[0].comment = "Student records";
+    source.tables[0].columns[0].comment = "Primary identifier";
+    const result = parseCreateTable(generateDDL(source));
+    expect(result.errors).toEqual([]);
+    expect(result.schema?.tables).toHaveLength(2);
+    expect(result.schema?.tables[0].comment).toBe("Student records");
+    expect(result.schema?.tables[0].columns[0]).toMatchObject({ pk: true, comment: "Primary identifier" });
+    expect(result.schema?.tables[1].columns[0].fk).toMatchObject({
+      tableId: result.schema?.tables[0].id,
+      columnId: result.schema?.tables[0].columns[0].id,
+    });
+  });
+
   it("does not create a generated key strategy for composite keys", () => {
     const table = makeTable("JUNCTION", 0, 0);
     table.columns[0].pk = true;
