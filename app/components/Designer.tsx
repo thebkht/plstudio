@@ -2418,8 +2418,15 @@ export default function Designer({
                   relationship.toIndex,
                   relationship.from,
                 );
-                const midpointX = from.x + (to.x - from.x) / 2;
-                const path = `M ${from.x} ${from.y} H ${midpointX} V ${to.y} H ${to.x}`;
+                const deltaX = to.x - from.x;
+                const deltaY = to.y - from.y;
+                const midpointX = from.x + deltaX / 2;
+                const radius = Math.min(10, Math.abs(deltaX) / 2, Math.abs(deltaY) / 2);
+                const horizontalDirection = Math.sign(deltaX) || 1;
+                const verticalDirection = Math.sign(deltaY) || 1;
+                const path = Math.abs(deltaY) <= 36
+                  ? `M ${from.x} ${from.y} L ${to.x} ${to.y}`
+                  : `M ${from.x} ${from.y} H ${midpointX - horizontalDirection * radius} Q ${midpointX} ${from.y} ${midpointX} ${from.y + verticalDirection * radius} V ${to.y - verticalDirection * radius} Q ${midpointX} ${to.y} ${midpointX + horizontalDirection * radius} ${to.y} H ${to.x}`;
                 const [fromCardinality, toCardinality] = relationshipCardinalities(relationship.relationship);
                 // Keep the markers outside the table cards. The SVG is painted
                 // before the cards, so markers placed exactly on the endpoints
@@ -2443,12 +2450,12 @@ export default function Designer({
                       className={`relationship-path ${active ? "active" : ""}`}
                     />
                     {relationSettings.showCardinality && <>
-                      <circle className="relationship-marker" cx={fromMarker.x} cy={fromMarker.y} r="8" />
-                      <text className="relationship-marker-text" x={fromMarker.x} y={fromMarker.y + 3}>{fromCardinality}</text>
-                      <circle className="relationship-marker" cx={toMarker.x} cy={toMarker.y} r="8" />
-                      <text className="relationship-marker-text" x={toMarker.x} y={toMarker.y + 3}>{toCardinality}</text>
+                      <rect className="relationship-marker" x={fromMarker.x - 14} y={fromMarker.y - 12} width="28" height="24" rx="12" />
+                      <text className="relationship-marker-text" x={fromMarker.x} y={fromMarker.y}>{fromCardinality}</text>
+                      <rect className="relationship-marker" x={toMarker.x - 14} y={toMarker.y - 12} width="28" height="24" rx="12" />
+                      <text className="relationship-marker-text" x={toMarker.x} y={toMarker.y}>{toCardinality}</text>
                     </>}
-                    {relationSettings.showRelationshipLabels && <text className="relationship-label" x={(from.x + to.x) / 2} y={(from.y + to.y) / 2 - 8} textAnchor="middle">{relationship.relationship.name}</text>}
+                    {relationSettings.showRelationshipLabels && <text className="relationship-label" x={(from.x + to.x) / 2} y={(from.y + to.y) / 2} textAnchor="middle">{relationship.relationship.name}</text>}
                   </g>
                 );
               })}
