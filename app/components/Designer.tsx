@@ -272,6 +272,13 @@ function highlightSql(source: string): ReactNode[] {
   return pieces;
 }
 
+/**
+ * SVG text cannot ellipsize in CSS, and generated FK names run long enough to
+ * cross the tables they connect. The full name stays in the Relationships panel.
+ */
+const ellipsize = (text: string, max = 30) =>
+  text.length > max ? `${text.slice(0, max - 1)}…` : text;
+
 type ExportTab = "ddl" | "plsql" | "combined";
 type PanelTab = "tables" | "relationships";
 type PanelMode = "structure" | "code";
@@ -3023,7 +3030,7 @@ export default function Designer({
                       <rect className="relationship-marker" x={toMarker.x - 14} y={toMarker.y - 12} width="28" height="24" rx="12" />
                       <text className="relationship-marker-text" x={toMarker.x} y={toMarker.y}>{toCardinality}</text>
                     </>}
-                    {relationSettings.showRelationshipLabels && <text className="relationship-label" x={(from.x + to.x) / 2} y={(from.y + to.y) / 2} textAnchor="middle">{relationship.relationship.name}</text>}
+                    {relationSettings.showRelationshipLabels && <text className="relationship-label" x={(from.x + to.x) / 2} y={(from.y + to.y) / 2} textAnchor="middle"><title>{relationship.relationship.name}</title>{ellipsize(relationship.relationship.name)}</text>}
                   </g>
                 );
               })}
