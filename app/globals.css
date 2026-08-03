@@ -204,19 +204,17 @@ button {
 .appbar-title-icon { color: var(--ink-3); flex: 0 0 auto; }
 .appbar-crumb { color: var(--ink-1); }
 .appbar-slash { color: var(--ink-3); }
+/* A borderless inline title field: Input's chrome only appears on hover/focus. */
 .appbar-name {
-  min-width: 0;
   width: 22ch;
+  height: auto;
   padding: 2px 4px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--ink-1);
+  border-color: transparent;
+  box-shadow: none;
   font-size: inherit;
   letter-spacing: var(--tracking-tight);
 }
-.appbar-name:hover { border-color: var(--hairline); }
-.appbar-name:focus { border-color: var(--accent); outline: none; }
+.appbar-name:hover { border-color: var(--border); }
 
 .menubar {
   display: flex;
@@ -411,18 +409,20 @@ button {
   padding: 0 12px 12px;
 }
 .issues-empty { margin: 0; color: var(--ink-3); font-size: var(--text-sm); }
+/* Issue rows wrap, so they override Button's fixed height and centering. */
 .issue {
   width: 100%;
-  display: block;
+  height: auto;
+  justify-content: flex-start;
   padding: 8px 10px;
   margin-bottom: 4px;
-  border: 0;
   border-left: 3px solid var(--warn);
   border-radius: 0 7px 7px 0;
   background: var(--surface-1);
   color: var(--ink-2);
   font-size: var(--text-xs);
   text-align: left;
+  white-space: normal;
 }
 .issue.error { border-left-color: var(--danger); }
 .issue:hover { background: var(--surface-2); }

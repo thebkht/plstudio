@@ -2065,7 +2065,7 @@ export default function Designer({
               {workspaceSlug ? "Diagrams" : "My diagrams"}
             </a>
             <span className="appbar-slash">/</span>
-            <input
+            <Input
               className="appbar-name"
               aria-label="Diagram name"
               value={schema.name}
@@ -2754,8 +2754,8 @@ export default function Designer({
                   <p className="issues-empty">No problems found.</p>
                 ) : (
                   issues.slice(0, 40).map((issue) => (
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
                       className={`issue ${issue.severity}`}
                       key={`${issue.message}-${issue.columnId ?? issue.tableId ?? ""}`}
                       onClick={() =>
@@ -2763,7 +2763,7 @@ export default function Designer({
                       }
                     >
                       {issue.message}
-                    </button>
+                    </Button>
                   ))
                 )}
               </ScrollArea>
