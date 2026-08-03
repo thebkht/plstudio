@@ -25,6 +25,7 @@ import {
   Delete02Icon,
   Download04Icon,
   FileUploadIcon,
+  FingerPrintIcon,
   FloppyDiskIcon,
   GitMergeIcon,
   GridViewIcon,
@@ -138,7 +139,6 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";

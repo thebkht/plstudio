@@ -828,6 +828,35 @@ button {
 .sql-input::selection { background: color-mix(in oklch, var(--primary) 25%, transparent); }
 .sql-input:focus { box-shadow: inset 0 0 0 2px color-mix(in oklch, var(--primary) 45%, transparent); }
 
+/*
+ * Column constraints. Square filled toggles rather than checkboxes: a lit tile
+ * reads at a glance down a column list, where a tick mark does not.
+ */
+.column-flags { display: flex; gap: 0.375rem; }
+.column-flag {
+  width: 2.125rem;
+  height: 2.125rem;
+  min-width: 0;
+  padding: 0;
+  border-radius: var(--radius-md);
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.column-flag:hover { background: color-mix(in oklch, var(--muted) 70%, var(--foreground) 8%); }
+.column-flag[data-selected],
+.column-flag[aria-pressed="true"] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.column-flag[data-selected]:hover,
+.column-flag[aria-pressed="true"]:hover {
+  background: color-mix(in oklch, var(--primary) 88%, black);
+  color: var(--primary-foreground);
+}
+
 /* Keyboard shortcut reference. Two columns where there is room, one when there is not. */
 .shortcut-sheet {
   display: grid;
