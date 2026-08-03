@@ -20,15 +20,18 @@ import {
   ArrowTurnForwardIcon,
   Cancel01Icon,
   Copy01Icon,
+  ColumnInsertIcon,
   DatabaseIcon,
   Delete02Icon,
   Download04Icon,
   FileUploadIcon,
   FloppyDiskIcon,
+  GitMergeIcon,
   GridViewIcon,
   Key01Icon,
   Link01Icon,
   Maximize01Icon,
+  PanelLeftOpenIcon,
   PlusSignIcon,
   Search01Icon,
   Share08Icon,
@@ -135,11 +138,22 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { exportSchema, generateDDL, generatePLSQL } from "@/app/lib/generators";
 import { parseCreateTable } from "@/app/lib/parser";
 import { typeColorVar } from "@/app/lib/datatype-color";
+import {
+  SHORTCUTS,
+  SHORTCUT_GROUPS,
+  chordParts,
+  isMacPlatform,
+  matchShortcut,
+  shortcutById,
+  shortcutHint,
+  type ShortcutId,
+} from "@/app/lib/shortcuts";
 import {
   Spring,
   VelocityTracker,
@@ -544,7 +558,15 @@ export default function Designer({
   const [dragGroupPosition, setDragGroupPosition] = useState<{ id: string; x: number; y: number } | null>(null);
   const [resizeGroup, setResizeGroup] = useState<{ id: string; width: number; height: number } | null>(null);
   const [grabbing, setGrabbing] = useState(false);
-  const [modal, setModal] = useState<"export" | "import" | "share" | null>(null);
+  const [modal, setModal] = useState<
+    "export" | "import" | "share" | "shortcuts" | null
+  >(null);
+  /**
+   * Chord glyphs differ per platform, and the platform is unknowable during SSR —
+   * so this settles after mount rather than during render, to keep hydration clean.
+   */
+  const [isMac, setIsMac] = useState(false);
+  useEffect(() => setIsMac(isMacPlatform()), []);
   const [shareLink, setShareLink] = useState("");
   const [shareBusy, setShareBusy] = useState(false);
   const [shareError, setShareError] = useState("");
@@ -1983,53 +2005,70 @@ export default function Designer({
     return () => window.clearTimeout(timer);
   }, [projectId, readOnly, schema.name, schema.revision, shareToken, workspaceSlug]);
 
-  /** Escape closes the topmost layer; ⌘S saves and ⌘E exports. */
+  /** Whatever the canvas selection currently is, remove it. */
+  const deleteSelection = () => {
+    if (selectedId) deleteTable(selectedId);
+    else if (selectedGroupId) deleteGroup(selectedGroupId);
+    else if (selectedMemoId) deleteMemo(selectedMemoId);
+  };
+
+  /** Every command a chord can reach. Ids without an entry here stay inert. */
+  const shortcutActions: Partial<Record<ShortcutId, () => void>> = {
+    save: () => void save(),
+    export: () => setModal("export"),
+    import: () => setModal("import"),
+    share: () => setModal("share"),
+    undo,
+    redo,
+    addColumn: () => selected && addColumn(selected.id),
+    addTable,
+    addGroup,
+    addMemo,
+    junction: makeJunction,
+    deleteSelection,
+    zoomIn: () => zoomBy(0.1),
+    zoomOut: () => zoomBy(-0.1),
+    zoomReset: () => setZoom(1),
+    fitView,
+    tidyLayout: autoLayout,
+    toggleSidebar: () => setSidebarOpen((open) => !open),
+    shortcutsHelp: () => setModal("shortcuts"),
+  };
+  /** Menu items fire the same closures as the chords, so the two can never diverge. */
+  const run = (id: ShortcutId) => () => shortcutActions[id]?.();
+  const hint = (id: ShortcutId) => shortcutHint(id, isMac);
+
+  /**
+   * Escape closes the topmost layer; everything else resolves through the shortcut
+   * table. The handler lives in a ref so the listener is bound once rather than
+   * re-bound on every render, while still seeing the latest closure.
+   */
+  const keyHandlerRef = useRef<(event: KeyboardEvent) => void>(() => {});
+  keyHandlerRef.current = (event: KeyboardEvent) => {
+    if (event.key === "Escape") {
+      // Overlays dismiss themselves; Escape only clears canvas selection.
+      if (modal || openMenu || userMenuOpen || confirmRevoke) return;
+      if (selectedId) setSelectedId(null);
+      else if (selectedGroupId) setSelectedGroupId(null);
+      else if (selectedMemoId) setSelectedMemoId(null);
+      return;
+    }
+    const id = matchShortcut(event, isMac);
+    const shortcut = id && shortcutById(id);
+    if (!id || !shortcut) return;
+    // An open layer owns the keyboard, apart from the help sheet itself.
+    if ((modal || openMenu || userMenuOpen || confirmRevoke) && id !== "shortcutsHelp") return;
+    if (shortcut.mutating && readOnly) return;
+    const run = shortcutActions[id];
+    if (!run) return;
+    event.preventDefault();
+    run();
+  };
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        // Overlays dismiss themselves; Escape only clears canvas selection.
-        if (modal || openMenu || userMenuOpen || confirmRevoke) return;
-        if (selectedId) setSelectedId(null);
-        else if (selectedGroupId) setSelectedGroupId(null);
-        return;
-      }
-      // Backspace is a plain key, so it must never fire while typing a value.
-      const target = event.target as HTMLElement | null;
-      const isEditing =
-        !!target?.isContentEditable ||
-        ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName ?? "");
-      if (
-        (event.key === "Backspace" || event.key === "Delete") &&
-        !isEditing &&
-        !modal &&
-        !readOnly &&
-        selected
-      ) {
-        event.preventDefault();
-        deleteTable(selected.id);
-        return;
-      }
-      if (!(event.metaKey || event.ctrlKey)) return;
-      const key = event.key.toLowerCase();
-      if (key === "enter") {
-        if (readOnly || !selected) return;
-        event.preventDefault();
-        addColumn(selected.id);
-      } else if (key === "s") {
-        event.preventDefault();
-        void save();
-      } else if (key === "e") {
-        event.preventDefault();
-        setModal("export");
-      } else if (key === "z") {
-        event.preventDefault();
-        if (event.shiftKey) redo();
-        else undo();
-      }
-    };
+    const onKeyDown = (event: KeyboardEvent) => keyHandlerRef.current(event);
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  });
+  }, []);
 
   const relationships = useMemo(
     () => (schema.relationships ?? []).flatMap((relationship) => {
@@ -2145,38 +2184,43 @@ export default function Designer({
       },
     },
     { separator: true },
-    { label: "Import DDL…", onSelect: () => setModal("import") },
-    { label: "Export…", onSelect: () => setModal("export"), hint: "⌘E" },
+    { label: "Import DDL…", onSelect: run("import"), hint: hint("import") },
+    { label: "Export…", onSelect: run("export"), hint: hint("export") },
     { separator: true },
-    { label: "Save to database", onSelect: save, hint: "⌘S" },
+    { label: "Save to database", onSelect: run("save"), hint: hint("save") },
   ];
   const editMenu: MenuItem[] = [
-    { label: "Undo", onSelect: undo, disabled: !history.length, hint: "⌘Z" },
-    { label: "Redo", onSelect: redo, disabled: !future.length, hint: "⇧⌘Z" },
+    { label: "Undo", onSelect: run("undo"), disabled: !history.length, hint: hint("undo") },
+    { label: "Redo", onSelect: run("redo"), disabled: !future.length, hint: hint("redo") },
     { separator: true },
-    { label: "Add table", onSelect: addTable },
-    { label: "Add schema group", onSelect: addGroup },
+    { label: "Add table", onSelect: run("addTable"), hint: hint("addTable") },
+    { label: "Add schema group", onSelect: run("addGroup"), hint: hint("addGroup") },
+    { label: "Add memo", onSelect: run("addMemo"), hint: hint("addMemo") },
     {
       label: "Add junction table",
-      onSelect: makeJunction,
+      onSelect: run("junction"),
       disabled: !selected,
+      hint: hint("junction"),
     },
     { separator: true },
     {
-      label: "Delete selected table",
-      onSelect: () => selected && deleteTable(selected.id),
-      disabled: !selected,
+      label: "Delete selection",
+      onSelect: run("deleteSelection"),
+      disabled: !selectedId && !selectedGroupId && !selectedMemoId,
+      hint: hint("deleteSelection"),
     },
   ];
   const viewMenu: MenuItem[] = [
-    { label: "Zoom in", onSelect: () => zoomBy(0.1), hint: "⌘+" },
-    { label: "Zoom out", onSelect: () => zoomBy(-0.1), hint: "⌘−" },
-    { label: "Fit to screen", onSelect: fitView, hint: "⇧1" },
+    { label: "Zoom in", onSelect: run("zoomIn"), hint: hint("zoomIn") },
+    { label: "Zoom out", onSelect: run("zoomOut"), hint: hint("zoomOut") },
+    { label: "Reset zoom", onSelect: run("zoomReset"), hint: hint("zoomReset") },
+    { label: "Fit to screen", onSelect: run("fitView"), hint: hint("fitView") },
     { separator: true },
-    { label: "Tidy up layout", onSelect: autoLayout },
+    { label: "Tidy up layout", onSelect: run("tidyLayout"), hint: hint("tidyLayout") },
     {
       label: sidebarOpen ? "Hide side panel" : "Show side panel",
-      onSelect: () => setSidebarOpen((open) => !open),
+      onSelect: run("toggleSidebar"),
+      hint: hint("toggleSidebar"),
     },
   ];
   const settingsMenu: MenuItem[] = [
@@ -2192,6 +2236,12 @@ export default function Designer({
     { label: "Clear invalid references", onSelect: clearInvalidForeignKeys },
   ];
   const helpMenu: MenuItem[] = [
+    {
+      label: "Keyboard shortcuts",
+      onSelect: run("shortcutsHelp"),
+      hint: hint("shortcutsHelp"),
+    },
+    { separator: true },
     {
       label: "Oracle target: 12.2+",
       onSelect: () =>
@@ -3065,6 +3115,8 @@ export default function Designer({
                   onKeyDown={(event) => {
                     if ((event.key === "Delete" || event.key === "Backspace") && document.activeElement?.tagName !== "TEXTAREA") {
                       event.preventDefault();
+                      // The window handler would delete it a second time and split the undo step.
+                      event.stopPropagation();
                       deleteMemo(memo.id);
                     }
                   }}
@@ -3319,7 +3371,7 @@ export default function Designer({
                         setSidebarOpen(true);
                       }}
                     >
-                      <HugeiconsIcon icon={Table01Icon} />
+                      <HugeiconsIcon icon={PanelLeftOpenIcon} />
                       Edit in side panel
                     </ContextMenuItem>
                     <ContextMenuItem
@@ -3335,7 +3387,7 @@ export default function Designer({
                       isDisabled={readOnly}
                       onAction={() => addColumn(table.id)}
                     >
-                      <HugeiconsIcon icon={PlusSignIcon} />
+                      <HugeiconsIcon icon={ColumnInsertIcon} />
                       Add column
                       <ContextMenuShortcut>⌘↵</ContextMenuShortcut>
                     </ContextMenuItem>
@@ -3343,7 +3395,7 @@ export default function Designer({
                       isDisabled={readOnly}
                       onAction={() => makeJunction()}
                     >
-                      <HugeiconsIcon icon={Link01Icon} />
+                      <HugeiconsIcon icon={GitMergeIcon} />
                       Add junction table
                     </ContextMenuItem>
                   </ContextMenuGroup>
@@ -3689,6 +3741,72 @@ export default function Designer({
             Parse and replace
           </Button>
         </DialogFooter>
+      </Dialog>
+
+      <Dialog
+        isOpen={modal === "shortcuts"}
+        onOpenChange={(open) => !open && setModal(null)}
+        className="sm:max-w-2xl"
+      >
+        <DialogHeader>
+          <DialogTitle>Keyboard shortcuts</DialogTitle>
+          <DialogDescription>
+            {readOnly
+              ? "Editing shortcuts are unavailable on a read-only link."
+              : "Bare-letter shortcuts pause while you are typing in a field."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="shortcut-sheet">
+          {SHORTCUT_GROUPS.map((group) => (
+            <section className="shortcut-group" key={group}>
+              <h3 className="shortcut-group-title">{group}</h3>
+              <dl className="shortcut-list">
+                {SHORTCUTS.filter((shortcut) => shortcut.group === group).map(
+                  (shortcut) => (
+                    <div
+                      className="shortcut-row"
+                      key={shortcut.id}
+                      aria-disabled={shortcut.mutating && readOnly}
+                    >
+                      <dt>{shortcut.label}</dt>
+                      <dd>
+                        <KbdGroup>
+                          {chordParts(shortcut.chords[0], isMac).map((part) => (
+                            <Kbd key={part}>{part}</Kbd>
+                          ))}
+                        </KbdGroup>
+                      </dd>
+                    </div>
+                  ),
+                )}
+              </dl>
+            </section>
+          ))}
+          <section className="shortcut-group">
+            <h3 className="shortcut-group-title">Selection</h3>
+            <dl className="shortcut-list">
+              <div className="shortcut-row">
+                <dt>Clear selection</dt>
+                <dd>
+                  <KbdGroup>
+                    <Kbd>{isMac ? "esc" : "Esc"}</Kbd>
+                  </KbdGroup>
+                </dd>
+              </div>
+              <div className="shortcut-row">
+                <dt>Nudge the focused table</dt>
+                <dd>
+                  <KbdGroup>
+                    <Kbd>←</Kbd>
+                    <Kbd>↑</Kbd>
+                    <Kbd>↓</Kbd>
+                    <Kbd>→</Kbd>
+                  </KbdGroup>
+                </dd>
+              </div>
+            </dl>
+          </section>
+        </div>
       </Dialog>
 
     </div>

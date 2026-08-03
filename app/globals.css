@@ -827,6 +827,41 @@ button {
 }
 .sql-input::selection { background: color-mix(in oklch, var(--primary) 25%, transparent); }
 .sql-input:focus { box-shadow: inset 0 0 0 2px color-mix(in oklch, var(--primary) 45%, transparent); }
+
+/* Keyboard shortcut reference. Two columns where there is room, one when there is not. */
+.shortcut-sheet {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 1.75rem;
+  max-height: min(60vh, 32rem);
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+.shortcut-group-title {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  margin-bottom: 0.375rem;
+}
+.shortcut-list { display: flex; flex-direction: column; gap: 0.125rem; }
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 1.875rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+}
+.shortcut-row:hover { background: color-mix(in oklch, var(--muted) 60%, transparent); }
+.shortcut-row dt { color: var(--foreground); }
+.shortcut-row dd { flex: none; }
+/* Unavailable on read-only links, but still listed so the reference stays complete. */
+.shortcut-row[aria-disabled="true"] { opacity: 0.45; }
+@media (max-width: 40rem) { .shortcut-sheet { grid-template-columns: minmax(0, 1fr); } }
 /*
  * Reduced motion removes travel, not feedback: opacity and color still
  * respond, so pressing a control is still visibly acknowledged.

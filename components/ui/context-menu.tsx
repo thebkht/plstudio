@@ -300,7 +300,7 @@ function ContextMenuShortcut({
     <span
       data-slot="context-menu-shortcut"
       className={cn(
-        "ml-auto pl-6 font-mono text-xs tabular-nums text-muted-foreground/80 group-focus/context-menu-item:text-accent-foreground group-data-[variant=destructive]/context-menu-item:text-destructive/70",
+        "ml-auto pl-6 font-mono text-xs leading-none tabular-nums text-foreground/55 group-focus/context-menu-item:text-accent-foreground group-data-[variant=destructive]/context-menu-item:text-destructive/75",
         className
       )}
       {...props}

@@ -121,8 +121,11 @@ const KEY_LABEL: Record<string, { mac: string; other: string }> = {
   "-": { mac: "−", other: "−" },
 };
 
-/** Renders a chord the way its platform writes it: "⇧⌘Z" on macOS, "Ctrl+Shift+Z" elsewhere. */
-export const formatChord = (chord: Chord, isMac: boolean) => {
+/**
+ * The chord split into rendered tokens, for a `<Kbd>` per key. macOS orders
+ * modifiers ⌃⌥⇧⌘; Windows and Linux lead with Ctrl.
+ */
+export const chordParts = (chord: Chord, isMac: boolean) => {
   const label = KEY_LABEL[chord.key.toLowerCase()];
   const key = label
     ? isMac
@@ -131,10 +134,17 @@ export const formatChord = (chord: Chord, isMac: boolean) => {
     : chord.key.length === 1
       ? chord.key.toUpperCase()
       : chord.key;
-  // macOS orders modifiers ⌃⌥⇧⌘ and runs them straight into the key.
-  if (isMac) return `${chord.shift === true ? "⇧" : ""}${chord.mod ? "⌘" : ""}${key}`;
-  return [chord.mod && "Ctrl", chord.shift === true && "Shift", key].filter(Boolean).join("+");
+  const shift = chord.shift === true;
+  return (
+    isMac
+      ? [shift && "⇧", chord.mod && "⌘", key]
+      : [chord.mod && "Ctrl", shift && "Shift", key]
+  ).filter(Boolean) as string[];
 };
+
+/** Renders a chord the way its platform writes it: "⇧⌘Z" on macOS, "Ctrl+Shift+Z" elsewhere. */
+export const formatChord = (chord: Chord, isMac: boolean) =>
+  chordParts(chord, isMac).join(isMac ? "" : "+");
 
 export const shortcutHint = (id: ShortcutId, isMac: boolean) => {
   const chord = byId.get(id)?.chords[0];
