@@ -3,10 +3,22 @@ import { getDb } from "@/db";
 import { projects } from "@/db/schema";
 import { SCHEMA_FORMAT_VERSION, type Schema } from "@/app/lib/schema";
 import { canDeleteProject } from "@/app/lib/workspace";
-import { requirePersonalProjectAccess, requireProjectAccess } from "@/app/lib/session";
+import { requirePersonalProjectAccess, requireProjectAccess, requireSession } from "@/app/lib/session";
+import { findProjectByShareToken } from "@/app/lib/project-share";
 
 type Params = { params: Promise<{ id: string }> };
-async function access(request: Request, id: string) { const workspace = new URL(request.url).searchParams.get("workspace"); return workspace ? requireProjectAccess(workspace, id) : requirePersonalProjectAccess(id); }
+async function access(request: Request, id: string) {
+  const url = new URL(request.url);
+  const shareToken = url.searchParams.get("shareToken");
+  if (shareToken) {
+    const session = await requireSession();
+    const shared = await findProjectByShareToken(shareToken);
+    if (!shared || shared.project.id !== id || shared.share.permission !== "editor") throw new Response("Invalid project share link", { status: 403 });
+    return { session, project: shared.project, role: "member" as const, shareToken };
+  }
+  const workspace = url.searchParams.get("workspace");
+  return workspace ? requireProjectAccess(workspace, id) : requirePersonalProjectAccess(id);
+}
 export async function GET(request: Request, { params }: Params) { try { const { id } = await params; const { project } = await access(request, id); return Response.json(project); } catch (error) { if (error instanceof Response) return error; return Response.json({ error: error instanceof Error ? error.message : "Database unavailable" }, { status: 503 }); } }
 
 export async function PUT(request: Request, { params }: Params) {

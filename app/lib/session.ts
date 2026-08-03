@@ -22,7 +22,7 @@ export async function requireProjectAccess(workspaceSlug: string, projectId: str
   const session = await requireSession();
   const row = (await getDb().select({ project: projects, organization, role: member.role }).from(member).innerJoin(organization, eq(member.organizationId, organization.id)).innerJoin(projects, eq(projects.organizationId, organization.id)).where(and(eq(member.userId, session.user.id), eq(organization.slug, workspaceSlug), eq(projects.id, projectId))))[0];
   if (!row) notFound();
-  return { ...row, role: row.role as "owner" | "admin" | "member" };
+  return { ...row, session, role: row.role as "owner" | "admin" | "member" };
 }
 
 export async function requirePersonalProjectAccess(projectId: string) {

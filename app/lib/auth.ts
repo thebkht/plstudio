@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { anonymous } from "better-auth/plugins/anonymous";
 import { organization } from "better-auth/plugins/organization";
+import { defaultAc } from "better-auth/plugins/organization/access";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import * as schema from "@/db/schema";
@@ -19,6 +20,13 @@ export const auth = betterAuth({
         await db.update(projects).set({ createdBy: newUser.user.id }).where(eq(projects.createdBy, anonymousUser.user.id));
       },
     }),
-    organization({ allowUserToCreateOrganization: true, organizationLimit: 10, membershipLimit: 50 }),
+    organization({
+      allowUserToCreateOrganization: true,
+      organizationLimit: 10,
+      membershipLimit: 50,
+      roles: {
+        member: defaultAc.newRole({ invitation: ["create"], ac: ["read"] }),
+      },
+    }),
   ],
 });
