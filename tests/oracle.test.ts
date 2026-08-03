@@ -9,14 +9,14 @@ describe("Oracle schema model", () => {
     const schema = makeDemoSchema();
     schema.tables[0].keyStrategy = "identity";
     const ddl = generateDDL(schema);
-    expect(ddl).toContain("GENERATED ALWAYS AS IDENTITY");
-    expect(ddl).not.toContain("CREATE SEQUENCE");
-    expect(ddl).not.toContain("CREATE OR REPLACE TRIGGER");
+    expect(ddl).toContain("generated always as identity");
+    expect(ddl).not.toContain("create sequence");
+    expect(ddl).not.toContain("create or replace trigger");
   });
 
   it("creates tables before sequence triggers reference them", () => {
     const ddl = generateDDL(makeDemoSchema());
-    expect(ddl.toLowerCase().indexOf("create table student")).toBeLessThan(ddl.indexOf("CREATE OR REPLACE TRIGGER TRG_STUDENT"));
+    expect(ddl.toLowerCase().indexOf("create table student")).toBeLessThan(ddl.toLowerCase().indexOf("create or replace trigger student_trg"));
   });
 
   it("migrates legacy foreign keys into DrawDB-style relationships", () => {
@@ -58,8 +58,8 @@ describe("Oracle schema model", () => {
       deleteConstraint: "Cascade",
     }];
     const ddl = generateDDL(schema);
-    expect(ddl).toContain("constraint FK_ENROLLMENT_STUDENT_COMPOSITE");
-    expect(ddl).toContain("foreign key (STUDENT_ID, TENANT_ID) references STUDENT(ID, TENANT_ID) on delete cascade;");
+    expect(ddl).toContain("constraint fk_enrollment_student_composite");
+    expect(ddl).toContain("foreign key (student_id, tenant_id) references student(id, tenant_id) on delete cascade;");
   });
 
   it("exports deployment-style tablespace and out-of-line constraints", () => {
@@ -68,13 +68,13 @@ describe("Oracle schema model", () => {
     schema.tables[0].columns[0].comment = "Primary identifier";
     schema.tables[1].columns[2].unique = true;
     const ddl = generateDDL(schema);
-    expect(ddl).toContain("--drop table STUDENT;");
-    expect(ddl).toContain(") tablespace CORE_DATA;");
-    expect(ddl).toContain("using index tablespace CORE_INDEX;");
-    expect(ddl).toContain("add constraint U_ENROLLMENT_STATUS unique (STATUS)");
-    expect(ddl).toContain("comment on table STUDENT is 'Student records';");
-    expect(ddl).toContain("comment on column STUDENT.ID is 'Primary identifier';");
-    expect(ddl).not.toContain("STATUS CHAR(1) default 'A' not null UNIQUE");
+    expect(ddl).toContain("--drop table student;");
+    expect(ddl).toContain(") tablespace core_data;");
+    expect(ddl).toContain("using index tablespace core_index;");
+    expect(ddl).toContain("add constraint enrollment_u1 unique (status)");
+    expect(ddl).toContain("comment on table student is 'Student records';");
+    expect(ddl).toContain("comment on column student.id is 'Primary identifier';");
+    expect(ddl).not.toContain("status char(1) default 'A' not null unique");
   });
 
   it("blocks foreign keys into composite primary keys", () => {
