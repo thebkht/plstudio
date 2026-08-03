@@ -45,3 +45,13 @@ export const projects = pgTable("projects", {
   schemaFormatVersion: integer("schema_format_version").notNull().default(1),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [index("projects_organization_idx").on(table.organizationId), index("projects_created_by_idx").on(table.createdBy)]);
+
+export const projectShare = pgTable("project_share", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }).unique(),
+  tokenHash: text("token_hash").notNull().unique(),
+  permission: text("permission").notNull().default("editor"),
+  createdBy: text("created_by").notNull().references(() => user.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+});
