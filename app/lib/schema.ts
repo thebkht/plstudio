@@ -1,5 +1,5 @@
 export const ORACLE_VERSION = "12.2+" as const;
-export const SCHEMA_FORMAT_VERSION = 2 as const;
+export const SCHEMA_FORMAT_VERSION = 3 as const;
 
 export const ORACLE_TYPES = [
   "VARCHAR2",
@@ -26,6 +26,7 @@ export const ORACLE_TYPES = [
 export type OracleType = (typeof ORACLE_TYPES)[number];
 export type KeyStrategy = "none" | "sequence-trigger" | "identity";
 export type MemoColor = "yellow" | "blue" | "green" | "pink";
+export type GroupColor = "orange" | "blue" | "green" | "purple" | "pink";
 
 export type ForeignKeyRef = { tableId: string; columnId: string };
 export type Cardinality = "one_to_one" | "one_to_many" | "many_to_one";
@@ -67,6 +68,7 @@ export type Table = {
   y: number;
   color: { a: string; b: string };
   keyStrategy: KeyStrategy;
+  schemaId?: string;
   comment?: string;
   columns: Column[];
 };
@@ -81,12 +83,23 @@ export type Memo = {
   color: MemoColor;
 };
 
+export type SchemaGroup = {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color: GroupColor;
+};
+
 export type Schema = {
   id: string;
   name: string;
   revision: number;
   schemaFormatVersion: number;
   tables: Table[];
+  groups?: SchemaGroup[];
   relationships?: Relationship[];
   memos?: Memo[];
   updatedAt?: string;
@@ -106,6 +119,15 @@ export const PALETTE = [
   { a: "#e8617d", b: "#c94a64" },
   { a: "#00b8d9", b: "#0094ad" },
 ];
+
+export const GROUP_PALETTE: Record<GroupColor, { background: string; border: string; header: string; text: string }> = {
+  orange: { background: "#fff4df", border: "#e7a33e", header: "#ffebc5", text: "#8b5b16" },
+  blue: { background: "#eaf7fb", border: "#4b9ab3", header: "#d7f0f6", text: "#28677a" },
+  green: { background: "#eef8e8", border: "#78ad5b", header: "#e1f2d8", text: "#4b7b36" },
+  purple: { background: "#f3effd", border: "#8f79c9", header: "#e9e1fa", text: "#66519d" },
+  pink: { background: "#fff0f3", border: "#d98296", header: "#ffe1e8", text: "#9d5062" },
+};
+export const GROUP_COLORS = Object.keys(GROUP_PALETTE) as GroupColor[];
 
 let sequence = 0;
 export function nextId(prefix: string) {
@@ -138,6 +160,23 @@ export function makeTable(name: string, x: number, y: number, colorIndex = 0): T
     color: PALETTE[colorIndex % PALETTE.length],
     keyStrategy: "sequence-trigger",
     columns: [makeColumn({ name: "ID", type: "NUMBER", size: "", notNull: true, pk: true })],
+  };
+}
+
+export function makeSchemaGroup(
+  name = "New schema",
+  x = 80,
+  y = 80,
+  colorIndex = 0,
+): SchemaGroup {
+  return {
+    id: nextId("group"),
+    name,
+    x,
+    y,
+    width: 760,
+    height: 520,
+    color: GROUP_COLORS[colorIndex % GROUP_COLORS.length],
   };
 }
 
@@ -194,6 +233,7 @@ export function makeDemoSchema(): Schema {
     revision: 1,
     schemaFormatVersion: SCHEMA_FORMAT_VERSION,
     tables: [student, enrollment],
+    groups: [],
     relationships: [],
     memos: [],
   };
@@ -206,6 +246,7 @@ export function makeEmptySchema(name = "Untitled Diagram", id = nextId("schema")
     revision: 1,
     schemaFormatVersion: SCHEMA_FORMAT_VERSION,
     tables: [],
+    groups: [],
     relationships: [],
     memos: [],
   };
@@ -258,6 +299,33 @@ export function tableHeight(table: Table) {
 
 export function cloneSchema(schema: Schema): Schema {
   return structuredClone(schema);
+}
+
+export function normalizeGroups(schema: Schema): Schema {
+  const next = cloneSchema(schema);
+  const groups = Array.isArray(next.groups) ? next.groups : [];
+  const seen = new Set<string>();
+  next.groups = groups.flatMap((value, index) => {
+    if (!value || typeof value !== "object") return [];
+    const group = value as Partial<SchemaGroup>;
+    if (typeof group.id !== "string" || !group.id || seen.has(group.id)) return [];
+    seen.add(group.id);
+    return [{
+      id: group.id,
+      name: typeof group.name === "string" && group.name.trim() ? group.name.trim() : `Schema ${index + 1}`,
+      x: typeof group.x === "number" && Number.isFinite(group.x) ? Math.max(0, group.x) : 80,
+      y: typeof group.y === "number" && Number.isFinite(group.y) ? Math.max(0, group.y) : 80,
+      width: typeof group.width === "number" && Number.isFinite(group.width) ? Math.max(360, group.width) : 760,
+      height: typeof group.height === "number" && Number.isFinite(group.height) ? Math.max(260, group.height) : 520,
+      color: GROUP_COLORS.includes(group.color as GroupColor) ? group.color as GroupColor : GROUP_COLORS[index % GROUP_COLORS.length],
+    }];
+  });
+  const valid = new Set(next.groups.map((group) => group.id));
+  next.tables = next.tables.map((table) => valid.has(table.schemaId ?? "")
+    ? table
+    : { ...table, schemaId: undefined });
+  next.schemaFormatVersion = SCHEMA_FORMAT_VERSION;
+  return next;
 }
 
 export const RELATIONSHIP_CONSTRAINTS: RelationshipConstraint[] = [

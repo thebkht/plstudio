@@ -64,6 +64,10 @@ function duplicateIssues(items: Array<{ value: string; label: string; tableId?: 
 export function validateSchema(schema: Schema): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   issues.push(...duplicateIssues(schema.tables.map((table) => ({ value: table.name, label: `table ${table.name}`, tableId: table.id }))));
+  issues.push(...duplicateIssues((schema.groups ?? []).map((group) => ({ value: group.name, label: `schema group ${group.name}` }))));
+  (schema.groups ?? []).forEach((group) => {
+    issues.push(...identifierIssues(group.name, `Schema group ${group.name}`));
+  });
   schema.tables.forEach((table) => {
     issues.push(...identifierIssues(table.name, `Table ${table.name}`));
     issues.push(...duplicateIssues(table.columns.map((column) => ({ value: column.name, label: `column ${table.name}.${column.name}`, tableId: table.id, columnId: column.id }))));
