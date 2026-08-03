@@ -22,7 +22,7 @@ export default async function SharedProjectPage({ params }: { params: Promise<{ 
           </AlertDescription>
         </Alert>
       )}
-      <main className="app-shell"><Designer initialSchema={shared.project.schemaJson as Schema} projectId={shared.project.id} shareToken={token} readOnly={!session} /></main>
+      <main className="app-shell"><Designer initialSchema={shared.project.schemaJson as Schema} projectId={shared.project.id} shareToken={token} readOnly={!session} user={session ? { id: session.user.id, name: session.user.name, image: session.user.image } : null} /></main>
     </>
   );
 }

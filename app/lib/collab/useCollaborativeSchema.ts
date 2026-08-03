@@ -39,6 +39,12 @@ export function useCollaborativeSchema({
   workspaceSlug?: string;
 }) {
   const collabUrl = process.env.NEXT_PUBLIC_COLLAB_URL;
+  // Identity-stable: a fresh `user` object each render would otherwise tear the
+  // socket down and rebuild it on every keystroke.
+  const identity = useMemo(
+    () => (user ? { id: user.id, name: user.name, image: user.image ?? null } : null),
+    [user?.id, user?.name, user?.image],
+  );
   const ydoc = useMemo(() => new Y.Doc(), [projectId]);
   /** Tags local transactions so the undo manager can ignore everyone else's edits. */
   const localOrigin = useMemo(() => Symbol("local"), [projectId]);
@@ -81,7 +87,7 @@ export function useCollaborativeSchema({
   }, [localOrigin, ydoc]);
 
   useEffect(() => {
-    if (!collabUrl || !user) return;
+    if (!collabUrl || !identity) return;
     const query = new URLSearchParams({ projectId });
     if (workspaceSlug) query.set("workspace", workspaceSlug);
     if (shareToken) query.set("shareToken", shareToken);
@@ -102,8 +108,8 @@ export function useCollaborativeSchema({
     });
     providerRef.current = provider;
 
-    provider.setAwarenessField("user", user);
-    provider.setAwarenessField("color", peerColor(user.id));
+    provider.setAwarenessField("user", identity);
+    provider.setAwarenessField("color", peerColor(identity.id));
 
     const awareness = provider.awareness;
     const syncPeers = () => {
@@ -127,7 +133,7 @@ export function useCollaborativeSchema({
       setPeers([]);
       setStatus(collabUrl ? "connecting" : "local");
     };
-  }, [collabUrl, projectId, shareToken, user, workspaceSlug, ydoc]);
+  }, [collabUrl, identity, projectId, shareToken, workspaceSlug, ydoc]);
 
   const commit = useCallback(
     (next: Schema) => { if (!readOnly) applySchemaToYDoc(ydoc, next, localOrigin); },

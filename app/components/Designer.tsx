@@ -46,6 +46,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useCollaborativeSchema, type CollabUser } from "@/app/lib/collab/useCollaborativeSchema";
 import { Alert, AlertAction, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -579,6 +580,7 @@ export default function Designer({
   workspaceId,
   shareToken,
   readOnly = false,
+  user,
 }: {
   initialSchema: Schema;
   projectId: string;
@@ -586,15 +588,33 @@ export default function Designer({
   workspaceId?: string;
   shareToken?: string;
   readOnly?: boolean;
+  user?: CollabUser | null;
 }) {
   const router = useRouter();
-  const [schema, setSchema] = useState<Schema>(() => prepareCanvasSchema(initialSchema));
+  const {
+    schema,
+    commit: commitShared,
+    undo: undoShared,
+    redo: redoShared,
+    canUndo,
+    canRedo,
+    setRevision,
+    status: collabStatus,
+    peers,
+    setCursor,
+    setSelection,
+  } = useCollaborativeSchema({
+    projectId,
+    initialSchema: useMemo(() => prepareCanvasSchema(initialSchema), [initialSchema]),
+    readOnly,
+    user,
+    shareToken,
+    workspaceSlug,
+  });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedMemoId, setSelectedMemoId] = useState<string | null>(null);
   const [editingMemoId, setEditingMemoId] = useState<string | null>(null);
-  const [history, setHistory] = useState<Schema[]>([]);
-  const [future, setFuture] = useState<Schema[]>([]);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   /** Live position of the table under the pointer; schema is written once on release. */
@@ -656,10 +676,11 @@ export default function Designer({
     const repaired = prepareCanvasSchema(initialSchema);
     const changed = repaired.tables.some((table, index) => table.x !== initialSchema.tables[index]?.x || table.y !== initialSchema.tables[index]?.y);
     if (changed) {
-      setSchema(repaired);
-      setDirty(true);
+      commit(repaired);
       toast.success("Overlapping tables were separated.");
     }
+    // Seeding only: re-running this on every `commit` would fight live edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSchema]);
   const canvasRef = useRef<HTMLDivElement>(null);
   const importHighlightRef = useRef<HTMLPreElement>(null);
@@ -882,15 +903,24 @@ export default function Designer({
   const output =
     exportTab === "ddl" ? ddl : exportTab === "plsql" ? plsql : combined;
 
+  /**
+   * Every edit lands in the shared document; undo history is the CRDT's, scoped
+   * to this client. `dirty` still drives the fallback save for when the collab
+   * service is unreachable.
+   */
   const commit = useCallback(
     (next: Schema) => {
       if (readOnly) return;
-      setHistory((items) => [...items.slice(-49), cloneSchema(schema)]);
-      setFuture([]);
-      setSchema({ ...next, revision: schema.revision });
+      commitShared(next);
       setDirty(true);
     },
-    [readOnly, schema],
+    [commitShared, readOnly],
+  );
+
+  /** Functional form of `commit`, for gesture handlers that only hold a ref to current state. */
+  const commitWith = useCallback(
+    (mutate: (current: Schema) => Schema) => commit(mutate(schemaRef.current)),
+    [commit],
   );
 
   const patchTable = useCallback(
@@ -1011,21 +1041,16 @@ export default function Designer({
       ),
     }));
 
+  /** Undo walks only this client's own edits — never a collaborator's. */
   const undo = () => {
     if (readOnly) return;
-    const previous = history.at(-1);
-    if (!previous) return;
-    setFuture((items) => [...items, cloneSchema(schema)]);
-    setHistory((items) => items.slice(0, -1));
-    setSchema(previous);
+    undoShared();
+    setDirty(true);
   };
   const redo = () => {
     if (readOnly) return;
-    const next = future.at(-1);
-    if (!next) return;
-    setHistory((items) => [...items, cloneSchema(schema)]);
-    setFuture((items) => items.slice(0, -1));
-    setSchema(next);
+    redoShared();
+    setDirty(true);
   };
   const autoLayout = () => {
     const next = {
@@ -1140,19 +1165,14 @@ export default function Designer({
   const commitPosition = useCallback((id: string, x: number, y: number, schemaId?: string | null) => {
     if (readOnly) return;
     const resolved = resolveTablePosition(id, x, y);
-    setHistory((items) => [
-      ...items.slice(-49),
-      cloneSchema(schemaRef.current),
-    ]);
-    setFuture([]);
-    setSchema((current) => ({
+    commitWith((current) => ({
       ...current,
       tables: current.tables.map((table) =>
         table.id === id ? { ...table, x: resolved.x, y: resolved.y, schemaId: schemaId === undefined ? table.schemaId : schemaId || undefined } : table,
       ),
     }));
     setDragPosition(null);
-  }, [readOnly, resolveTablePosition]);
+  }, [commitWith, readOnly, resolveTablePosition]);
 
   const stopAnimation = useCallback(() => {
     stopAnimationRef.current?.();
@@ -1626,9 +1646,7 @@ export default function Designer({
     if (readOnly) return;
     const current = schemaRef.current;
     if (!current.groups?.some((item) => item.id === id)) return;
-    setHistory((items) => [...items.slice(-49), cloneSchema(current)]);
-    setFuture([]);
-    setSchema((next) => ({
+    commitWith((next) => ({
       ...next,
       groups: (next.groups ?? []).map((item) => item.id === id ? {
         ...item,
@@ -1647,9 +1665,7 @@ export default function Designer({
     if (!group) return;
     const nextWidth = Math.max(GROUP_MIN_WIDTH, Math.min(CANVAS_WIDTH - group.x, Math.round(width)));
     const nextHeight = Math.max(GROUP_MIN_HEIGHT, Math.min(CANVAS_HEIGHT - group.y, Math.round(height)));
-    setHistory((items) => [...items.slice(-49), cloneSchema(current)]);
-    setFuture([]);
-    setSchema((next) => ({
+    commitWith((next) => ({
       ...next,
       groups: (next.groups ?? []).map((item) => item.id === id ? {
         ...item,
@@ -1743,9 +1759,7 @@ export default function Designer({
     const memo = current.memos?.find((item) => item.id === id);
     if (!memo) return;
     const bounds = memoBounds(memo);
-    setHistory((items) => [...items.slice(-49), cloneSchema(current)]);
-    setFuture([]);
-    setSchema((next) => ({
+    commitWith((next) => ({
       ...next,
       memos: (next.memos ?? []).map((item) => item.id === id ? {
         ...item,
@@ -1760,9 +1774,7 @@ export default function Designer({
     if (readOnly) return;
     const current = schemaRef.current;
     if (!current.memos?.some((item) => item.id === id)) return;
-    setHistory((items) => [...items.slice(-49), cloneSchema(current)]);
-    setFuture([]);
-    setSchema((next) => ({
+    commitWith((next) => ({
       ...next,
       memos: (next.memos ?? []).map((item) => item.id === id ? {
         ...item,
@@ -1814,14 +1826,11 @@ export default function Designer({
     });
   };
 
-  const patchMemo = (id: string, patch: Partial<Memo>) => {
-    if (readOnly) return;
-    setSchema((current) => ({
+  const patchMemo = (id: string, patch: Partial<Memo>) =>
+    commitWith((current) => ({
       ...current,
       memos: (current.memos ?? []).map((memo) => memo.id === id ? { ...memo, ...patch } : memo),
     }));
-    setDirty(true);
-  };
 
   const deleteMemo = (id: string) => {
     commit({ ...schema, memos: (schema.memos ?? []).filter((memo) => memo.id !== id) });
@@ -2002,7 +2011,7 @@ export default function Designer({
       );
       if (response.ok) {
         const next = (await response.json()) as Schema;
-        setSchema((current) => ({ ...current, revision: next.revision }));
+        setRevision(next.revision);
         setDirty(false);
         lastSavedNameRef.current = next.name;
       } else if (response.status === 409) {
@@ -2046,7 +2055,7 @@ export default function Designer({
       );
       if (response.ok) {
         const next = (await response.json()) as Schema;
-        setSchema((current) => ({ ...current, revision: next.revision }));
+        setRevision(next.revision);
         lastSavedNameRef.current = next.name;
         setDirty(false);
       } else if (response.status === 409)
@@ -2240,8 +2249,8 @@ export default function Designer({
     { label: "Save to database", onSelect: run("save"), hint: hint("save") },
   ];
   const editMenu: MenuItem[] = [
-    { label: "Undo", onSelect: run("undo"), disabled: !history.length, hint: hint("undo") },
-    { label: "Redo", onSelect: run("redo"), disabled: !future.length, hint: hint("redo") },
+    { label: "Undo", onSelect: run("undo"), disabled: !canUndo, hint: hint("undo") },
+    { label: "Redo", onSelect: run("redo"), disabled: !canRedo, hint: hint("redo") },
     { separator: true },
     { label: "Add table", onSelect: run("addTable"), hint: hint("addTable") },
     { label: "Add schema group", onSelect: run("addGroup"), hint: hint("addGroup") },
@@ -2329,11 +2338,7 @@ export default function Designer({
               value={schema.name}
               onChange={(event) => {
                 if (readOnly) return;
-                setSchema((current) => ({
-                  ...current,
-                  name: event.target.value,
-                }));
-                setDirty(true);
+                commitWith((current) => ({ ...current, name: event.target.value }));
               }}
             />
           </div>
@@ -3500,13 +3505,13 @@ export default function Designer({
             <DockButton
               label="Undo"
               icon={ArrowTurnBackwardIcon}
-              isDisabled={!history.length}
+              isDisabled={!canUndo}
               onClick={undo}
             />
             <DockButton
               label="Redo"
               icon={ArrowTurnForwardIcon}
-              isDisabled={!future.length}
+              isDisabled={!canRedo}
               onClick={redo}
             />
             <Separator orientation="vertical" />
