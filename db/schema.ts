@@ -46,6 +46,17 @@ export const projects = pgTable("projects", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [index("projects_organization_idx").on(table.organizationId), index("projects_created_by_idx").on(table.createdBy)]);
 
+/**
+ * The authoritative copy of a collaborative project: the Yjs update log, stored
+ * base64-encoded so it survives the Neon HTTP driver unchanged. `projects.schemaJson`
+ * is kept as a mirror of this, so every existing reader keeps working.
+ */
+export const yjsDocuments = pgTable("yjs_documents", {
+  projectId: text("project_id").primaryKey().references(() => projects.id, { onDelete: "cascade" }),
+  state: text("state").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const projectShare = pgTable("project_share", {
   id: text("id").primaryKey(),
   projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }).unique(),
