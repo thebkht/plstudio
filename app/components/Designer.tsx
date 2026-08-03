@@ -47,6 +47,7 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useCollaborativeSchema, type CollabUser } from "@/app/lib/collab/useCollaborativeSchema";
+import { PeerAvatars, PeerCursors } from "@/app/components/CollabPresence";
 import { Alert, AlertAction, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -726,6 +727,14 @@ export default function Designer({
     window.localStorage.setItem("drawsql-settings", JSON.stringify(relationSettings));
   }, [relationSettings]);
   dragPositionRef.current = dragPosition;
+
+  useEffect(() => setSelection(selectedId), [selectedId, setSelection]);
+
+  /** Which collaborator, if any, has a given table selected — drives its ring colour. */
+  const peerSelection = useMemo(
+    () => new Map(peers.filter((peer) => peer.selectedId).map((peer) => [peer.selectedId as string, peer])),
+    [peers],
+  );
 
   /** A table's on-screen position: the in-flight one while it moves, else its committed one. */
   const livePosition = useCallback(
@@ -2359,6 +2368,7 @@ export default function Designer({
           </div>
         </div>
         <div className="appbar-actions">
+          <PeerAvatars peers={peers} status={collabStatus} />
           <Button className="share-btn" onClick={() => setModal("share")}>
             <HugeiconsIcon icon={Share08Icon} size={15} /> Share
           </Button>
@@ -3034,12 +3044,16 @@ export default function Designer({
           ref={canvasRef}
           className={`canvas-wrap ${grabbing ? "grabbing" : ""}`}
           onPointerDown={onCanvasDown}
-          onPointerMove={(event) =>
-            linking &&
-            setLinking((current) =>
-              current ? { ...current, ...canvasPoint(event) } : current,
-            )
-          }
+          onPointerMove={(event) => {
+            // Canvas space, not screen space: peers at other zoom levels must
+            // see the pointer over the same table, not the same pixel.
+            setCursor(canvasPoint(event));
+            if (linking)
+              setLinking((current) =>
+                current ? { ...current, ...canvasPoint(event) } : current,
+              );
+          }}
+          onPointerLeave={() => setCursor(null)}
           onPointerUp={finishLinking}
           onPointerCancel={(event) => {
             if (linking?.pointerId === event.pointerId) setLinking(null);
@@ -3282,21 +3296,23 @@ export default function Designer({
             {schema.tables.map((table) => {
               const position = livePosition(table);
               const moving = dragPosition?.id === table.id;
+              const heldBy = peerSelection.get(table.id);
               return (
                 <ContextMenuTrigger
                   key={table.id}
                   onOpenChange={(open) => open && setSelectedId(table.id)}
                 >
                 <div
-                  className={`table-card ${selectedId === table.id ? "selected" : ""} ${moving ? "moving" : ""}`}
+                  className={`table-card ${selectedId === table.id ? "selected" : ""} ${moving ? "moving" : ""} ${heldBy ? "peer-held" : ""}`}
                   role="button"
                   tabIndex={0}
                   aria-pressed={selectedId === table.id}
-                  aria-label={`Table ${table.name}, ${table.columns.length} columns. Arrow keys move it.`}
+                  aria-label={`Table ${table.name}, ${table.columns.length} columns.${heldBy ? ` Selected by ${heldBy.user.name}.` : ""} Arrow keys move it.`}
                   style={{
                     transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
                     width: tableWidth(table),
                     willChange: moving ? "transform" : undefined,
+                    ...(heldBy ? { "--peer-color": heldBy.color } as React.CSSProperties : {}),
                   }}
                   onPointerDown={(event) => {
                     event.stopPropagation();
@@ -3463,6 +3479,7 @@ export default function Designer({
                 </ContextMenuTrigger>
               );
             })}
+            <PeerCursors peers={peers} zoom={zoom} />
           </div>
 
           {linking && (
