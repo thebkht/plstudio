@@ -1,8 +1,9 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { getDb } from "@/db";
-import { member, organization, projects } from "@/db/schema";
+import { readProject } from "@/db/file-store";
+import { member, organization } from "@/db/schema";
 import { auth } from "./auth";
 
 export async function requireSession() {
@@ -18,16 +19,20 @@ export async function requireWorkspace(slug: string) {
   return { session, organization: row.organization, role: row.role as "owner" | "admin" | "member" };
 }
 
+/**
+ * Membership lives in SQLite and the project lives on disk, so what used to be a
+ * three-way join is now a workspace lookup plus an ownership check.
+ */
 export async function requireProjectAccess(workspaceSlug: string, projectId: string) {
-  const session = await requireSession();
-  const row = (await getDb().select({ project: projects, organization, role: member.role }).from(member).innerJoin(organization, eq(member.organizationId, organization.id)).innerJoin(projects, eq(projects.organizationId, organization.id)).where(and(eq(member.userId, session.user.id), eq(organization.slug, workspaceSlug), eq(projects.id, projectId))))[0];
-  if (!row) notFound();
-  return { ...row, session, role: row.role as "owner" | "admin" | "member" };
+  const workspace = await requireWorkspace(workspaceSlug);
+  const project = await readProject(projectId);
+  if (!project || project.organizationId !== workspace.organization.id) notFound();
+  return { ...workspace, project };
 }
 
 export async function requirePersonalProjectAccess(projectId: string) {
   const session = await requireSession();
-  const row = (await getDb().select({ project: projects }).from(projects).where(and(eq(projects.id, projectId), eq(projects.createdBy, session.user.id), isNull(projects.organizationId))))[0];
-  if (!row) notFound();
-  return { session, project: row.project, role: "owner" as const };
+  const project = await readProject(projectId);
+  if (!project || project.createdBy !== session.user.id || project.organizationId !== null) notFound();
+  return { session, project, role: "owner" as const };
 }

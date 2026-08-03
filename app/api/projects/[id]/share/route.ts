@@ -1,6 +1,4 @@
-import { eq } from "drizzle-orm";
-import { getDb } from "@/db";
-import { projects } from "@/db/schema";
+import { touchProject } from "@/db/file-store";
 import { createProjectShare, revokeProjectShare } from "@/app/lib/project-share";
 import { requirePersonalProjectAccess, requireProjectAccess } from "@/app/lib/session";
 import { canManageProjectShare } from "@/app/lib/workspace";
@@ -31,7 +29,7 @@ export async function DELETE(request: Request, { params }: Params) {
     const { project, session, role } = await access(request, id);
     if (!canManageProjectShare(session.user.id, project.createdBy, role)) return Response.json({ error: "Only project owners can manage share links." }, { status: 403 });
     await revokeProjectShare(id);
-    await getDb().update(projects).set({ updatedAt: new Date() }).where(eq(projects.id, id));
+    await touchProject(id);
     return new Response(null, { status: 204 });
   } catch (error) {
     if (error instanceof Response) return error;

@@ -1,7 +1,5 @@
 import Link from "next/link";
-import { desc, eq } from "drizzle-orm";
-import { getDb } from "@/db";
-import { projects } from "@/db/schema";
+import { listProjects } from "@/db/file-store";
 import { requireWorkspace } from "@/app/lib/session";
 import NewProjectButton from "@/app/components/NewProjectButton";
 import ProjectCard from "@/app/components/ProjectCard";
@@ -18,7 +16,7 @@ import {
 export default async function WorkspacePage({ params }: { params: Promise<{ workspace: string }> }) {
   const { workspace } = await params;
   const { organization } = await requireWorkspace(workspace);
-  const rows = await getDb().select().from(projects).where(eq(projects.organizationId, organization.id)).orderBy(desc(projects.updatedAt));
+  const rows = await listProjects({ organizationId: organization.id });
   return (
     <main className="dashboard-shell">
       <WorkspaceTopbar

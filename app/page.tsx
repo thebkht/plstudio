@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { auth } from "@/app/lib/auth";
 import { getDb } from "@/db";
-import { member, organization, projects } from "@/db/schema";
+import { listProjects } from "@/db/file-store";
+import { member, organization } from "@/db/schema";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import ProjectCard from "@/app/components/ProjectCard";
@@ -19,10 +20,9 @@ import {
 export default async function Page() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
-  const db = getDb();
   const [workspace, personalProjects] = await Promise.all([
-    db.select({ slug: organization.slug, name: organization.name }).from(member).innerJoin(organization, eq(member.organizationId, organization.id)).where(eq(member.userId, session.user.id)).limit(1),
-    db.select().from(projects).where(and(eq(projects.createdBy, session.user.id), isNull(projects.organizationId))).orderBy(desc(projects.updatedAt)),
+    getDb().select({ slug: organization.slug, name: organization.name }).from(member).innerJoin(organization, eq(member.organizationId, organization.id)).where(eq(member.userId, session.user.id)).limit(1),
+    listProjects({ createdBy: session.user.id, personalOnly: true }),
   ]);
   const workspaceRow = workspace[0];
   return (

@@ -2032,7 +2032,7 @@ export default function Designer({
         return;
       }
       if (response.ok) toast.success("Project saved.");
-      else toast.error("Database save unavailable — configure DATABASE_URL.");
+      else toast.error("Save failed — project storage is unavailable.");
     } catch {
       toast.error("Could not reach the server.");
     }

@@ -1,7 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, eq, isNull } from "drizzle-orm";
-import { getDb } from "@/db";
-import { projectShare, projects } from "@/db/schema";
+import { deleteShareFile, putShare, readProject, readShareByTokenHash, updateProject, withProjectLock } from "@/db/file-store";
 
 export function hashProjectShareToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
@@ -12,41 +10,35 @@ export function makeProjectShareToken() {
 }
 
 export async function findProjectByShareToken(token: string) {
-  const tokenHash = hashProjectShareToken(token);
-  const row = (await getDb()
-    .select({ project: projects, share: projectShare })
-    .from(projectShare)
-    .innerJoin(projects, eq(projectShare.projectId, projects.id))
-    .where(and(eq(projectShare.tokenHash, tokenHash), isNull(projectShare.revokedAt))))[0];
-  return row || null;
+  const share = await readShareByTokenHash(hashProjectShareToken(token));
+  if (!share || share.revokedAt) return null;
+  const project = await readProject(share.projectId);
+  return project ? { project, share } : null;
 }
 
+/**
+ * One live link per project, so issuing a new one retires the old token's file —
+ * the file-store equivalent of the upsert on `project_share.project_id`.
+ */
 export async function createProjectShare(projectId: string, userId: string) {
   const token = makeProjectShareToken();
-  const db = getDb();
-  await db
-    .insert(projectShare)
-    .values({
-      id: crypto.randomUUID(),
-      projectId,
-      tokenHash: hashProjectShareToken(token),
-      permission: "editor",
-      createdBy: userId,
-      revokedAt: null,
-    })
-    .onConflictDoUpdate({
-      target: projectShare.projectId,
-      set: {
-        tokenHash: hashProjectShareToken(token),
-        permission: "editor",
-        createdBy: userId,
-        revokedAt: null,
-        createdAt: new Date(),
-      },
-    });
+  const tokenHash = hashProjectShareToken(token);
+  await withProjectLock(projectId, async () => {
+    const project = await readProject(projectId);
+    if (project?.shareTokenHash && project.shareTokenHash !== tokenHash) await deleteShareFile(project.shareTokenHash);
+    await putShare({ id: crypto.randomUUID(), projectId, tokenHash, permission: "editor", createdBy: userId, createdAt: new Date(), revokedAt: null });
+    await updateProject(projectId, { shareTokenHash: tokenHash, updatedAt: project?.updatedAt });
+  });
   return token;
 }
 
 export async function revokeProjectShare(projectId: string) {
-  await getDb().update(projectShare).set({ revokedAt: new Date() }).where(eq(projectShare.projectId, projectId));
+  await withProjectLock(projectId, async () => {
+    const project = await readProject(projectId);
+    if (!project?.shareTokenHash) return;
+    const share = await readShareByTokenHash(project.shareTokenHash);
+    // Soft delete, as the column did: a revoked token stays known-revoked rather
+    // than falling back to "no such link".
+    if (share) await putShare({ ...share, revokedAt: new Date() });
+  });
 }

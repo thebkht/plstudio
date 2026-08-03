@@ -5,19 +5,19 @@ import { organization } from "better-auth/plugins/organization";
 import { adminAc, defaultAc, ownerAc } from "better-auth/plugins/organization/access";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
+import { reassignProjectOwner } from "@/db/file-store";
 import * as schema from "@/db/schema";
-import { member, projects } from "@/db/schema";
+import { member } from "@/db/schema";
 
 export const auth = betterAuth({
-  database: drizzleAdapter(getDb(), { provider: "pg", schema }),
+  database: drizzleAdapter(getDb(), { provider: "sqlite", schema }),
   emailAndPassword: { enabled: true },
   rateLimit: { storage: "database" },
   plugins: [
     anonymous({
       onLinkAccount: async ({ anonymousUser, newUser }) => {
-        const db = getDb();
-        await db.update(member).set({ userId: newUser.user.id }).where(eq(member.userId, anonymousUser.user.id));
-        await db.update(projects).set({ createdBy: newUser.user.id }).where(eq(projects.createdBy, anonymousUser.user.id));
+        await getDb().update(member).set({ userId: newUser.user.id }).where(eq(member.userId, anonymousUser.user.id));
+        await reassignProjectOwner(anonymousUser.user.id, newUser.user.id);
       },
     }),
     organization({

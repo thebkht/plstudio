@@ -1,8 +1,6 @@
 import { Server } from "@hocuspocus/server";
 import { Database } from "@hocuspocus/extension-database";
-import { eq } from "drizzle-orm";
-import { getDb } from "@/db";
-import { projects, yjsDocuments } from "@/db/schema";
+import { readProject, readYDoc, updateProject, withProjectLock, writeYDoc } from "@/db/file-store";
 import { projectIdFrom, verifyCollabToken } from "@/app/lib/collab/token";
 import { schemaFromYDoc } from "@/app/lib/collab/ydoc";
 import { SCHEMA_FORMAT_VERSION, type Schema } from "@/app/lib/schema";
@@ -30,32 +28,23 @@ const server = new Server({
 
   extensions: [
     new Database({
-      fetch: async ({ documentName }) => {
-        const row = (await getDb().select().from(yjsDocuments).where(eq(yjsDocuments.projectId, projectIdFrom(documentName))))[0];
-        return row ? new Uint8Array(Buffer.from(row.state, "base64")) : null;
-      },
+      fetch: async ({ documentName }) => readYDoc(projectIdFrom(documentName)),
 
       store: async ({ documentName, state, document }) => {
         const projectId = projectIdFrom(documentName);
-        const encoded = Buffer.from(state).toString("base64");
-        const db = getDb();
+        await writeYDoc(projectId, state);
 
-        await db
-          .insert(yjsDocuments)
-          .values({ projectId, state: encoded, updatedAt: new Date() })
-          .onConflictDoUpdate({ target: yjsDocuments.projectId, set: { state: encoded, updatedAt: new Date() } });
-
-        // Mirror the document back into `projects.schemaJson` so the REST routes,
-        // share pages, project list and DDL export keep reading what they always did.
+        // Mirror the document back into the project's `schemaJson` so the REST
+        // routes, share pages, project list and DDL export keep reading what they
+        // always did. Postgres used to serialize this read-modify-write of
+        // `revision` against the web app's PUT; on disk the lock has to do it.
         const schema = schemaFromYDoc(document, { id: projectId });
-        const stored = (await db.select({ revision: projects.revision }).from(projects).where(eq(projects.id, projectId)))[0];
-        if (!stored) return;
-
-        const mirrored: Schema = { ...schema, revision: stored.revision + 1, schemaFormatVersion: SCHEMA_FORMAT_VERSION };
-        await db
-          .update(projects)
-          .set({ name: mirrored.name, schemaJson: mirrored, revision: mirrored.revision, schemaFormatVersion: SCHEMA_FORMAT_VERSION, updatedAt: new Date() })
-          .where(eq(projects.id, projectId));
+        await withProjectLock(projectId, async () => {
+          const stored = await readProject(projectId);
+          if (!stored) return;
+          const mirrored: Schema = { ...schema, revision: stored.revision + 1, schemaFormatVersion: SCHEMA_FORMAT_VERSION };
+          await updateProject(projectId, { name: mirrored.name, schemaJson: mirrored, revision: mirrored.revision, schemaFormatVersion: SCHEMA_FORMAT_VERSION });
+        });
       },
     }),
   ],
