@@ -66,7 +66,7 @@
   --duration-base: 180ms;
   --duration-slow: 240ms;
 
-  --sidebar-width: 417px;
+  --appbar-height: 65px;
 
   /* Chrome ramp. Surfaces ascend from page white; ink descends from near-black. */
   --surface-0: #ffffff;
@@ -186,6 +186,7 @@ button {
 /* ── App bar ───────────────────────────────────────────────────────── */
 .appbar {
   flex: 0 0 auto;
+  height: var(--appbar-height);
   display: flex;
   align-items: center;
   gap: 14px;
@@ -246,11 +247,10 @@ button {
   gap: 10px;
 }
 .panel-tabs {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: stretch;
+  flex-direction: row;
+  align-items: center;
   gap: 2px;
-  padding: 0 6px;
+  padding: 4px 6px;
   border-bottom: 1px solid var(--hairline);
 }
 .panel-toolbar {
@@ -263,13 +263,17 @@ button {
 .panel-body {
   flex: 1;
   min-height: 0;
-  overflow: auto;
   padding: 0 12px 14px;
+}
+.panel-reveal {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 10;
 }
 .panel-code {
   flex: 1;
   min-height: 0;
-  overflow: auto;
   margin: 0;
   padding: 14px;
   background: var(--surface-1);
@@ -897,23 +901,14 @@ button {
 }
 @media (prefers-contrast: more) {
   .table-card,
-  .modal,
-  .panel,
+  [data-slot="dialog-content"],
+  [data-slot="sidebar-container"],
   .dock { border-color: var(--ink-1); }
   :where(button, [role="button"], a, input, select, textarea, [tabindex]):focus-visible {
     outline-width: 3px;
   }
 }
 @media (max-width: 900px) {
-  /* The panel overlays the canvas at this width instead of splitting the row. */
-  .panel {
-    position: absolute;
-    inset: 0 auto 0 0;
-    z-index: 20;
-    width: min(360px, 88vw);
-    flex-basis: auto;
-    box-shadow: var(--shadow-pop);
-  }
   .appbar { flex-wrap: wrap; gap: 10px; }
   .appbar-actions { margin-left: auto; }
   .dock { right: 14px; bottom: 14px; padding: 4px; }

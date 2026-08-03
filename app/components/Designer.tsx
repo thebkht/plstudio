@@ -107,6 +107,14 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DropdownMenu,
@@ -2118,17 +2126,21 @@ export default function Designer({
         </div>
       </header>
 
-      <div className={`body ${sidebarOpen ? "" : "panel-hidden"}`}>
-        <aside className="panel" aria-label="Diagram structure">
-          <div className="panel-tabs">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Hide side panel"
-              onClick={() => setSidebarOpen(false)}
-            >
+      <SidebarProvider
+        className="body min-h-0 flex-1"
+        style={{ "--sidebar-width": "417px" } as React.CSSProperties}
+        open={sidebarOpen}
+        onOpenChange={setSidebarOpen}
+      >
+        {/* The sidebar sits below the app bar, not against the viewport top. */}
+        <Sidebar
+          className="top-(--appbar-height) h-[calc(100svh-var(--appbar-height))]"
+          aria-label="Diagram structure"
+        >
+          <SidebarHeader className="panel-tabs">
+            <SidebarTrigger aria-label="Hide side panel">
               <HugeiconsIcon icon={ArrowLeft01Icon} />
-            </Button>
+            </SidebarTrigger>
             <Tabs
               selectedKey={panelTab}
               onSelectionChange={(key) => setPanelTab(key as PanelTab)}
@@ -2142,8 +2154,9 @@ export default function Designer({
                 </TabsTrigger>
               </TabsList>
             </Tabs>
-          </div>
+          </SidebarHeader>
 
+          <SidebarContent>
           {panelMode === "code" ? (
             <ScrollArea className="panel-code">
               <pre>
@@ -2678,8 +2691,10 @@ export default function Designer({
               )}
             </ScrollArea>
           )}
+          </SidebarContent>
 
-          <div className="panel-footer">
+          <SidebarFooter className="p-0">
+            <div className="panel-footer">
             <span className="counter">
               <HugeiconsIcon icon={DatabaseIcon} aria-hidden="true" />
               {schema.tables.length}
@@ -2712,7 +2727,7 @@ export default function Designer({
                 Code
               </ToggleGroupItem>
             </ToggleGroup>
-          </div>
+            </div>
 
           <Collapsible
             className="issues-bar"
@@ -2754,18 +2769,16 @@ export default function Designer({
               </ScrollArea>
             </CollapsibleContent>
           </Collapsible>
-        </aside>
+          </SidebarFooter>
+        </Sidebar>
 
         {!sidebarOpen && (
-          <Button
-            variant="outline"
-            size="icon-sm"
+          <SidebarTrigger
             className="panel-reveal"
             aria-label="Show side panel"
-            onClick={() => setSidebarOpen(true)}
           >
             <HugeiconsIcon icon={ArrowRight01Icon} />
-          </Button>
+          </SidebarTrigger>
         )}
 
         <div
@@ -3200,7 +3213,7 @@ export default function Designer({
             />
           </ButtonGroup>
         </div>
-      </div>
+      </SidebarProvider>
 
       <Dialog
         isOpen={modal === "share"}
