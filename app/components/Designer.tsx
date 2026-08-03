@@ -53,7 +53,36 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogDescription,
@@ -66,6 +95,8 @@ import {
   FieldDescription,
   FieldGroup,
   FieldLabel,
+  FieldLegend,
+  FieldSet,
 } from "@/components/ui/field";
 import {
   Tabs,
@@ -73,6 +104,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   DropdownMenu,
   DropdownMenuGroup,
@@ -230,6 +262,12 @@ function highlightSql(source: string): ReactNode[] {
 }
 
 type ExportTab = "ddl" | "plsql" | "combined";
+type PanelTab = "tables" | "relationships";
+type PanelMode = "structure" | "code";
+
+/** Select needs a real key for "no selection", since null renders the placeholder. */
+const NO_GROUP = "__ungrouped__";
+const NO_REFERENCE = "__no_reference__";
 
 const exportTabs = [
   ["ddl", "DDL"],
@@ -361,10 +399,8 @@ export default function Designer({
   const [copied, setCopied] = useState(false);
   const [tableQuery, setTableQuery] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [panelTab, setPanelTab] = useState<"tables" | "relationships">(
-    "tables",
-  );
-  const [panelMode, setPanelMode] = useState<"structure" | "code">("structure");
+  const [panelTab, setPanelTab] = useState<PanelTab>("tables");
+  const [panelMode, setPanelMode] = useState<PanelMode>("structure");
   const [relationshipQuery, setRelationshipQuery] = useState("");
   const [openRelationshipId, setOpenRelationshipId] = useState<string | null>(null);
   const [relationSettings, setRelationSettings] = useState({ showCardinality: true, showRelationshipLabels: true });
@@ -2015,9 +2051,9 @@ export default function Designer({
                 onOpenChange={setOpenMenu}
               />
             ))}
-            <span className={`status-chip ${dirty ? "dirty" : ""}`}>
+            <Badge variant={dirty ? "secondary" : "ghost"}>
               {dirty ? "Unsaved changes" : "No changes"}
-            </span>
+            </Badge>
           </div>
         </div>
         <div className="appbar-actions">
@@ -2053,33 +2089,28 @@ export default function Designer({
 
       <div className={`body ${sidebarOpen ? "" : "panel-hidden"}`}>
         <aside className="panel" aria-label="Diagram structure">
-          <div className="panel-tabs" role="tablist">
-            <button
-              type="button"
-              className="tab-arrow"
+          <div className="panel-tabs">
+            <Button
+              variant="ghost"
+              size="icon-sm"
               aria-label="Hide side panel"
               onClick={() => setSidebarOpen(false)}
             >
-              <HugeiconsIcon icon={ArrowLeft01Icon} size={15} />
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={panelTab === "tables"}
-              className={`panel-tab ${panelTab === "tables" ? "active" : ""}`}
-              onClick={() => setPanelTab("tables")}
+              <HugeiconsIcon icon={ArrowLeft01Icon} />
+            </Button>
+            <Tabs
+              selectedKey={panelTab}
+              onSelectionChange={(key) => setPanelTab(key as PanelTab)}
             >
-              Tables ({schema.tables.length})
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={panelTab === "relationships"}
-              className={`panel-tab ${panelTab === "relationships" ? "active" : ""}`}
-              onClick={() => setPanelTab("relationships")}
-            >
-              Relationships ({relationshipRows.length})
-            </button>
+              <TabsList variant="line">
+                <TabsTrigger id="tables">
+                  Tables ({schema.tables.length})
+                </TabsTrigger>
+                <TabsTrigger id="relationships">
+                  Relationships ({relationshipRows.length})
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
 
           {panelMode === "code" ? (
@@ -2089,55 +2120,64 @@ export default function Designer({
           ) : panelTab === "tables" ? (
             <>
               <div className="panel-toolbar">
-                <label className="panel-search">
-                  <HugeiconsIcon icon={Search01Icon} size={15} />
-                  <input
+                <InputGroup>
+                  <InputGroupAddon>
+                    <HugeiconsIcon icon={Search01Icon} />
+                  </InputGroupAddon>
+                  <InputGroupInput
                     aria-label="Search tables"
                     placeholder="Search..."
                     value={tableQuery}
                     onChange={(event) => setTableQuery(event.target.value)}
                   />
-                </label>
-                <Button className="add-link" onClick={addTable}>
-                  <HugeiconsIcon icon={PlusSignIcon} size={15} /> Add table
+                </InputGroup>
+                <Button variant="ghost" size="sm" onClick={addTable}>
+                  <HugeiconsIcon icon={PlusSignIcon} data-icon="inline-start" />
+                  Add table
                 </Button>
               </div>
               <div className="panel-body">
                 {!schema.tables.length ? (
-                  <div className="empty-state">
-                    <div className="empty-art" aria-hidden="true">
-                      <HugeiconsIcon icon={DatabaseIcon} size={40} />
-                      <span className="empty-badge">
-                        <HugeiconsIcon icon={PlusSignIcon} size={16} />
-                      </span>
-                    </div>
-                    <strong>No tables</strong>
-                    <p>Start building your diagram!</p>
-                    <Button className="btn primary" onClick={addTable}>
-                      <HugeiconsIcon icon={PlusSignIcon} size={15} /> Add table
-                    </Button>
-                  </div>
+                  <Empty>
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon">
+                        <HugeiconsIcon icon={DatabaseIcon} />
+                      </EmptyMedia>
+                      <EmptyTitle>No tables</EmptyTitle>
+                      <EmptyDescription>
+                        Start building your diagram!
+                      </EmptyDescription>
+                    </EmptyHeader>
+                    <EmptyContent>
+                      <Button onClick={addTable}>
+                        <HugeiconsIcon
+                          icon={PlusSignIcon}
+                          data-icon="inline-start"
+                        />
+                        Add table
+                      </Button>
+                    </EmptyContent>
+                  </Empty>
                 ) : !filteredTables.length ? (
-                  <div className="empty-state">
-                    <strong>No matches</strong>
-                    <p>No table names contain “{tableQuery}”.</p>
-                  </div>
+                  <Empty>
+                    <EmptyHeader>
+                      <EmptyTitle>No matches</EmptyTitle>
+                      <EmptyDescription>
+                        No table names contain “{tableQuery}”.
+                      </EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
                 ) : (
                   filteredTables.map((table) => (
-                    <div
+                    <Collapsible
                       className={`entity ${selectedId === table.id ? "open" : ""}`}
                       key={table.id}
+                      isExpanded={selectedId === table.id}
+                      onExpandedChange={(expanded) =>
+                        setSelectedId(expanded ? table.id : null)
+                      }
                     >
-                      <button
-                        type="button"
-                        className="entity-head"
-                        aria-expanded={selectedId === table.id}
-                        onClick={() =>
-                          setSelectedId(
-                            selectedId === table.id ? null : table.id,
-                          )
-                        }
-                      >
+                      <CollapsibleTrigger className="entity-head">
                         <span
                           className="entity-swatch"
                           style={{ background: table.color.a }}
@@ -2147,19 +2187,21 @@ export default function Designer({
                           <strong>{table.name.toUpperCase()}</strong>
                           <small>{table.columns.length} columns</small>
                         </span>
-                        <HugeiconsIcon icon={ArrowDown01Icon}
-                          size={15}
+                        <HugeiconsIcon
+                          icon={ArrowDown01Icon}
                           className="entity-chevron"
                           aria-hidden="true"
                         />
-                      </button>
-                      {selectedId === table.id && (
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
                         <div className="entity-body">
-                          <div className="field-row">
-                            <label className="field">
-                              <span className="field-label">Table name</span>
+                          <FieldGroup className="gap-4">
+                            <Field>
+                              <FieldLabel htmlFor={`name-${table.id}`}>
+                                Table name
+                              </FieldLabel>
                               <Input
-                                className="input"
+                                id={`name-${table.id}`}
                                 value={table.name}
                                 onChange={(event) =>
                                   patchTable(table.id, {
@@ -2167,57 +2209,84 @@ export default function Designer({
                                   })
                                 }
                               />
-                            </label>
-                            <label className="field">
-                              <span className="field-label">
-                                Key generation
-                              </span>
-                              <select
-                                className="select"
-                                value={table.keyStrategy}
-                                onChange={(event) =>
+                            </Field>
+                            <Field>
+                              <FieldLabel>Key generation</FieldLabel>
+                              <Select
+                                className="w-full"
+                                aria-label="Key generation"
+                                selectedKey={table.keyStrategy}
+                                onSelectionChange={(key) =>
                                   patchTable(table.id, {
-                                    keyStrategy: event.target
-                                      .value as KeyStrategy,
+                                    keyStrategy: key as KeyStrategy,
                                   })
                                 }
                               >
-                                <option value="sequence-trigger">
-                                  Sequence + trigger
-                                </option>
-                                <option value="identity">
-                                  Generated identity
-                                </option>
-                                <option value="none">Manual / none</option>
-                              </select>
-                            </label>
-                            <label className="field">
-                              <span className="field-label">Schema group</span>
-                              <select
-                                className="select"
-                                value={table.schemaId ?? ""}
-                                disabled={readOnly}
-                                onChange={(event) => assignTableToGroup(table.id, event.target.value)}
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectGroup>
+                                    <SelectItem id="sequence-trigger">
+                                      Sequence + trigger
+                                    </SelectItem>
+                                    <SelectItem id="identity">
+                                      Generated identity
+                                    </SelectItem>
+                                    <SelectItem id="none">
+                                      Manual / none
+                                    </SelectItem>
+                                  </SelectGroup>
+                                </SelectContent>
+                              </Select>
+                            </Field>
+                            <Field>
+                              <FieldLabel>Schema group</FieldLabel>
+                              <Select
+                                className="w-full"
+                                aria-label="Schema group"
+                                isDisabled={readOnly}
+                                selectedKey={table.schemaId ?? NO_GROUP}
+                                onSelectionChange={(key) =>
+                                  assignTableToGroup(
+                                    table.id,
+                                    key === NO_GROUP ? "" : String(key),
+                                  )
+                                }
                               >
-                                <option value="">Ungrouped</option>
-                                {(schema.groups ?? []).map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
-                              </select>
-                            </label>
-                          </div>
-                          <label className="field">
-                            <span className="field-label">Table comment</span>
-                            <Input
-                              className="input"
-                              aria-label={`Comment for table ${table.name}`}
-                              placeholder="COMMENT ON TABLE"
-                              value={table.comment ?? ""}
-                              onChange={(event) =>
-                                patchTable(table.id, {
-                                  comment: event.target.value,
-                                })
-                              }
-                            />
-                          </label>
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectGroup>
+                                    <SelectItem id={NO_GROUP}>
+                                      Ungrouped
+                                    </SelectItem>
+                                    {(schema.groups ?? []).map((group) => (
+                                      <SelectItem key={group.id} id={group.id}>
+                                        {group.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectGroup>
+                                </SelectContent>
+                              </Select>
+                            </Field>
+                            <Field>
+                              <FieldLabel htmlFor={`comment-${table.id}`}>
+                                Table comment
+                              </FieldLabel>
+                              <Input
+                                id={`comment-${table.id}`}
+                                placeholder="COMMENT ON TABLE"
+                                value={table.comment ?? ""}
+                                onChange={(event) =>
+                                  patchTable(table.id, {
+                                    comment: event.target.value,
+                                  })
+                                }
+                              />
+                            </Field>
+                          </FieldGroup>
                           {primaryKeyColumns(table).length > 1 && (
                             <p className="hint">
                               Composite primary key — manual key generation
@@ -2227,9 +2296,8 @@ export default function Designer({
 
                           {table.columns.map((column) => (
                             <div className="column-card" key={column.id}>
-                              <div className="column-card-head">
-                                <Input
-                                  className="input"
+                              <InputGroup>
+                                <InputGroupInput
                                   aria-label={`Name of column ${column.name}`}
                                   value={column.name}
                                   onChange={(event) =>
@@ -2238,35 +2306,43 @@ export default function Designer({
                                     })
                                   }
                                 />
-                                <Button
-                                  className="icon-btn danger"
-                                  aria-label={`Delete column ${column.name}`}
-                                  onClick={() =>
-                                    deleteColumn(table.id, column.id)
-                                  }
-                                >
-                                  <HugeiconsIcon icon={Delete02Icon} size={14} />
-                                </Button>
-                              </div>
+                                <InputGroupAddon align="inline-end">
+                                  <InputGroupButton
+                                    aria-label={`Delete column ${column.name}`}
+                                    onClick={() =>
+                                      deleteColumn(table.id, column.id)
+                                    }
+                                  >
+                                    <HugeiconsIcon icon={Delete02Icon} />
+                                  </InputGroupButton>
+                                </InputGroupAddon>
+                              </InputGroup>
                               <div className="column-card-row">
-                                <select
+                                <Select
+                                  className="w-full"
                                   aria-label={`Datatype for ${column.name}`}
-                                  className="select"
-                                  value={column.type}
-                                  onChange={(event) =>
+                                  selectedKey={column.type}
+                                  onSelectionChange={(key) =>
                                     patchColumn(table.id, column.id, {
-                                      type: event.target
-                                        .value as Column["type"],
+                                      type: key as Column["type"],
                                     })
                                   }
                                 >
-                                  {ORACLE_TYPES.map((type) => (
-                                    <option key={type}>{type}</option>
-                                  ))}
-                                </select>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectGroup>
+                                      {ORACLE_TYPES.map((type) => (
+                                        <SelectItem key={type} id={type}>
+                                          {type}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectGroup>
+                                  </SelectContent>
+                                </Select>
                                 {typeUsesSize(column.type) && (
                                   <Input
-                                    className="input"
                                     aria-label={`Size for ${column.name}`}
                                     placeholder={typeSizePlaceholder(
                                       column.type,
@@ -2280,44 +2356,60 @@ export default function Designer({
                                   />
                                 )}
                               </div>
-                              <div className="checks">
-                                <label>
-                                  <Checkbox
-                                    isSelected={column.pk}
-                                    onChange={(isSelected) =>
-                                      patchColumn(table.id, column.id, {
-                                        pk: isSelected,
-                                        fk: isSelected ? null : column.fk,
-                                      })
-                                    }
-                                  />
-                                  PK
-                                </label>
-                                <label>
-                                  <Checkbox
-                                    isSelected={column.notNull}
-                                    onChange={(isSelected) =>
-                                      patchColumn(table.id, column.id, {
-                                        notNull: isSelected,
-                                      })
-                                    }
-                                  />
-                                  NN
-                                </label>
-                                <label>
-                                  <Checkbox
-                                    isSelected={column.unique}
-                                    onChange={(isSelected) =>
-                                      patchColumn(table.id, column.id, {
-                                        unique: isSelected,
-                                      })
-                                    }
-                                  />
-                                  UQ
-                                </label>
-                              </div>
+                              <FieldSet>
+                                <FieldLegend variant="label" className="sr-only">
+                                  Constraints for {column.name}
+                                </FieldLegend>
+                                <FieldGroup
+                                  data-slot="checkbox-group"
+                                  className="flex-row gap-4"
+                                >
+                                  <Field orientation="horizontal">
+                                    <Checkbox
+                                      id={`pk-${column.id}`}
+                                      isSelected={column.pk}
+                                      onChange={(isSelected) =>
+                                        patchColumn(table.id, column.id, {
+                                          pk: isSelected,
+                                          fk: isSelected ? null : column.fk,
+                                        })
+                                      }
+                                    />
+                                    <FieldLabel htmlFor={`pk-${column.id}`}>
+                                      PK
+                                    </FieldLabel>
+                                  </Field>
+                                  <Field orientation="horizontal">
+                                    <Checkbox
+                                      id={`nn-${column.id}`}
+                                      isSelected={column.notNull}
+                                      onChange={(isSelected) =>
+                                        patchColumn(table.id, column.id, {
+                                          notNull: isSelected,
+                                        })
+                                      }
+                                    />
+                                    <FieldLabel htmlFor={`nn-${column.id}`}>
+                                      NN
+                                    </FieldLabel>
+                                  </Field>
+                                  <Field orientation="horizontal">
+                                    <Checkbox
+                                      id={`uq-${column.id}`}
+                                      isSelected={column.unique}
+                                      onChange={(isSelected) =>
+                                        patchColumn(table.id, column.id, {
+                                          unique: isSelected,
+                                        })
+                                      }
+                                    />
+                                    <FieldLabel htmlFor={`uq-${column.id}`}>
+                                      UQ
+                                    </FieldLabel>
+                                  </Field>
+                                </FieldGroup>
+                              </FieldSet>
                               <Input
-                                className="input"
                                 aria-label={`Default for ${column.name}`}
                                 placeholder="DEFAULT expression"
                                 value={column.defaultValue}
@@ -2328,7 +2420,6 @@ export default function Designer({
                                 }
                               />
                               <Input
-                                className="input"
                                 aria-label={`Check for ${column.name}`}
                                 placeholder="CHECK expression"
                                 value={column.check}
@@ -2339,7 +2430,6 @@ export default function Designer({
                                 }
                               />
                               <Input
-                                className="input"
                                 aria-label={`Comment for ${column.name}`}
                                 placeholder="COLUMN COMMENT"
                                 value={column.comment ?? ""}
@@ -2350,17 +2440,17 @@ export default function Designer({
                                 }
                               />
                               {!column.pk && (
-                                <select
+                                <Select
+                                  className="w-full"
                                   aria-label={`Foreign key for ${column.name}`}
-                                  className="select"
-                                  value={
+                                  selectedKey={
                                     column.fk
                                       ? `${column.fk.tableId}::${column.fk.columnId}`
-                                      : ""
+                                      : NO_REFERENCE
                                   }
-                                  onChange={(event) => {
+                                  onSelectionChange={(key) => {
                                     const [tableId, columnId] =
-                                      event.target.value.split("::");
+                                      String(key).split("::");
                                     patchColumn(table.id, column.id, {
                                       fk:
                                         tableId && columnId
@@ -2369,66 +2459,93 @@ export default function Designer({
                                     });
                                   }}
                                 >
-                                  <option value="">No reference</option>
-                                  {compatibleForeignKeyTargets(column).map(
-                                    ({ table: target, target: field }) => (
-                                      <option
-                                        key={`${target.id}::${field.id}`}
-                                        value={`${target.id}::${field.id}`}
-                                      >
-                                        {target.name.toUpperCase()}.
-                                        {field.name.toUpperCase()}
-                                      </option>
-                                    ),
-                                  )}
-                                </select>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectGroup>
+                                      <SelectItem id={NO_REFERENCE}>
+                                        No reference
+                                      </SelectItem>
+                                      {compatibleForeignKeyTargets(column).map(
+                                        ({ table: target, target: field }) => (
+                                          <SelectItem
+                                            key={`${target.id}::${field.id}`}
+                                            id={`${target.id}::${field.id}`}
+                                          >
+                                            {target.name.toUpperCase()}.
+                                            {field.name.toUpperCase()}
+                                          </SelectItem>
+                                        ),
+                                      )}
+                                    </SelectGroup>
+                                  </SelectContent>
+                                </Select>
                               )}
                             </div>
                           ))}
 
-                          <div className="entity-actions">
+                          <ButtonGroup>
                             <Button
-                              className="btn"
+                              variant="outline"
                               onClick={() => addColumn(table.id)}
                             >
-                              <HugeiconsIcon icon={PlusSignIcon} size={14} /> Add column
+                              <HugeiconsIcon
+                                icon={PlusSignIcon}
+                                data-icon="inline-start"
+                              />
+                              Add column
                             </Button>
-                            <Button className="btn" onClick={makeJunction}>
-                              <HugeiconsIcon icon={Link01Icon} size={14} /> Junction
+                            <Button variant="outline" onClick={makeJunction}>
+                              <HugeiconsIcon
+                                icon={Link01Icon}
+                                data-icon="inline-start"
+                              />
+                              Junction
                             </Button>
                             <Button
-                              className="btn danger"
+                              variant="outline"
                               onClick={() => deleteTable(table.id)}
                             >
-                              <HugeiconsIcon icon={Delete02Icon} size={14} /> Delete
+                              <HugeiconsIcon
+                                icon={Delete02Icon}
+                                data-icon="inline-start"
+                              />
+                              Delete
                             </Button>
-                          </div>
+                          </ButtonGroup>
                         </div>
-                      )}
-                    </div>
+                      </CollapsibleContent>
+                    </Collapsible>
                   ))
                 )}
               </div>
             </>
           ) : (
             <div className="panel-body relationship-panel-body">
-              <label className="panel-search relationship-search">
-                <HugeiconsIcon icon={Search01Icon} size={15} />
-                <input
+              <InputGroup className="relationship-search">
+                <InputGroupAddon>
+                  <HugeiconsIcon icon={Search01Icon} />
+                </InputGroupAddon>
+                <InputGroupInput
                   aria-label="Search relationships"
                   placeholder="Search relationships..."
                   value={relationshipQuery}
                   onChange={(event) => setRelationshipQuery(event.target.value)}
                 />
-              </label>
+              </InputGroup>
               {!relationshipRows.length ? (
-                <div className="empty-state">
-                  <div className="empty-art" aria-hidden="true">
-                    <HugeiconsIcon icon={Link01Icon} size={38} />
-                  </div>
-                  <strong>No relationships</strong>
-                  <p>Give a column a foreign key to link two tables.</p>
-                </div>
+                <Empty>
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <HugeiconsIcon icon={Link01Icon} />
+                    </EmptyMedia>
+                    <EmptyTitle>No relationships</EmptyTitle>
+                    <EmptyDescription>
+                      Give a column a foreign key to link two tables.
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
               ) : (
                 relationshipRows
                   .filter((row) => row.name.toUpperCase().includes(relationshipQuery.trim().toUpperCase()))
@@ -2438,24 +2555,91 @@ export default function Designer({
                     const endTable = schema.tables.find((table) => table.id === relationship.endTableId);
                     const pairs = relationship.fields.length ? relationship.fields : [{ startFieldId: relationship.startFieldId, endFieldId: relationship.endFieldId }];
                     return (
-                      <section className={`relationship-editor ${openRelationshipId === relationship.id ? "open" : ""}`} key={relationship.id}>
-                        <button type="button" className="relationship-row relationship-editor-head" aria-expanded={openRelationshipId === relationship.id} onClick={() => setOpenRelationshipId(openRelationshipId === relationship.id ? null : relationship.id)}>
-                          <HugeiconsIcon icon={Link01Icon} size={14} aria-hidden="true" />
+                      <Collapsible className={`relationship-editor ${openRelationshipId === relationship.id ? "open" : ""}`} key={relationship.id} isExpanded={openRelationshipId === relationship.id} onExpandedChange={(expanded) => setOpenRelationshipId(expanded ? relationship.id : null)}>
+                        <CollapsibleTrigger className="relationship-row relationship-editor-head">
+                          <HugeiconsIcon icon={Link01Icon} aria-hidden="true" />
                           <span className="relationship-copy"><strong>{relationship.name}</strong><small>{row.from} → {row.to} · {row.cardinality}</small></span>
-                          <HugeiconsIcon icon={ArrowDown01Icon} size={15} className="entity-chevron" />
-                        </button>
-                        {openRelationshipId === relationship.id && (
+                          <HugeiconsIcon icon={ArrowDown01Icon} className="entity-chevron" />
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
                           <div className="relationship-editor-body">
-                            <label className="field"><span className="field-label">Name</span><Input value={relationship.name} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { name: event.target.value })} /></label>
-                            <div className="relationship-endpoints"><span><b>Foreign</b>{startTable?.name}</span><button type="button" className="icon-btn" aria-label="Swap relationship endpoints" disabled={readOnly} onClick={() => swapRelationship(relationship)}><HugeiconsIcon icon={Link01Icon} size={14} /></button><span><b>Primary</b>{endTable?.name}</span></div>
-                            <label className="field"><span className="field-label">Cardinality</span><select className="select" value={relationship.cardinality} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { cardinality: event.target.value as Cardinality })}><option value="one_to_one">One to one</option><option value="one_to_many">One to many</option><option value="many_to_one">Many to one</option></select></label>
-                            {relationship.cardinality !== "one_to_one" && <label className="field"><span className="field-label">Many-side label</span><Input value={relationship.manyLabel} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { manyLabel: event.target.value })} /></label>}
-                            <div className="field-row"><label className="field"><span className="field-label">On update</span><select className="select" value={relationship.updateConstraint} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { updateConstraint: event.target.value as Relationship["updateConstraint"] })}>{RELATIONSHIP_CONSTRAINTS.map((constraint) => <option key={constraint}>{constraint}</option>)}</select></label><label className="field"><span className="field-label">On delete</span><select className="select" value={relationship.deleteConstraint} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { deleteConstraint: event.target.value as Relationship["deleteConstraint"] })}>{RELATIONSHIP_CONSTRAINTS.map((constraint) => <option key={constraint}>{constraint}</option>)}</select></label></div>
-                            <div className="relationship-pairs"><div className="field-label">Composite key</div>{pairs.map((pair, index) => { const start = schema.tables.find((table) => table.id === relationship.startTableId); const end = schema.tables.find((table) => table.id === relationship.endTableId); return <div className="relationship-pair" key={`${pair.startFieldId}-${pair.endFieldId}-${index}`}><select className="select" value={pair.startFieldId} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { fields: pairs.map((item, pairIndex) => pairIndex === index ? { ...item, startFieldId: event.target.value } : item) })}>{start?.columns.map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select><select className="select" value={pair.endFieldId} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { fields: pairs.map((item, pairIndex) => pairIndex === index ? { ...item, endFieldId: event.target.value } : item) })}>{end?.columns.map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select>{pairs.length > 1 && <Button className="icon-btn danger" aria-label="Remove relationship field pair" isDisabled={readOnly} onClick={() => patchRelationship(relationship.id, { fields: pairs.filter((_, pairIndex) => pairIndex !== index) })}><HugeiconsIcon icon={Delete02Icon} size={13} /></Button>}</div>; })}<Button className="btn" isDisabled={readOnly || pairs.length >= Math.min(startTable?.columns.length ?? 0, endTable?.columns.length ?? 0)} onClick={() => { const start = startTable?.columns.find((column) => !pairs.some((pair) => pair.startFieldId === column.id)); const end = endTable?.columns.find((column) => !pairs.some((pair) => pair.endFieldId === column.id)); if (start && end) patchRelationship(relationship.id, { fields: [...pairs, { startFieldId: start.id, endFieldId: end.id }] }); }}><HugeiconsIcon icon={PlusSignIcon} size={13} /> Add field</Button></div>
-                            <Button className="btn danger relationship-delete" isDisabled={readOnly} onClick={() => deleteRelationship(relationship.id)}><HugeiconsIcon icon={Delete02Icon} size={14} /> Delete relationship</Button>
+                            <FieldGroup className="gap-4">
+                              <Field>
+                                <FieldLabel htmlFor={`rel-name-${relationship.id}`}>Name</FieldLabel>
+                                <Input id={`rel-name-${relationship.id}`} value={relationship.name} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { name: event.target.value })} />
+                              </Field>
+                              <div className="relationship-endpoints"><span><b>Foreign</b>{startTable?.name}</span><Button variant="ghost" size="icon-sm" aria-label="Swap relationship endpoints" isDisabled={readOnly} onClick={() => swapRelationship(relationship)}><HugeiconsIcon icon={Link01Icon} /></Button><span><b>Primary</b>{endTable?.name}</span></div>
+                              <Field>
+                                <FieldLabel>Cardinality</FieldLabel>
+                                <Select className="w-full" aria-label="Cardinality" isDisabled={readOnly} selectedKey={relationship.cardinality} onSelectionChange={(key) => patchRelationship(relationship.id, { cardinality: key as Cardinality })}>
+                                  <SelectTrigger><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectGroup>
+                                      <SelectItem id="one_to_one">One to one</SelectItem>
+                                      <SelectItem id="one_to_many">One to many</SelectItem>
+                                      <SelectItem id="many_to_one">Many to one</SelectItem>
+                                    </SelectGroup>
+                                  </SelectContent>
+                                </Select>
+                              </Field>
+                              {relationship.cardinality !== "one_to_one" && (
+                                <Field>
+                                  <FieldLabel htmlFor={`rel-many-${relationship.id}`}>Many-side label</FieldLabel>
+                                  <Input id={`rel-many-${relationship.id}`} value={relationship.manyLabel} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { manyLabel: event.target.value })} />
+                                </Field>
+                              )}
+                              <Field>
+                                <FieldLabel>On update</FieldLabel>
+                                <Select className="w-full" aria-label="On update" isDisabled={readOnly} selectedKey={relationship.updateConstraint} onSelectionChange={(key) => patchRelationship(relationship.id, { updateConstraint: key as Relationship["updateConstraint"] })}>
+                                  <SelectTrigger><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectGroup>
+                                      {RELATIONSHIP_CONSTRAINTS.map((constraint) => <SelectItem key={constraint} id={constraint}>{constraint}</SelectItem>)}
+                                    </SelectGroup>
+                                  </SelectContent>
+                                </Select>
+                              </Field>
+                              <Field>
+                                <FieldLabel>On delete</FieldLabel>
+                                <Select className="w-full" aria-label="On delete" isDisabled={readOnly} selectedKey={relationship.deleteConstraint} onSelectionChange={(key) => patchRelationship(relationship.id, { deleteConstraint: key as Relationship["deleteConstraint"] })}>
+                                  <SelectTrigger><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectGroup>
+                                      {RELATIONSHIP_CONSTRAINTS.map((constraint) => <SelectItem key={constraint} id={constraint}>{constraint}</SelectItem>)}
+                                    </SelectGroup>
+                                  </SelectContent>
+                                </Select>
+                              </Field>
+                            </FieldGroup>
+                            <FieldSet className="relationship-pairs">
+                              <FieldLegend variant="label">Composite key</FieldLegend>
+                              {pairs.map((pair, index) => (
+                                <div className="relationship-pair" key={`${pair.startFieldId}-${pair.endFieldId}-${index}`}>
+                                  <Select className="w-full" aria-label="Foreign-side column" isDisabled={readOnly} selectedKey={pair.startFieldId} onSelectionChange={(key) => patchRelationship(relationship.id, { fields: pairs.map((item, pairIndex) => pairIndex === index ? { ...item, startFieldId: String(key) } : item) })}>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      <SelectGroup>
+                                        {startTable?.columns.map((column) => <SelectItem key={column.id} id={column.id}>{column.name}</SelectItem>)}
+                                      </SelectGroup>
+                                    </SelectContent>
+                                  </Select>
+                                  <Select className="w-full" aria-label="Primary-side column" isDisabled={readOnly} selectedKey={pair.endFieldId} onSelectionChange={(key) => patchRelationship(relationship.id, { fields: pairs.map((item, pairIndex) => pairIndex === index ? { ...item, endFieldId: String(key) } : item) })}>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      <SelectGroup>
+                                        {endTable?.columns.map((column) => <SelectItem key={column.id} id={column.id}>{column.name}</SelectItem>)}
+                                      </SelectGroup>
+                                    </SelectContent>
+                                  </Select>
+                                  {pairs.length > 1 && <Button variant="ghost" size="icon" aria-label="Remove relationship field pair" isDisabled={readOnly} onClick={() => patchRelationship(relationship.id, { fields: pairs.filter((_, pairIndex) => pairIndex !== index) })}><HugeiconsIcon icon={Delete02Icon} /></Button>}
+                                </div>
+                              ))}
+                              <Button variant="outline" className="self-start" isDisabled={readOnly || pairs.length >= Math.min(startTable?.columns.length ?? 0, endTable?.columns.length ?? 0)} onClick={() => { const start = startTable?.columns.find((column) => !pairs.some((pair) => pair.startFieldId === column.id)); const end = endTable?.columns.find((column) => !pairs.some((pair) => pair.endFieldId === column.id)); if (start && end) patchRelationship(relationship.id, { fields: [...pairs, { startFieldId: start.id, endFieldId: end.id }] }); }}><HugeiconsIcon icon={PlusSignIcon} data-icon="inline-start" /> Add field</Button>
+                            </FieldSet>
+                            <Button variant="outline" className="relationship-delete" isDisabled={readOnly} onClick={() => deleteRelationship(relationship.id)}><HugeiconsIcon icon={Delete02Icon} data-icon="inline-start" /> Delete relationship</Button>
                           </div>
-                        )}
-                      </section>
+                        </CollapsibleContent>
+                      </Collapsible>
                     );
                   })
               )}
@@ -2469,44 +2653,50 @@ export default function Designer({
             <span className="counter" title="Relationships">
               <HugeiconsIcon icon={Link01Icon} size={14} /> {relationshipRows.length}
             </span>
-            <div className="segmented" role="group" aria-label="Panel view">
-              <button
-                type="button"
-                className={panelMode === "structure" ? "active" : ""}
-                aria-pressed={panelMode === "structure"}
-                onClick={() => setPanelMode("structure")}
-              >
-                <HugeiconsIcon icon={GridViewIcon} size={13} /> Structure
-              </button>
-              <button
-                type="button"
-                className={panelMode === "code" ? "active" : ""}
-                aria-pressed={panelMode === "code"}
-                onClick={() => setPanelMode("code")}
-              >
-                <HugeiconsIcon icon={SourceCodeIcon} size={13} /> Code
-              </button>
-            </div>
+            <ToggleGroup
+              aria-label="Panel view"
+              size="sm"
+              spacing={0}
+              variant="outline"
+              selectionMode="single"
+              disallowEmptySelection
+              selectedKeys={[panelMode]}
+              onSelectionChange={(keys) => {
+                const [key] = [...keys];
+                if (key) setPanelMode(key as PanelMode);
+              }}
+            >
+              <ToggleGroupItem id="structure">
+                <HugeiconsIcon icon={GridViewIcon} data-icon="inline-start" />
+                Structure
+              </ToggleGroupItem>
+              <ToggleGroupItem id="code">
+                <HugeiconsIcon icon={SourceCodeIcon} data-icon="inline-start" />
+                Code
+              </ToggleGroupItem>
+            </ToggleGroup>
           </div>
 
-          <div className={`issues-bar ${issuesOpen ? "open" : ""}`}>
-            <button
-              type="button"
-              className="issues-head"
-              aria-expanded={issuesOpen}
-              onClick={() => setIssuesOpen((open) => !open)}
-            >
-              <HugeiconsIcon icon={Alert02Icon}
-                size={15}
+          <Collapsible
+            className="issues-bar"
+            isExpanded={issuesOpen}
+            onExpandedChange={setIssuesOpen}
+          >
+            <CollapsibleTrigger className="issues-head">
+              <HugeiconsIcon
+                icon={Alert02Icon}
                 className={errors.length ? "warn danger" : "warn"}
               />
               <span>Issues</span>
-              <span className={`issue-count ${errors.length ? "bad" : ""}`}>
+              <Badge variant={errors.length ? "destructive" : "secondary"}>
                 {issues.length}
-              </span>
-              <HugeiconsIcon icon={ArrowDown01Icon} size={15} className="issues-chevron" />
-            </button>
-            {issuesOpen && (
+              </Badge>
+              <HugeiconsIcon
+                icon={ArrowDown01Icon}
+                className="issues-chevron"
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
               <div className="issues-list">
                 {!issues.length ? (
                   <p className="issues-empty">No problems found.</p>
@@ -2525,19 +2715,20 @@ export default function Designer({
                   ))
                 )}
               </div>
-            )}
-          </div>
+            </CollapsibleContent>
+          </Collapsible>
         </aside>
 
         {!sidebarOpen && (
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="icon-sm"
             className="panel-reveal"
             aria-label="Show side panel"
             onClick={() => setSidebarOpen(true)}
           >
-            <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
-          </button>
+            <HugeiconsIcon icon={ArrowRight01Icon} />
+          </Button>
         )}
 
         <div
