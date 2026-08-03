@@ -13,6 +13,10 @@ function generatedName(prefix: string, table: Table, column?: Column, used = new
   return shorten([prefix, normalizeIdentifier(table.name), column && normalizeIdentifier(column.name)].filter(Boolean).join("_"), used);
 }
 
+function sqlComment(value: string) {
+  return value.replaceAll("'", "''");
+}
+
 function keyStrategyArtifacts(table: Table, strategy: KeyStrategy, used: Set<string>) {
   const pk = primaryKeyColumns(table);
   if (strategy === "none" || pk.length !== 1 || pk[0].type !== "NUMBER") return [];
@@ -41,28 +45,36 @@ export function generateDDL(schema: Schema) {
     const tableName = normalizeIdentifier(table.name);
     const pk = primaryKeyColumns(table);
     const strategy = table.keyStrategy;
-    out.push(`\nCREATE TABLE ${tableName} (`);
+    out.push(`--drop table ${tableName};`, "--", `create table ${tableName} (`);
     const lines = table.columns.map((column) => {
-      const attrs = [column.notNull || column.pk ? "NOT NULL" : "", column.unique ? "UNIQUE" : "", column.defaultValue.trim() ? `DEFAULT ${column.defaultValue.trim()}` : ""].filter(Boolean).join(" ");
+      const attrs = [column.notNull || column.pk ? "not null" : "", column.defaultValue.trim() ? `default ${column.defaultValue.trim()}` : ""].filter(Boolean).join(" ");
       const identity = strategy === "identity" && column.pk && pk.length === 1 && column.type === "NUMBER" ? " GENERATED ALWAYS AS IDENTITY" : "";
       return `  ${normalizeIdentifier(column.name)} ${typeString(column)}${identity}${attrs ? ` ${attrs}` : ""}`;
     });
-    if (pk.length) lines.push(`  CONSTRAINT ${generatedName("PK", table, undefined, usedNames)} PRIMARY KEY (${pk.map((column) => normalizeIdentifier(column.name)).join(", ")})`);
-    table.columns.filter((column) => column.check.trim()).forEach((column) => lines.push(`  CONSTRAINT ${generatedName("CK", table, column, usedNames)} CHECK (${column.check.trim()})`));
-    out.push(lines.join(",\n"), ");", "");
+    out.push(lines.join(",\n"), ") tablespace CORE_DATA;", "--", "");
   });
+
   schema.tables.forEach((table) => {
-    out.push(...keyStrategyArtifacts(table, table.keyStrategy, usedNames));
+    const tableName = normalizeIdentifier(table.name);
+    const pk = primaryKeyColumns(table);
+    if (pk.length) out.push(`alter table ${tableName}`, `  add constraint ${generatedName("PK", table, undefined, usedNames)} primary key (${pk.map((column) => normalizeIdentifier(column.name)).join(", ")})`, "  using index tablespace CORE_INDEX;", "--");
+    table.columns.filter((column) => column.unique).forEach((column) => out.push(`alter table ${tableName}`, `  add constraint ${generatedName("U", table, column, usedNames)} unique (${normalizeIdentifier(column.name)})`, "  using index tablespace CORE_INDEX;", "--"));
+    table.columns.filter((column) => column.check.trim()).forEach((column) => out.push(`alter table ${tableName}`, `  add constraint ${generatedName("C", table, column, usedNames)}`, `  check (${column.check.trim()});`, "--"));
+    if (table.comment?.trim()) out.push(`comment on table ${tableName} is '${sqlComment(table.comment.trim())}';`, "--");
+    table.columns.filter((column) => column.comment?.trim()).forEach((column) => out.push(`comment on column ${tableName}.${normalizeIdentifier(column.name)} is '${sqlComment(column.comment!.trim())}';`, "--"));
   });
+
+  schema.tables.forEach((table) => out.push(...keyStrategyArtifacts(table, table.keyStrategy, usedNames), "--"));
+
   const fks: string[] = [];
   schema.tables.forEach((table) => table.columns.forEach((column) => {
     if (!column.fk) return;
     const target = schema.tables.find((candidate) => candidate.id === column.fk?.tableId);
     const targetColumn = target?.columns.find((candidate) => candidate.id === column.fk?.columnId);
     if (!target || !targetColumn || primaryKeyColumns(target).length > 1) return;
-    fks.push(`ALTER TABLE ${normalizeIdentifier(table.name)} ADD CONSTRAINT ${generatedName("FK", table, column, usedNames)} FOREIGN KEY (${normalizeIdentifier(column.name)}) REFERENCES ${normalizeIdentifier(target.name)}(${normalizeIdentifier(targetColumn.name)});`);
+    fks.push(`alter table ${normalizeIdentifier(table.name)}`, `  add constraint ${generatedName("F", table, column, usedNames)}`, `  foreign key (${normalizeIdentifier(column.name)}) references ${normalizeIdentifier(target.name)}(${normalizeIdentifier(targetColumn.name)});`, "--");
   }));
-  if (fks.length) out.push("-- Foreign key constraints", ...fks, "");
+  if (fks.length) out.push(...fks, "");
   return out.join("\n");
 }
 

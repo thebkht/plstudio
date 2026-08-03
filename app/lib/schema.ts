@@ -39,6 +39,7 @@ export type Column = {
   unique: boolean;
   defaultValue: string;
   check: string;
+  comment?: string;
   fk: ForeignKeyRef | null;
 };
 
@@ -49,6 +50,7 @@ export type Table = {
   y: number;
   color: { a: string; b: string };
   keyStrategy: KeyStrategy;
+  comment?: string;
   columns: Column[];
 };
 

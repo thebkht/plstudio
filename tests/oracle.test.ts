@@ -16,7 +16,22 @@ describe("Oracle schema model", () => {
 
   it("creates tables before sequence triggers reference them", () => {
     const ddl = generateDDL(makeDemoSchema());
-    expect(ddl.indexOf("CREATE TABLE STUDENT")).toBeLessThan(ddl.indexOf("CREATE OR REPLACE TRIGGER TRG_STUDENT"));
+    expect(ddl.toLowerCase().indexOf("create table student")).toBeLessThan(ddl.indexOf("CREATE OR REPLACE TRIGGER TRG_STUDENT"));
+  });
+
+  it("exports deployment-style tablespace and out-of-line constraints", () => {
+    const schema = makeDemoSchema();
+    schema.tables[0].comment = "Student records";
+    schema.tables[0].columns[0].comment = "Primary identifier";
+    schema.tables[1].columns[2].unique = true;
+    const ddl = generateDDL(schema);
+    expect(ddl).toContain("--drop table STUDENT;");
+    expect(ddl).toContain(") tablespace CORE_DATA;");
+    expect(ddl).toContain("using index tablespace CORE_INDEX;");
+    expect(ddl).toContain("add constraint U_ENROLLMENT_STATUS unique (STATUS)");
+    expect(ddl).toContain("comment on table STUDENT is 'Student records';");
+    expect(ddl).toContain("comment on column STUDENT.ID is 'Primary identifier';");
+    expect(ddl).not.toContain("STATUS CHAR(1) default 'A' not null UNIQUE");
   });
 
   it("blocks foreign keys into composite primary keys", () => {
