@@ -1,0 +1,42 @@
+# Local database only — the app itself runs from `pnpm dev`.
+# (docker-compose.yml is the full containerised stack; this file is the
+# dev-time database ./setup.sh offers as the "local" option.)
+#
+#   docker compose -f docker-compose.db.yml up -d
+#   docker compose -f docker-compose.db.yml down
+#
+# Postgres is published on 55432, not 5432: a natively installed Postgres on the
+# default port would otherwise shadow this container for loopback connections
+# (docker binds *:5432, a native server binds 127.0.0.1/::1, which wins).
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: main
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "55432:5432"
+    volumes:
+      - drawsql_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d main"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # The app queries through @neondatabase/serverless, which speaks Neon's HTTP
+  # SQL protocol rather than the Postgres wire protocol. This proxy terminates
+  # it and forwards to plain Postgres; NEON_FETCH_ENDPOINT points the driver here.
+  neon-proxy:
+    image: ghcr.io/timowilhelm/local-neon-http-proxy:main
+    environment:
+      PG_CONNECTION_STRING: postgres://postgres:postgres@db:5432/main
+    ports:
+      - "4444:4444"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  drawsql_pgdata:

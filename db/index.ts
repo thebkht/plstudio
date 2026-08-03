@@ -26,6 +26,14 @@ neonConfig.fetchFunction = async (input: RequestInfo | URL, init?: RequestInit) 
   }
 };
 
+/**
+ * The driver derives its HTTP endpoint from the connection host, which only
+ * works against a real Neon compute. `NEON_FETCH_ENDPOINT` overrides it so a
+ * local Postgres behind the Neon HTTP proxy (see docker-compose.db.yml) works
+ * with the same code path. Unset everywhere but local dev.
+ */
+if (process.env.NEON_FETCH_ENDPOINT) neonConfig.fetchEndpoint = process.env.NEON_FETCH_ENDPOINT;
+
 export function getDb() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not configured.");
