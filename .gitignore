@@ -10,3 +10,6 @@ coverage
 .codegraph
 
 .pnpm-store
+
+# Auth database and project JSON files.
+/data

@@ -5,7 +5,7 @@
 #   ./setup.sh              # interactive
 #   ./setup.sh --yes        # non-interactive; keeps existing .env.local values,
 #                           # generates missing secrets, skips anything that
-#                           # needs an answer (DATABASE_URL must already be set)
+#                           # needs an answer
 #
 set -euo pipefail
 
@@ -14,7 +14,7 @@ cd "$(dirname "$0")"
 NODE_MIN_MAJOR=20
 NODE_INSTALL_VERSION=22
 ENV_FILE=".env.local"
-COMPOSE_DB_FILE="docker-compose.db.yml"
+DATA_DIR_DEFAULT="./data"
 ASSUME_YES=false
 [[ "${1:-}" == "--yes" || "${1:-}" == "-y" ]] && ASSUME_YES=true
 
@@ -150,40 +150,14 @@ if [[ -f "$ENV_FILE" ]]; then
   ok "Found $ENV_FILE with ${#ENV_KEYS[@]} variables — keeping existing values, filling in the gaps."
 fi
 
-# -- DATABASE_URL -------------------------------------------------------------
-LOCAL_DB_URL="postgres://postgres:postgres@127.0.0.1:55432/main"
-LOCAL_FETCH_ENDPOINT="http://127.0.0.1:4444/sql"
-
-start_local_db() {
-  command -v docker >/dev/null 2>&1 || die "Docker is not installed. See https://docs.docker.com/get-docker/"
-  docker info >/dev/null 2>&1 || die "Docker is installed but not running. Start Docker Desktop and re-run ./setup.sh"
-  [[ -f "$COMPOSE_DB_FILE" ]] || die "$COMPOSE_DB_FILE is missing from the repo."
-  info "Starting Postgres + Neon HTTP proxy (docker compose -f $COMPOSE_DB_FILE up -d)…"
-  docker compose -f "$COMPOSE_DB_FILE" up -d
-  ok "Local database up on port 55432, Neon HTTP proxy on 4444."
-}
-
-if [[ -n "$(get_env DATABASE_URL)" ]]; then
-  ok "DATABASE_URL already set."
-else
-  info ""
-  info "The app talks to Postgres through Neon's HTTP driver, so a local database"
-  info "needs the companion proxy container — option (L) below wires both up."
-  info ""
-  info "  ${BOLD}L${RESET}  local Postgres in Docker (postgres:17 + local-neon-http-proxy)"
-  info "  ${BOLD}R${RESET}  remote Neon database (https://console.neon.tech)"
-  choice=$(ask "Local or remote? [L/r]: " "L")
-  if [[ "${choice:0:1}" =~ ^[Rr]$ ]]; then
-    url=""
-    while [[ -z "$url" ]]; do url=$(ask "Paste your DATABASE_URL: " ""); done
-    set_env DATABASE_URL "$url"
-  else
-    start_local_db
-    set_env DATABASE_URL "$LOCAL_DB_URL"
-    set_env NEON_FETCH_ENDPOINT "$LOCAL_FETCH_ENDPOINT"
-  fi
-fi
-[[ -n "$(get_env DATABASE_URL)" ]] || die "DATABASE_URL is required — the app cannot boot without it."
+# -- data directory -----------------------------------------------------------
+# There is no database server: auth lives in <DATA_DIR>/auth.db and each project
+# is a JSON file beside it. Only record DATA_DIR when it differs from the default,
+# so the common case stays out of .env.local.
+data_dir="$(get_env DATA_DIR)"
+[[ -n "$data_dir" ]] || data_dir="$DATA_DIR_DEFAULT"
+mkdir -p "$data_dir"
+ok "Data directory ready at $data_dir."
 
 # -- auth ---------------------------------------------------------------------
 [[ -n "$(get_env BETTER_AUTH_SECRET)" ]] || { set_env BETTER_AUTH_SECRET "$(random_secret)"; ok "Generated BETTER_AUTH_SECRET."; }
@@ -221,15 +195,13 @@ step "Installing dependencies"
 pnpm install
 ok "Dependencies installed."
 
-# ------------------------------------------------------------- database -------
-step "Database schema"
-if confirm "Push db/schema.ts to the database now (drizzle-kit push)? [Y/n]" "y"; then
-  # Pass the values directly rather than sourcing the file: an unquoted URL with
-  # `?sslmode=require&channel_binding=require` would background at the `&`.
-  if DATABASE_URL="$(get_env DATABASE_URL)" pnpm drizzle-kit push; then
-    ok "Schema pushed."
+# ----------------------------------------------------------------- auth -------
+step "Auth schema"
+if confirm "Create the auth tables now (drizzle-kit push)? [Y/n]" "y"; then
+  if DATA_DIR="$data_dir" pnpm drizzle-kit push; then
+    ok "Auth tables created in $data_dir/auth.db."
   else
-    warn "drizzle-kit push failed — check DATABASE_URL, then run \`pnpm drizzle-kit push\`."
+    warn "drizzle-kit push failed — run \`pnpm drizzle-kit push\` once the problem is fixed."
   fi
 else
   info "Skipped. Run \`pnpm drizzle-kit push\` before starting the app."
@@ -242,7 +214,5 @@ if [[ -n "$(get_env NEXT_PUBLIC_COLLAB_URL)" ]]; then
   printf '  %spnpm collab%s   start the Hocuspocus collaboration server (separate terminal)\n' "$BOLD" "$RESET"
 fi
 printf '  %spnpm test%s     run the domain-layer test suite\n' "$BOLD" "$RESET"
-if [[ "$(get_env DATABASE_URL)" == "$LOCAL_DB_URL" ]]; then
-  printf '\n  %sLocal database: docker compose -f %s {up -d,down}%s\n' "$DIM" "$COMPOSE_DB_FILE" "$RESET"
-fi
+printf '\n  %sAll data lives in %s — back that up, and mount it as a volume in Docker.%s\n' "$DIM" "$data_dir" "$RESET"
 printf '\n'

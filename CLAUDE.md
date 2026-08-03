@@ -13,14 +13,14 @@ pnpm typecheck                # tsc --noEmit
 pnpm test                     # vitest run (node environment)
 pnpm vitest run -t "detects normalization collisions"   # single test by name
 pnpm vitest run tests/oracle.test.ts                    # single file
-pnpm drizzle-kit push         # sync db/schema.ts to DATABASE_URL (no npm script exists)
+pnpm drizzle-kit push         # create the auth tables in <DATA_DIR>/auth.db (no npm script exists)
 ```
 
 `pnpm lint` is **broken** — it runs `next lint`, which Next 16 removed. Use `pnpm typecheck` instead, or fix the script if linting is needed.
 
 The spec's definition of done (`docs/superpowers/specs/`) is: `pnpm test`, `pnpm build`, `pnpm typecheck`, and `git diff --check` all pass.
 
-`DATABASE_URL` (Neon Postgres), `BETTER_AUTH_SECRET`, and `BETTER_AUTH_URL` are required. Auth initializes the database at module load, so the app does not boot without `DATABASE_URL`.
+There is **no database server**. `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` are required; `DATA_DIR` (default `./data`) is where everything durable lives. Auth opens its SQLite file at module load, so importing `app/lib/auth.ts` creates `<DATA_DIR>/auth.db` as a side effect.
 
 ## Architecture
 
@@ -56,13 +56,30 @@ Wheel handling is attached natively with `{ passive: false }` because React regi
 
 ### Persistence
 
-`app/api/projects/route.ts`, `app/api/projects/[id]/route.ts`, `app/lib/session.ts`, and `db/schema.ts` (Drizzle, Neon serverless HTTP driver). Projects are scoped to Better Auth organizations and addressable at `/[workspace]/[projectId]`. The `projects` table stores the whole `Schema` as a `jsonb` blob alongside a mirrored `revision` and `schema_format_version`.
+Everything durable lives under `DATA_DIR` (default `./data`), resolved once in `db/paths.ts` so the web app, the collab server and `drizzle.config.ts` cannot drift:
 
-`PUT` implements optimistic concurrency: if the stored `revision` differs from the client's it returns **409 `REVISION_CONFLICT`** with the current row, unless `{ overwrite: true }` is passed. The new revision is `max(stored, incoming) + 1`. `SCHEMA_FORMAT_VERSION` (currently `3`) is stamped server-side on every write — bump it in `app/lib/schema.ts` when the JSON shape changes.
+```
+<DATA_DIR>/auth.db                    SQLite — Better Auth tables only (db/schema.ts)
+<DATA_DIR>/projects/<projectId>.json  one ProjectRecord each
+<DATA_DIR>/yjs/<projectId>.bin        raw Yjs update log
+<DATA_DIR>/shares/<tokenHash>.json    share links
+```
+
+`db/file-store.ts` is the **only** module that touches project files; `db/index.ts` is the only one that opens SQLite. `ProjectRecord` keeps the field names of the old `projects` row (`schemaJson`, `revision`, `schemaFormatVersion`, `organizationId`, `createdBy`, `updatedAt`) so readers are unchanged. Projects are still scoped to Better Auth organizations and addressable at `/[workspace]/[projectId]`.
+
+Three things Postgres used to do implicitly and the store now does explicitly — do not remove them:
+
+- **`withProjectLock(id, fn)`** — a lock directory (`fs.mkdir` is an atomic exclusive create, stale after 10s) plus an in-process promise chain. The collab server is a *separate process* that bumps the same `revision`, so read-modify-write has to be serialized by hand. `PUT`/`PATCH` re-read the record **inside** the lock; comparing against a pre-lock read races.
+- **`writeAtomic`** — temp file + `rename`, so a reader never sees half-written JSON.
+- **`deleteProject`** — walks to the Yjs blob and the share file itself, replacing `ON DELETE CASCADE`. `ProjectRecord.shareTokenHash` is the back-pointer that replaces `project_share`'s unique foreign key.
+
+`PUT` implements optimistic concurrency: if the stored `revision` differs from the client's it returns **409 `REVISION_CONFLICT`** with the current record, unless `{ overwrite: true }` is passed. The new revision is `max(stored, incoming) + 1`. `SCHEMA_FORMAT_VERSION` (currently `3`) is stamped server-side on every write — bump it in `app/lib/schema.ts` when the JSON shape changes.
+
+Because storage is a directory, the app needs a **persistent volume** — it cannot run on an ephemeral-filesystem host. In Docker the `web` and `collab` services must mount the *same* volume, or collab's mirror writes go somewhere the web app never reads.
 
 ### Realtime collaboration
 
-A self-hosted **Hocuspocus** (Yjs) service in `collab/` is the source of truth for a project's schema; `projects.schemaJson` is a **mirror** it rewrites on every store, so the REST routes, share pages, project list and DDL export are unchanged.
+A self-hosted **Hocuspocus** (Yjs) service in `collab/` is the source of truth for a project's schema; the project file's `schemaJson` is a **mirror** it rewrites on every store, so the REST routes, share pages, project list and DDL export are unchanged. The collab server opens no database — it reads and writes `DATA_DIR` through `db/file-store.ts` only.
 
 - `app/lib/collab/ydoc.ts` — pure `schemaFromYDoc()` / `applySchemaToYDoc()`. Imported by *both* browser and server, so the projection can never diverge. Tested in `tests/ydoc.test.ts`.
 - `app/lib/collab/useCollaborativeSchema.ts` — owns the `Y.Doc` and presents the designer's old surface (`schema`, `commit(next)`, `undo`, `redo`). Undo is per-user via `Y.UndoManager` tracking this client's origin.
@@ -73,7 +90,7 @@ Without `NEXT_PUBLIC_COLLAB_URL` the app degrades to single-player editing and t
 
 `nextId()` mints UUIDs because ids must be unique across *clients*, not just per session.
 
-`getDb()` throws if `DATABASE_URL` is unset; every route catches and returns 503/400 rather than crashing.
+`getDb()` creates `auth.db` if it is missing; every route catches storage failures and returns 503/400 rather than crashing.
 `PATCH` renames use the same optimistic revision scheme as `PUT`; a successful rename bumps the revision and updates `schemaJson.name`.
 
 ## Conventions

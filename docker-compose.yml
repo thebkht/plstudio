@@ -12,6 +12,10 @@ services:
         NEXT_PUBLIC_COLLAB_URL: ${NEXT_PUBLIC_COLLAB_URL:-ws://localhost:1234}
     env_file:
       - .env.local
+    environment:
+      DATA_DIR: /data
+    volumes:
+      - drawsql-data:/data
     ports:
       - "3000:3000"
     depends_on:
@@ -25,5 +29,14 @@ services:
       - .env.local
     environment:
       COLLAB_PORT: "1234"
+      DATA_DIR: /data
+    volumes:
+      - drawsql-data:/data
     ports:
       - "1234:1234"
+
+volumes:
+  # Both services must mount the *same* volume: collab mirrors each document back
+  # into the project's JSON file, and separate filesystems would send those writes
+  # somewhere the web app never reads.
+  drawsql-data:

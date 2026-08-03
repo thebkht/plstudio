@@ -3,8 +3,12 @@ WORKDIR /app
 RUN corepack enable
 
 FROM base AS deps
+# better-sqlite3 publishes prebuilt binaries for glibc but not musl, so on Alpine
+# it compiles from source and needs a toolchain. Confined to this stage — the
+# runtime only copies the finished node_modules.
+RUN apk add --no-cache build-base python3
 # pnpm-workspace.yaml carries `allowBuilds`; without it pnpm 11 refuses to run
-# esbuild's and sharp's install scripts and fails the install outright.
+# better-sqlite3's, esbuild's and sharp's install scripts and fails the install outright.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
@@ -17,10 +21,11 @@ COPY . .
 ARG NEXT_PUBLIC_COLLAB_URL
 ENV NEXT_PUBLIC_COLLAB_URL=$NEXT_PUBLIC_COLLAB_URL
 
-# Auth builds its database client at module load, so the build needs these to be
-# parseable — not reachable. Deliberately placeholders: real secrets arrive at
-# runtime via env_file, and would otherwise be baked into the image history.
-ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
+# Auth opens its SQLite file at module load, so the build would otherwise create
+# an auth.db inside the image; point it at a throwaway path. The secret is a
+# deliberate placeholder — the real one arrives at runtime via env_file, and
+# would otherwise be baked into the image history.
+ENV DATA_DIR=/tmp/build-data
 ENV BETTER_AUTH_SECRET=build-time-placeholder
 ENV BETTER_AUTH_URL=http://localhost:3000
 
@@ -33,5 +38,12 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
 COPY package.json ./
 # No `public/` in this repo; add a COPY for it if static assets are ever introduced.
+
+# Everything durable — auth.db and the project JSON — lives here, so it must be a
+# mounted volume in any real deployment. See docker-compose.yml.
+ENV DATA_DIR=/data
+RUN mkdir -p /data
+VOLUME /data
+
 EXPOSE 3000
 CMD ["pnpm", "next", "start"]
