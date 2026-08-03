@@ -609,6 +609,8 @@ button {
 .column-card-row { display: flex; gap: 6px; }
 .column-card-row .select { flex: 1; min-width: 0; }
 .column-card-row .input { flex: 0 0 96px; }
+.checks { display: flex; align-items: center; gap: 16px; white-space: nowrap; }
+.checks label { display: inline-flex; align-items: center; gap: 5px; }
 .icon-btn {
   flex: 0 0 auto;
   width: 32px;
