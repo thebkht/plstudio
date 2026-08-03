@@ -1,68 +1,42 @@
-import { boolean, integer, index, jsonb, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
-
-export const user = pgTable("user", {
-  id: text("id").primaryKey(), name: text("name").notNull(), email: text("email").notNull().unique(),
-  emailVerified: boolean("email_verified").notNull().default(false), image: text("image"),
-  isAnonymous: boolean("is_anonymous").notNull().default(false), createdAt: timestamp("created_at", { withTimezone: true }).notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-});
-
-export const session = pgTable("session", {
-  id: text("id").primaryKey(), expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(), token: text("token").notNull().unique(), createdAt: timestamp("created_at", { withTimezone: true }).notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(), ipAddress: text("ip_address"), userAgent: text("user_agent"), userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
-});
-
-export const account = pgTable("account", {
-  id: text("id").primaryKey(), accountId: text("account_id").notNull(), providerId: text("provider_id").notNull(), userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }), accessToken: text("access_token"), refreshToken: text("refresh_token"), idToken: text("id_token"), accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }), refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }), scope: text("scope"), password: text("password"), createdAt: timestamp("created_at", { withTimezone: true }).notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-});
-
-export const verification = pgTable("verification", {
-  id: text("id").primaryKey(), identifier: text("identifier").notNull(), value: text("value").notNull(), expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(), createdAt: timestamp("created_at", { withTimezone: true }).notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-});
-
-export const organization = pgTable("organization", {
-  id: text("id").primaryKey(), name: text("name").notNull(), slug: text("slug").notNull().unique(), logo: text("logo"), metadata: text("metadata"), createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-});
-
-export const member = pgTable("member", {
-  id: text("id").primaryKey(), organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }), userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }), role: text("role").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-}, (table) => [index("member_organization_idx").on(table.organizationId), index("member_user_idx").on(table.userId)]);
-
-export const invitation = pgTable("invitation", {
-  id: text("id").primaryKey(), organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }), inviterId: text("inviter_id").notNull().references(() => user.id, { onDelete: "cascade" }), email: text("email").notNull(), role: text("role"), status: text("status").notNull(), expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(), createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-});
-
-export const rateLimit = pgTable("rate_limit", {
-  id: text("id").primaryKey(), key: text("key").notNull().unique(), count: integer("count").notNull(), lastRequest: timestamp("last_request", { withTimezone: true }).notNull(),
-});
-
-export const projects = pgTable("projects", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  organizationId: text("organization_id").references(() => organization.id, { onDelete: "cascade" }),
-  createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  schemaJson: jsonb("schema_json").notNull(),
-  revision: integer("revision").notNull().default(1),
-  schemaFormatVersion: integer("schema_format_version").notNull().default(1),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => [index("projects_organization_idx").on(table.organizationId), index("projects_created_by_idx").on(table.createdBy)]);
+import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 /**
- * The authoritative copy of a collaborative project: the Yjs update log, stored
- * base64-encoded so it survives the Neon HTTP driver unchanged. `projects.schemaJson`
- * is kept as a mirror of this, so every existing reader keeps working.
+ * Better Auth's tables, and nothing else. Projects live on disk as JSON — see
+ * `db/file-store.ts` — so this schema is only ever touched by the auth adapter.
+ *
+ * `integer({ mode: "timestamp" })` matters: Better Auth hands the adapter `Date`
+ * objects and expects them back, which a plain integer column would not do.
  */
-export const yjsDocuments = pgTable("yjs_documents", {
-  projectId: text("project_id").primaryKey().references(() => projects.id, { onDelete: "cascade" }),
-  state: text("state").notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+export const user = sqliteTable("user", {
+  id: text("id").primaryKey(), name: text("name").notNull(), email: text("email").notNull().unique(),
+  emailVerified: integer("email_verified", { mode: "boolean" }).notNull().default(false), image: text("image"),
+  isAnonymous: integer("is_anonymous", { mode: "boolean" }).notNull().default(false), createdAt: integer("created_at", { mode: "timestamp" }).notNull(), updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
 
-export const projectShare = pgTable("project_share", {
-  id: text("id").primaryKey(),
-  projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }).unique(),
-  tokenHash: text("token_hash").notNull().unique(),
-  permission: text("permission").notNull().default("editor"),
-  createdBy: text("created_by").notNull().references(() => user.id, { onDelete: "cascade" }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+export const session = sqliteTable("session", {
+  id: text("id").primaryKey(), expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(), token: text("token").notNull().unique(), createdAt: integer("created_at", { mode: "timestamp" }).notNull(), updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(), ipAddress: text("ip_address"), userAgent: text("user_agent"), userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+});
+
+export const account = sqliteTable("account", {
+  id: text("id").primaryKey(), accountId: text("account_id").notNull(), providerId: text("provider_id").notNull(), userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }), accessToken: text("access_token"), refreshToken: text("refresh_token"), idToken: text("id_token"), accessTokenExpiresAt: integer("access_token_expires_at", { mode: "timestamp" }), refreshTokenExpiresAt: integer("refresh_token_expires_at", { mode: "timestamp" }), scope: text("scope"), password: text("password"), createdAt: integer("created_at", { mode: "timestamp" }).notNull(), updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+});
+
+export const verification = sqliteTable("verification", {
+  id: text("id").primaryKey(), identifier: text("identifier").notNull(), value: text("value").notNull(), expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(), createdAt: integer("created_at", { mode: "timestamp" }).notNull(), updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+});
+
+export const organization = sqliteTable("organization", {
+  id: text("id").primaryKey(), name: text("name").notNull(), slug: text("slug").notNull().unique(), logo: text("logo"), metadata: text("metadata"), createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+});
+
+export const member = sqliteTable("member", {
+  id: text("id").primaryKey(), organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }), userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }), role: text("role").notNull(), createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+}, (table) => [index("member_organization_idx").on(table.organizationId), index("member_user_idx").on(table.userId)]);
+
+export const invitation = sqliteTable("invitation", {
+  id: text("id").primaryKey(), organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }), inviterId: text("inviter_id").notNull().references(() => user.id, { onDelete: "cascade" }), email: text("email").notNull(), role: text("role"), status: text("status").notNull(), expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(), createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+});
+
+export const rateLimit = sqliteTable("rate_limit", {
+  id: text("id").primaryKey(), key: text("key").notNull().unique(), count: integer("count").notNull(), lastRequest: integer("last_request", { mode: "timestamp" }).notNull(),
 });
