@@ -60,6 +60,9 @@ import {
   makeMemo,
   makeTable,
   normalizeMemos,
+  normalizeRelationships,
+  nextId,
+  RELATIONSHIP_CONSTRAINTS,
   ORACLE_TYPES,
   primaryKeyColumns,
   tableHeight,
@@ -75,6 +78,8 @@ import {
   type KeyStrategy,
   type Memo,
   type MemoColor,
+  type Relationship,
+  type Cardinality,
 } from "@/app/lib/schema";
 import { validateSchema } from "@/app/lib/validation";
 import { authClient } from "@/app/lib/auth-client";
@@ -129,7 +134,7 @@ function repairInitialLayout(schema: Schema): Schema {
 }
 
 function prepareCanvasSchema(schema: Schema): Schema {
-  const next = repairInitialLayout(schema);
+  const next = repairInitialLayout(normalizeRelationships(schema));
   next.memos = normalizeMemos(next.memos);
   return next;
 }
@@ -313,6 +318,9 @@ export default function Designer({
     "tables",
   );
   const [panelMode, setPanelMode] = useState<"structure" | "code">("structure");
+  const [relationshipQuery, setRelationshipQuery] = useState("");
+  const [openRelationshipId, setOpenRelationshipId] = useState<string | null>(null);
+  const [relationSettings, setRelationSettings] = useState({ showCardinality: true, showRelationshipLabels: true });
   const [issuesOpen, setIssuesOpen] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -367,6 +375,17 @@ export default function Designer({
   panRef.current = pan;
   zoomRef.current = zoom;
   schemaRef.current = schema;
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("drawsql-settings");
+      if (saved) setRelationSettings((current) => ({ ...current, ...JSON.parse(saved) }));
+    } catch { /* Ignore malformed local settings. */ }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("drawsql-settings", JSON.stringify(relationSettings));
+  }, [relationSettings]);
   dragPositionRef.current = dragPosition;
 
   /** A table's on-screen position: the in-flight one while it moves, else its committed one. */
@@ -469,27 +488,20 @@ export default function Designer({
           ? { table: sourceTable, column: sourceColumn }
           : { table: targetTable, column: targetColumn };
         if (!child.column.pk && parent.column.pk) {
-          commit({
-            ...schema,
-            tables: schema.tables.map((table) =>
-              table.id === child.table.id
-                ? {
-                    ...table,
-                    columns: table.columns.map((column) =>
-                      column.id === child.column.id
-                        ? {
-                            ...column,
-                            fk: {
-                              tableId: parent.table.id,
-                              columnId: parent.column.id,
-                            },
-                          }
-                        : column,
-                    ),
-                  }
-                : table,
-            ),
-          });
+          const relationship: Relationship = {
+            id: nextId("rel"),
+            startTableId: child.table.id,
+            startFieldId: child.column.id,
+            endTableId: parent.table.id,
+            endFieldId: parent.column.id,
+            fields: [{ startFieldId: child.column.id, endFieldId: parent.column.id }],
+            name: `fk_${child.table.name}_${child.column.name}_${parent.table.name}`,
+            cardinality: "many_to_one",
+            manyLabel: "n",
+            updateConstraint: "No action",
+            deleteConstraint: "No action",
+          };
+          commit(normalizeRelationships({ ...schema, relationships: [...(schema.relationships ?? []), relationship] }));
           setPanelTab("relationships");
           setToast({
             text: `Linked ${child.table.name}.${child.column.name} to ${parent.table.name}.${parent.column.name}.`,
@@ -554,8 +566,8 @@ export default function Designer({
     [commit, schema],
   );
   const patchColumn = useCallback(
-    (tableId: string, columnId: string, patch: Partial<Column>) =>
-      commit({
+    (tableId: string, columnId: string, patch: Partial<Column>) => {
+      const next = {
         ...schema,
         tables: schema.tables.map((table) =>
           table.id === tableId
@@ -563,11 +575,38 @@ export default function Designer({
                 ...table,
                 columns: table.columns.map((column) =>
                   column.id === columnId ? { ...column, ...patch } : column,
-                ),
-              }
+              ),
+            }
             : table,
         ),
-      }),
+      };
+      if ("fk" in patch) {
+        const relationships = (schema.relationships ?? []).filter((relationship) =>
+          !relationship.fields.some((pair) => relationship.startTableId === tableId && pair.startFieldId === columnId),
+        );
+        const fk = patch.fk;
+        if (fk) {
+          const table = schema.tables.find((item) => item.id === tableId);
+          const column = table?.columns.find((item) => item.id === columnId);
+          const target = schema.tables.find((item) => item.id === fk.tableId);
+          const targetColumn = target?.columns.find((item) => item.id === fk.columnId);
+          if (table && column && target && targetColumn) relationships.push({
+            id: nextId("rel"),
+            startTableId: table.id,
+            startFieldId: column.id,
+            endTableId: target.id,
+            endFieldId: targetColumn.id,
+            fields: [{ startFieldId: column.id, endFieldId: targetColumn.id }],
+            name: `fk_${table.name}_${column.name}_${target.name}`,
+            cardinality: "many_to_one",
+            manyLabel: "n",
+            updateConstraint: "No action",
+            deleteConstraint: "No action",
+          });
+        }
+        commit(normalizeRelationships({ ...next, relationships }));
+      } else commit(next);
+    },
     [commit, schema],
   );
 
@@ -583,7 +622,7 @@ export default function Designer({
           ),
         })),
     };
-    commit(next);
+    commit(normalizeRelationships(next));
     if (selectedId === id) setSelectedId(null);
   };
   const addTable = () => {
@@ -615,7 +654,7 @@ export default function Designer({
     });
   };
   const deleteColumn = (tableId: string, columnId: string) =>
-    commit({
+    commit(normalizeRelationships({
       ...schema,
       tables: schema.tables.map((table) =>
         table.id === tableId
@@ -632,7 +671,7 @@ export default function Designer({
               ),
             },
       ),
-    });
+    }));
 
   const undo = () => {
     if (readOnly) return;
@@ -1307,7 +1346,7 @@ export default function Designer({
         fk: { tableId: right.id, columnId: rightPk.id },
       }),
     ];
-    commit({ ...schema, tables: [...schema.tables, junction] });
+    commit(normalizeRelationships({ ...schema, tables: [...schema.tables, junction] }));
     setSelectedId(junction.id);
   };
 
@@ -1404,7 +1443,7 @@ export default function Designer({
         }),
       })),
     };
-    commit(next);
+    commit(normalizeRelationships(next));
   };
 
   const save = async (overwrite = false) => {
@@ -1522,30 +1561,14 @@ export default function Designer({
   });
 
   const relationships = useMemo(
-    () =>
-      schema.tables.flatMap((table) =>
-        table.columns.flatMap((column, index) => {
-          if (!column.fk) return [];
-          const target = schema.tables.find(
-            (item) => item.id === column.fk?.tableId,
-          );
-          const targetIndex =
-            target?.columns.findIndex(
-              (item) => item.id === column.fk?.columnId,
-            ) ?? -1;
-          return target && targetIndex >= 0
-            ? [
-                {
-                  from: table,
-                  fromIndex: index,
-                  to: target,
-                  toIndex: targetIndex,
-                  id: column.id,
-                },
-              ]
-            : [];
-        }),
-      ),
+    () => (schema.relationships ?? []).flatMap((relationship) => {
+      const from = schema.tables.find((table) => table.id === relationship.startTableId);
+      const to = schema.tables.find((table) => table.id === relationship.endTableId);
+      const pair = relationship.fields[0] ?? { startFieldId: relationship.startFieldId, endFieldId: relationship.endFieldId };
+      const fromIndex = from?.columns.findIndex((column) => column.id === pair.startFieldId) ?? -1;
+      const toIndex = to?.columns.findIndex((column) => column.id === pair.endFieldId) ?? -1;
+      return from && to && fromIndex >= 0 && toIndex >= 0 ? [{ relationship, from, fromIndex, to, toIndex, id: relationship.id }] : [];
+    }),
     [schema],
   );
   const relationshipPoint = (table: Table, index: number, other: Table) => {
@@ -1579,10 +1602,36 @@ export default function Designer({
     };
   };
 
-  const endpointCardinality = (table: Table, column: Column) =>
-    column.unique || (column.pk && primaryKeyColumns(table).length === 1)
-      ? "1"
-      : "n";
+  const relationshipCardinalities = (relationship: Relationship) => {
+    if (relationship.cardinality === "one_to_one") return ["1", "1"];
+    if (relationship.cardinality === "one_to_many") return ["1", relationship.manyLabel || "n"];
+    return [relationship.manyLabel || "n", "1"];
+  };
+
+  const patchRelationship = (id: string, patch: Partial<Relationship>) => {
+    if (readOnly) return;
+    commit(normalizeRelationships({
+      ...schema,
+      relationships: (schema.relationships ?? []).map((relationship) => relationship.id === id ? { ...relationship, ...patch } : relationship),
+    }));
+  };
+
+  const deleteRelationship = (id: string) => {
+    if (readOnly) return;
+    commit(normalizeRelationships({ ...schema, relationships: (schema.relationships ?? []).filter((relationship) => relationship.id !== id) }));
+    if (openRelationshipId === id) setOpenRelationshipId(null);
+  };
+
+  const swapRelationship = (relationship: Relationship) => {
+    patchRelationship(relationship.id, {
+      startTableId: relationship.endTableId,
+      startFieldId: relationship.endFieldId,
+      endTableId: relationship.startTableId,
+      endFieldId: relationship.startFieldId,
+      fields: relationship.fields.map((pair) => ({ startFieldId: pair.endFieldId, endFieldId: pair.startFieldId })),
+      name: `fk_${schema.tables.find((table) => table.id === relationship.endTableId)?.name ?? "table"}_${schema.tables.find((table) => table.id === relationship.endTableId)?.columns.find((column) => column.id === relationship.endFieldId)?.name ?? "field"}_${schema.tables.find((table) => table.id === relationship.startTableId)?.name ?? "table"}`,
+    });
+  };
 
   const relationshipRows = useMemo(
     () =>
@@ -1593,8 +1642,10 @@ export default function Designer({
           id: relationship.id,
           from: `${relationship.from.name.toUpperCase()}.${column.name.toUpperCase()}`,
           to: `${relationship.to.name.toUpperCase()}.${target.name.toUpperCase()}`,
-          cardinality: `${endpointCardinality(relationship.from, column)}:${endpointCardinality(relationship.to, target)}`,
+          cardinality: relationshipCardinalities(relationship.relationship).join(":"),
           fromId: relationship.from.id,
+          name: relationship.relationship.name,
+          relationship: relationship.relationship,
         };
       }),
     [relationships],
@@ -1657,6 +1708,15 @@ export default function Designer({
     },
   ];
   const settingsMenu: MenuItem[] = [
+    {
+      label: `${relationSettings.showCardinality ? "Hide" : "Show"} cardinality`,
+      onSelect: () => setRelationSettings((current) => ({ ...current, showCardinality: !current.showCardinality })),
+    },
+    {
+      label: `${relationSettings.showRelationshipLabels ? "Hide" : "Show"} relationship labels`,
+      onSelect: () => setRelationSettings((current) => ({ ...current, showRelationshipLabels: !current.showRelationshipLabels })),
+    },
+    { separator: true },
     { label: "Clear invalid references", onSelect: clearInvalidForeignKeys },
   ];
   const helpMenu: MenuItem[] = [
@@ -2105,7 +2165,16 @@ export default function Designer({
               </div>
             </>
           ) : (
-            <div className="panel-body">
+            <div className="panel-body relationship-panel-body">
+              <label className="panel-search relationship-search">
+                <Search size={15} />
+                <input
+                  aria-label="Search relationships"
+                  placeholder="Search relationships..."
+                  value={relationshipQuery}
+                  onChange={(event) => setRelationshipQuery(event.target.value)}
+                />
+              </label>
               {!relationshipRows.length ? (
                 <div className="empty-state">
                   <div className="empty-art" aria-hidden="true">
@@ -2115,20 +2184,34 @@ export default function Designer({
                   <p>Give a column a foreign key to link two tables.</p>
                 </div>
               ) : (
-                relationshipRows.map((row) => (
-                  <button
-                    type="button"
-                    className="relationship-row"
-                    key={row.id}
-                    onClick={() => setSelectedId(row.fromId)}
-                  >
-                    <Link2 size={14} aria-hidden="true" />
-                    <span className="relationship-copy">
-                      <strong>{row.from}</strong>
-                    <small>references {row.to} · {row.cardinality}</small>
-                    </span>
-                  </button>
-                ))
+                relationshipRows
+                  .filter((row) => row.name.toUpperCase().includes(relationshipQuery.trim().toUpperCase()))
+                  .map((row) => {
+                    const relationship = row.relationship;
+                    const startTable = schema.tables.find((table) => table.id === relationship.startTableId);
+                    const endTable = schema.tables.find((table) => table.id === relationship.endTableId);
+                    const pairs = relationship.fields.length ? relationship.fields : [{ startFieldId: relationship.startFieldId, endFieldId: relationship.endFieldId }];
+                    return (
+                      <section className={`relationship-editor ${openRelationshipId === relationship.id ? "open" : ""}`} key={relationship.id}>
+                        <button type="button" className="relationship-row relationship-editor-head" aria-expanded={openRelationshipId === relationship.id} onClick={() => setOpenRelationshipId(openRelationshipId === relationship.id ? null : relationship.id)}>
+                          <Link2 size={14} aria-hidden="true" />
+                          <span className="relationship-copy"><strong>{relationship.name}</strong><small>{row.from} → {row.to} · {row.cardinality}</small></span>
+                          <ChevronDown size={15} className="entity-chevron" />
+                        </button>
+                        {openRelationshipId === relationship.id && (
+                          <div className="relationship-editor-body">
+                            <label className="field"><span className="field-label">Name</span><Input value={relationship.name} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { name: event.target.value })} /></label>
+                            <div className="relationship-endpoints"><span><b>Foreign</b>{startTable?.name}</span><button type="button" className="icon-btn" aria-label="Swap relationship endpoints" disabled={readOnly} onClick={() => swapRelationship(relationship)}><Link2 size={14} /></button><span><b>Primary</b>{endTable?.name}</span></div>
+                            <label className="field"><span className="field-label">Cardinality</span><select className="select" value={relationship.cardinality} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { cardinality: event.target.value as Cardinality })}><option value="one_to_one">One to one</option><option value="one_to_many">One to many</option><option value="many_to_one">Many to one</option></select></label>
+                            {relationship.cardinality !== "one_to_one" && <label className="field"><span className="field-label">Many-side label</span><Input value={relationship.manyLabel} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { manyLabel: event.target.value })} /></label>}
+                            <div className="field-row"><label className="field"><span className="field-label">On update</span><select className="select" value={relationship.updateConstraint} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { updateConstraint: event.target.value as Relationship["updateConstraint"] })}>{RELATIONSHIP_CONSTRAINTS.map((constraint) => <option key={constraint}>{constraint}</option>)}</select></label><label className="field"><span className="field-label">On delete</span><select className="select" value={relationship.deleteConstraint} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { deleteConstraint: event.target.value as Relationship["deleteConstraint"] })}>{RELATIONSHIP_CONSTRAINTS.map((constraint) => <option key={constraint}>{constraint}</option>)}</select></label></div>
+                            <div className="relationship-pairs"><div className="field-label">Composite key</div>{pairs.map((pair, index) => { const start = schema.tables.find((table) => table.id === relationship.startTableId); const end = schema.tables.find((table) => table.id === relationship.endTableId); return <div className="relationship-pair" key={`${pair.startFieldId}-${pair.endFieldId}-${index}`}><select className="select" value={pair.startFieldId} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { fields: pairs.map((item, pairIndex) => pairIndex === index ? { ...item, startFieldId: event.target.value } : item) })}>{start?.columns.map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select><select className="select" value={pair.endFieldId} disabled={readOnly} onChange={(event) => patchRelationship(relationship.id, { fields: pairs.map((item, pairIndex) => pairIndex === index ? { ...item, endFieldId: event.target.value } : item) })}>{end?.columns.map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select>{pairs.length > 1 && <Button className="icon-btn danger" aria-label="Remove relationship field pair" isDisabled={readOnly} onClick={() => patchRelationship(relationship.id, { fields: pairs.filter((_, pairIndex) => pairIndex !== index) })}><Trash2 size={13} /></Button>}</div>; })}<Button className="btn" isDisabled={readOnly || pairs.length >= Math.min(startTable?.columns.length ?? 0, endTable?.columns.length ?? 0)} onClick={() => { const start = startTable?.columns.find((column) => !pairs.some((pair) => pair.startFieldId === column.id)); const end = endTable?.columns.find((column) => !pairs.some((pair) => pair.endFieldId === column.id)); if (start && end) patchRelationship(relationship.id, { fields: [...pairs, { startFieldId: start.id, endFieldId: end.id }] }); }}><Plus size={13} /> Add field</Button></div>
+                            <Button className="btn danger relationship-delete" isDisabled={readOnly} onClick={() => deleteRelationship(relationship.id)}><Trash2 size={14} /> Delete relationship</Button>
+                          </div>
+                        )}
+                      </section>
+                    );
+                  })
               )}
             </div>
           )}
@@ -2337,10 +2420,7 @@ export default function Designer({
                 );
                 const midpointX = from.x + (to.x - from.x) / 2;
                 const path = `M ${from.x} ${from.y} H ${midpointX} V ${to.y} H ${to.x}`;
-                const fromColumn = relationship.from.columns[relationship.fromIndex];
-                const toColumn = relationship.to.columns[relationship.toIndex];
-                const fromCardinality = endpointCardinality(relationship.from, fromColumn);
-                const toCardinality = endpointCardinality(relationship.to, toColumn);
+                const [fromCardinality, toCardinality] = relationshipCardinalities(relationship.relationship);
                 const active =
                   selectedId === relationship.from.id ||
                   selectedId === relationship.to.id;
@@ -2352,38 +2432,13 @@ export default function Designer({
                       d={path}
                       className={`relationship-path ${active ? "active" : ""}`}
                     />
-                    <circle
-                      className="relationship-marker"
-                      cx={from.x}
-                      cy={from.y}
-                      r="8"
-                    />
-                    <text
-                      className="relationship-marker-text"
-                      x={from.x}
-                      y={from.y + 3}
-                    >{fromCardinality}
-                    </text>
-                    <circle
-                      className="relationship-marker"
-                      cx={to.x}
-                      cy={to.y}
-                      r="8"
-                    />
-                    <text
-                      className="relationship-marker-text"
-                      x={to.x}
-                      y={to.y + 3}
-                    >{toCardinality}
-                    </text>
-                    <text
-                      className="relationship-label"
-                      x={(from.x + to.x) / 2}
-                      y={(from.y + to.y) / 2 - 8}
-                      textAnchor="middle"
-                    >
-                      {`fk_${relationship.from.name}_${relationship.from.columns[relationship.fromIndex].name}_${relationship.to.name}`}
-                    </text>
+                    {relationSettings.showCardinality && <>
+                      <circle className="relationship-marker" cx={from.x} cy={from.y} r="8" />
+                      <text className="relationship-marker-text" x={from.x} y={from.y + 3}>{fromCardinality}</text>
+                      <circle className="relationship-marker" cx={to.x} cy={to.y} r="8" />
+                      <text className="relationship-marker-text" x={to.x} y={to.y + 3}>{toCardinality}</text>
+                    </>}
+                    {relationSettings.showRelationshipLabels && <text className="relationship-label" x={(from.x + to.x) / 2} y={(from.y + to.y) / 2 - 8} textAnchor="middle">{relationship.relationship.name}</text>}
                   </g>
                 );
               })}

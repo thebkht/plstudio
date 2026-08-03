@@ -648,6 +648,18 @@ button {
   white-space: nowrap;
 }
 .relationship-copy small { color: var(--ink-3); font-size: var(--text-xs); }
+.relationship-panel-body { gap: 8px; }
+.relationship-search { flex: 0 0 auto; }
+.relationship-editor { border-bottom: 1px solid var(--border); }
+.relationship-editor.open { background: var(--surface-2); }
+.relationship-editor-head { padding: 11px 8px; }
+.relationship-editor-body { display: grid; gap: 10px; padding: 6px 12px 14px 32px; }
+.relationship-endpoints { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--ink-2); font-size: var(--text-xs); }
+.relationship-endpoints span { display: grid; gap: 2px; min-width: 0; }
+.relationship-endpoints b { color: var(--ink-3); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.relationship-pairs { display: grid; gap: 7px; }
+.relationship-pair { display: grid; grid-template-columns: 1fr 1fr 32px; gap: 6px; align-items: center; }
+.relationship-delete { justify-content: center; }
 
 .panel-footer {
   flex: 0 0 auto;
