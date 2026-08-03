@@ -117,6 +117,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import { Toggle } from "@/components/ui/toggle";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -450,6 +451,42 @@ function DockButton({
       >
         <HugeiconsIcon icon={icon} />
       </Button>
+      <Tooltip>{label}</Tooltip>
+    </TooltipTrigger>
+  );
+}
+
+/**
+ * A column constraint as a square icon toggle rather than a checkbox — the row is
+ * scanned far more often than it is edited, so the lit state has to read at a glance.
+ */
+function ColumnFlag({
+  label,
+  icon,
+  glyph,
+  isSelected,
+  onChange,
+}: {
+  label: string;
+  icon?: IconSvgElement;
+  glyph?: string;
+  isSelected: boolean;
+  onChange: (isSelected: boolean) => void;
+}) {
+  return (
+    <TooltipTrigger>
+      <Toggle
+        className="column-flag"
+        aria-label={label}
+        isSelected={isSelected}
+        onChange={onChange}
+      >
+        {icon ? (
+          <HugeiconsIcon icon={icon} size={16} />
+        ) : (
+          <span aria-hidden="true">{glyph}</span>
+        )}
+      </Toggle>
       <Tooltip>{label}</Tooltip>
     </TooltipTrigger>
   );
@@ -2614,54 +2651,40 @@ export default function Designer({
                                 <FieldLegend variant="label" className="sr-only">
                                   Constraints for {column.name}
                                 </FieldLegend>
-                                <FieldGroup
-                                  data-slot="checkbox-group"
-                                  className="flex-row gap-4"
-                                >
-                                  <Field orientation="horizontal">
-                                    <Checkbox
-                                      id={`pk-${column.id}`}
-                                      isSelected={column.pk}
-                                      onChange={(isSelected) =>
-                                        patchColumn(table.id, column.id, {
-                                          pk: isSelected,
-                                          fk: isSelected ? null : column.fk,
-                                        })
-                                      }
-                                    />
-                                    <FieldLabel htmlFor={`pk-${column.id}`}>
-                                      PK
-                                    </FieldLabel>
-                                  </Field>
-                                  <Field orientation="horizontal">
-                                    <Checkbox
-                                      id={`nn-${column.id}`}
-                                      isSelected={column.notNull}
-                                      onChange={(isSelected) =>
-                                        patchColumn(table.id, column.id, {
-                                          notNull: isSelected,
-                                        })
-                                      }
-                                    />
-                                    <FieldLabel htmlFor={`nn-${column.id}`}>
-                                      NN
-                                    </FieldLabel>
-                                  </Field>
-                                  <Field orientation="horizontal">
-                                    <Checkbox
-                                      id={`uq-${column.id}`}
-                                      isSelected={column.unique}
-                                      onChange={(isSelected) =>
-                                        patchColumn(table.id, column.id, {
-                                          unique: isSelected,
-                                        })
-                                      }
-                                    />
-                                    <FieldLabel htmlFor={`uq-${column.id}`}>
-                                      UQ
-                                    </FieldLabel>
-                                  </Field>
-                                </FieldGroup>
+                                <div className="column-flags">
+                                  <ColumnFlag
+                                    label="Primary key"
+                                    icon={Key01Icon}
+                                    isSelected={column.pk}
+                                    onChange={(isSelected) =>
+                                      patchColumn(table.id, column.id, {
+                                        pk: isSelected,
+                                        fk: isSelected ? null : column.fk,
+                                      })
+                                    }
+                                  />
+                                  {/* Phrased as "nullable" so the lit state matches the ? glyph. */}
+                                  <ColumnFlag
+                                    label="Nullable"
+                                    glyph="?"
+                                    isSelected={!column.notNull}
+                                    onChange={(isSelected) =>
+                                      patchColumn(table.id, column.id, {
+                                        notNull: !isSelected,
+                                      })
+                                    }
+                                  />
+                                  <ColumnFlag
+                                    label="Unique"
+                                    icon={FingerPrintIcon}
+                                    isSelected={column.unique}
+                                    onChange={(isSelected) =>
+                                      patchColumn(table.id, column.id, {
+                                        unique: isSelected,
+                                      })
+                                    }
+                                  />
+                                </div>
                               </FieldSet>
                               <Input
                                 aria-label={`Default for ${column.name}`}
@@ -3389,7 +3412,7 @@ export default function Designer({
                     >
                       <HugeiconsIcon icon={ColumnInsertIcon} />
                       Add column
-                      <ContextMenuShortcut>⌘↵</ContextMenuShortcut>
+                      <ContextMenuShortcut>{hint("addColumn")}</ContextMenuShortcut>
                     </ContextMenuItem>
                     <ContextMenuItem
                       isDisabled={readOnly}
@@ -3397,6 +3420,7 @@ export default function Designer({
                     >
                       <HugeiconsIcon icon={GitMergeIcon} />
                       Add junction table
+                      <ContextMenuShortcut>{hint("junction")}</ContextMenuShortcut>
                     </ContextMenuItem>
                   </ContextMenuGroup>
                   <ContextMenuSeparator />
@@ -3408,7 +3432,7 @@ export default function Designer({
                     >
                       <HugeiconsIcon icon={Delete02Icon} />
                       Delete table
-                      <ContextMenuShortcut>⌫</ContextMenuShortcut>
+                      <ContextMenuShortcut>{hint("deleteSelection")}</ContextMenuShortcut>
                     </ContextMenuItem>
                   </ContextMenuGroup>
                 </ContextMenu>
