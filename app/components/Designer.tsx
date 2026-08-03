@@ -10,7 +10,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
   Alert02Icon,
   ArrowDown01Icon,
@@ -105,6 +105,9 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DropdownMenu,
   DropdownMenuGroup,
@@ -278,6 +281,34 @@ const exportTabs = [
 type MenuItem =
   | { label: string; onSelect: () => void; disabled?: boolean; hint?: string }
   | { separator: true };
+
+/** Dock controls are icon-only, so each one carries its label as a tooltip. */
+function DockButton({
+  label,
+  icon,
+  isDisabled,
+  onClick,
+}: {
+  label: string;
+  icon: IconSvgElement;
+  isDisabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <TooltipTrigger>
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label={label}
+        isDisabled={isDisabled}
+        onClick={onClick}
+      >
+        <HugeiconsIcon icon={icon} />
+      </Button>
+      <Tooltip>{label}</Tooltip>
+    </TooltipTrigger>
+  );
+}
 
 type MenuAction = Exclude<MenuItem, { separator: true }>;
 
@@ -2114,9 +2145,11 @@ export default function Designer({
           </div>
 
           {panelMode === "code" ? (
-            <pre className="panel-code">
-              <code>{highlightSql(ddl)}</code>
-            </pre>
+            <ScrollArea className="panel-code">
+              <pre>
+                <code>{highlightSql(ddl)}</code>
+              </pre>
+            </ScrollArea>
           ) : panelTab === "tables" ? (
             <>
               <div className="panel-toolbar">
@@ -2136,7 +2169,7 @@ export default function Designer({
                   Add table
                 </Button>
               </div>
-              <div className="panel-body">
+              <ScrollArea className="panel-body">
                 {!schema.tables.length ? (
                   <Empty>
                     <EmptyHeader>
@@ -2519,10 +2552,10 @@ export default function Designer({
                     </Collapsible>
                   ))
                 )}
-              </div>
+              </ScrollArea>
             </>
           ) : (
-            <div className="panel-body relationship-panel-body">
+            <ScrollArea className="panel-body relationship-panel-body">
               <InputGroup className="relationship-search">
                 <InputGroupAddon>
                   <HugeiconsIcon icon={Search01Icon} />
@@ -2643,15 +2676,19 @@ export default function Designer({
                     );
                   })
               )}
-            </div>
+            </ScrollArea>
           )}
 
           <div className="panel-footer">
-            <span className="counter" title="Tables">
-              <HugeiconsIcon icon={DatabaseIcon} size={14} /> {schema.tables.length}
+            <span className="counter">
+              <HugeiconsIcon icon={DatabaseIcon} aria-hidden="true" />
+              {schema.tables.length}
+              <span className="sr-only">tables</span>
             </span>
-            <span className="counter" title="Relationships">
-              <HugeiconsIcon icon={Link01Icon} size={14} /> {relationshipRows.length}
+            <span className="counter">
+              <HugeiconsIcon icon={Link01Icon} aria-hidden="true" />
+              {relationshipRows.length}
+              <span className="sr-only">relationships</span>
             </span>
             <ToggleGroup
               aria-label="Panel view"
@@ -2697,7 +2734,7 @@ export default function Designer({
               />
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <div className="issues-list">
+              <ScrollArea className="issues-list">
                 {!issues.length ? (
                   <p className="issues-empty">No problems found.</p>
                 ) : (
@@ -2714,7 +2751,7 @@ export default function Designer({
                     </button>
                   ))
                 )}
-              </div>
+              </ScrollArea>
             </CollapsibleContent>
           </Collapsible>
         </aside>
@@ -2796,21 +2833,33 @@ export default function Designer({
                       onChange={(event) => patchGroup(group.id, { name: event.target.value })}
                     />
                     <div className="schema-group-actions" onPointerDown={(event) => event.stopPropagation()}>
-                      {Object.entries(GROUP_PALETTE).map(([color, option]) => (
-                        <button
-                          type="button"
-                          key={color}
-                          className={`schema-group-color ${group.color === color ? "active" : ""}`}
-                          aria-label={`Use ${color} group color`}
-                          aria-pressed={group.color === color}
-                          disabled={readOnly}
-                          style={{ background: option.border }}
-                          onClick={() => patchGroup(group.id, { color: color as SchemaGroup["color"] })}
-                        />
-                      ))}
-                      <button type="button" className="schema-group-delete" aria-label={`Delete schema group ${group.name}`} disabled={readOnly} onClick={() => deleteGroup(group.id)}>
-                        <HugeiconsIcon icon={Delete02Icon} size={13} aria-hidden="true" />
-                      </button>
+                      <ToggleGroup
+                        aria-label="Group color"
+                        selectionMode="single"
+                        disallowEmptySelection
+                        isDisabled={readOnly}
+                        selectedKeys={[group.color]}
+                        onSelectionChange={(keys) => {
+                          const [key] = [...keys];
+                          if (key) patchGroup(group.id, { color: key as SchemaGroup["color"] });
+                        }}
+                      >
+                        {Object.entries(GROUP_PALETTE).map(([color, option]) => (
+                          <ToggleGroupItem
+                            key={color}
+                            id={color}
+                            className="schema-group-color"
+                            aria-label={`Use ${color} group color`}
+                            style={{ background: option.border }}
+                          />
+                        ))}
+                      </ToggleGroup>
+                      <TooltipTrigger>
+                        <Button variant="ghost" size="icon-sm" aria-label={`Delete schema group ${group.name}`} isDisabled={readOnly} onClick={() => deleteGroup(group.id)}>
+                          <HugeiconsIcon icon={Delete02Icon} />
+                        </Button>
+                        <Tooltip>Delete group</Tooltip>
+                      </TooltipTrigger>
                     </div>
                   </div>
                   <button type="button" className="schema-group-resize" aria-label={`Resize schema group ${group.name}`} disabled={readOnly} onPointerDown={(event) => onGroupResizeDown(event, group)} />
@@ -2853,24 +2902,31 @@ export default function Designer({
                     <HugeiconsIcon icon={StickyNote01Icon} size={14} aria-hidden="true" />
                     <span className="memo-drag-label">Memo</span>
                     <div className="memo-actions" onPointerDown={(event) => event.stopPropagation()}>
-                      {MEMO_COLORS.map((option) => (
-                        <button
-                          type="button"
-                          key={option.id}
-                          className={`memo-color memo-color-${option.id} ${memo.color === option.id ? "active" : ""}`}
-                          aria-label={`Use ${option.label} memo color`}
-                          aria-pressed={memo.color === option.id}
-                          onClick={() => patchMemo(memo.id, { color: option.id })}
-                        />
-                      ))}
-                      <button
-                        type="button"
-                        className="memo-delete"
-                        aria-label="Delete memo"
-                        onClick={() => deleteMemo(memo.id)}
+                      <ToggleGroup
+                        aria-label="Memo color"
+                        selectionMode="single"
+                        disallowEmptySelection
+                        selectedKeys={[memo.color]}
+                        onSelectionChange={(keys) => {
+                          const [key] = [...keys];
+                          if (key) patchMemo(memo.id, { color: key as MemoColor });
+                        }}
                       >
-                        <HugeiconsIcon icon={Delete02Icon} size={13} aria-hidden="true" />
-                      </button>
+                        {MEMO_COLORS.map((option) => (
+                          <ToggleGroupItem
+                            key={option.id}
+                            id={option.id}
+                            className={`memo-color memo-color-${option.id}`}
+                            aria-label={`Use ${option.label} memo color`}
+                          />
+                        ))}
+                      </ToggleGroup>
+                      <TooltipTrigger>
+                        <Button variant="ghost" size="icon-sm" aria-label="Delete memo" onClick={() => deleteMemo(memo.id)}>
+                          <HugeiconsIcon icon={Delete02Icon} />
+                        </Button>
+                        <Tooltip>Delete memo</Tooltip>
+                      </TooltipTrigger>
                     </div>
                   </div>
                   <textarea
@@ -3036,8 +3092,8 @@ export default function Designer({
                           />
                         )}
                         {!column.notNull && !column.pk && (
-                          <span className="row-nullable" title="Nullable">
-                            ?
+                          <span className="row-nullable">
+                            <span className="sr-only">Nullable</span>?
                           </span>
                         )}
                         <span
@@ -3071,86 +3127,78 @@ export default function Designer({
             </svg>
           )}
 
-          <div className="dock" role="toolbar" aria-label="Canvas controls">
-            <button
-              type="button"
-              aria-label="Tidy up layout"
+          <ButtonGroup className="dock" aria-label="Canvas controls">
+            <DockButton
+              label="Tidy up layout"
+              icon={GridViewIcon}
               onClick={autoLayout}
-            >
-              <HugeiconsIcon icon={GridViewIcon} size={17} />
-            </button>
-            <span className="dock-divider" />
-            <button
-              type="button"
-              aria-label="Zoom out"
+            />
+            <Separator orientation="vertical" />
+            <DockButton
+              label="Zoom out"
+              icon={ZoomOutAreaIcon}
               onClick={() => zoomBy(-0.1)}
-            >
-              <HugeiconsIcon icon={ZoomOutAreaIcon} size={17} />
-            </button>
+            />
             <span className="dock-zoom" aria-live="polite" aria-atomic="true">
               {Math.round(zoom * 100)}%
             </span>
-            <button
-              type="button"
-              aria-label="Zoom in"
+            <DockButton
+              label="Zoom in"
+              icon={ZoomInAreaIcon}
               onClick={() => zoomBy(0.1)}
-            >
-              <HugeiconsIcon icon={ZoomInAreaIcon} size={17} />
-            </button>
-            <span className="dock-divider" />
-            <button
-              type="button"
-              aria-label="Undo"
-              disabled={!history.length}
+            />
+            <Separator orientation="vertical" />
+            <DockButton
+              label="Undo"
+              icon={ArrowTurnBackwardIcon}
+              isDisabled={!history.length}
               onClick={undo}
-            >
-              <HugeiconsIcon icon={ArrowTurnBackwardIcon} size={17} />
-            </button>
-            <button
-              type="button"
-              aria-label="Redo"
-              disabled={!future.length}
+            />
+            <DockButton
+              label="Redo"
+              icon={ArrowTurnForwardIcon}
+              isDisabled={!future.length}
               onClick={redo}
-            >
-              <HugeiconsIcon icon={ArrowTurnForwardIcon} size={17} />
-            </button>
-            <span className="dock-divider" />
-            <button type="button" aria-label="Add table" onClick={addTable}>
-              <HugeiconsIcon icon={Table01Icon} size={17} />
-            </button>
-            <button type="button" aria-label="Add schema group" onClick={addGroup}>
-              <HugeiconsIcon icon={DatabaseIcon} size={17} />
-            </button>
-            <button type="button" aria-label="Add memo" onClick={addMemo}>
-              <HugeiconsIcon icon={StickyNote01Icon} size={17} />
-            </button>
-            <button
-              type="button"
-              aria-label="Add junction table"
-              disabled={!selected}
+            />
+            <Separator orientation="vertical" />
+            <DockButton
+              label="Add table"
+              icon={Table01Icon}
+              onClick={addTable}
+            />
+            <DockButton
+              label="Add schema group"
+              icon={DatabaseIcon}
+              onClick={addGroup}
+            />
+            <DockButton
+              label="Add memo"
+              icon={StickyNote01Icon}
+              onClick={addMemo}
+            />
+            <DockButton
+              label="Add junction table"
+              icon={Link01Icon}
+              isDisabled={!selected}
               onClick={makeJunction}
-            >
-              <HugeiconsIcon icon={Link01Icon} size={17} />
-            </button>
-            <button type="button" aria-label="Fit to screen" onClick={fitView}>
-              <HugeiconsIcon icon={Maximize01Icon} size={17} />
-            </button>
-            <span className="dock-divider" />
-            <button
-              type="button"
-              aria-label="Save to database"
+            />
+            <DockButton
+              label="Fit to screen"
+              icon={Maximize01Icon}
+              onClick={fitView}
+            />
+            <Separator orientation="vertical" />
+            <DockButton
+              label="Save to database"
+              icon={FloppyDiskIcon}
               onClick={() => void save()}
-            >
-              <HugeiconsIcon icon={FloppyDiskIcon} size={17} />
-            </button>
-            <button
-              type="button"
-              aria-label="Export SQL"
+            />
+            <DockButton
+              label="Export SQL"
+              icon={Download04Icon}
               onClick={() => setModal("export")}
-            >
-              <HugeiconsIcon icon={Download04Icon} size={17} />
-            </button>
-          </div>
+            />
+          </ButtonGroup>
         </div>
       </div>
 
