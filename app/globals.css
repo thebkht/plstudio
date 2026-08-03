@@ -873,6 +873,74 @@ button {
   overflow: visible;
   pointer-events: none;
 }
+.schema-group {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  border: 2px solid;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgb(50 70 80 / 8%);
+  transform-origin: 0 0;
+  pointer-events: none;
+  transition: box-shadow var(--duration-base) var(--ease-out), border-color var(--duration-base) var(--ease-out);
+}
+.schema-group.selected { outline: 2px solid color-mix(in srgb, var(--accent) 62%, transparent); outline-offset: 4px; }
+.schema-group.moving { box-shadow: 0 16px 28px rgb(50 70 80 / 14%); }
+.schema-group-head {
+  position: absolute;
+  left: -2px;
+  top: -2px;
+  right: -2px;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 2px solid;
+  border-radius: 12px 12px 0 0;
+  cursor: move;
+  user-select: none;
+  touch-action: none;
+  pointer-events: auto;
+}
+.schema-group-name {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: 700 16px/1 var(--font-sans), sans-serif;
+}
+.schema-group-actions { display: flex; align-items: center; gap: 5px; pointer-events: auto; }
+.schema-group-color,
+.schema-group-delete {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgb(0 0 0 / 16%);
+  border-radius: 50%;
+  cursor: pointer;
+}
+.schema-group-color.active { box-shadow: 0 0 0 2px #fff, 0 0 0 3px currentColor; }
+.schema-group-delete { border-radius: 5px; background: transparent; color: currentColor; }
+.schema-group-delete:hover { background: rgb(255 255 255 / 55%); }
+.schema-group-resize {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: linear-gradient(135deg, transparent 0 47%, rgb(60 70 80 / 42%) 48% 53%, transparent 54% 62%, rgb(60 70 80 / 42%) 63% 68%, transparent 69%);
+  cursor: nwse-resize;
+  touch-action: none;
+  pointer-events: auto;
+}
 .relationship {
   pointer-events: auto;
 }

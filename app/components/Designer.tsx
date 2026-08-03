@@ -56,10 +56,13 @@ import {
 } from "@/app/lib/motion";
 import {
   cloneSchema,
+  GROUP_PALETTE,
   makeColumn,
   makeMemo,
+  makeSchemaGroup,
   makeTable,
   normalizeMemos,
+  normalizeGroups,
   normalizeRelationships,
   nextId,
   RELATIONSHIP_CONSTRAINTS,
@@ -78,6 +81,7 @@ import {
   type KeyStrategy,
   type Memo,
   type MemoColor,
+  type SchemaGroup,
   type Relationship,
   type Cardinality,
 } from "@/app/lib/schema";
@@ -100,6 +104,9 @@ const MEMO_MIN_WIDTH = 180;
 const MEMO_MIN_HEIGHT = 100;
 const MEMO_MAX_WIDTH = 560;
 const MEMO_MAX_HEIGHT = 520;
+const GROUP_MIN_WIDTH = 360;
+const GROUP_MIN_HEIGHT = 260;
+const GROUP_HEADER_HEIGHT = 42;
 const MEMO_COLORS: { id: MemoColor; label: string; background: string; border: string }[] = [
   { id: "yellow", label: "Yellow", background: "#fff7bf", border: "#6b58f5" },
   { id: "blue", label: "Blue", background: "#dff3ff", border: "#287da8" },
@@ -134,7 +141,7 @@ function repairInitialLayout(schema: Schema): Schema {
 }
 
 function prepareCanvasSchema(schema: Schema): Schema {
-  const next = repairInitialLayout(normalizeRelationships(schema));
+  const next = repairInitialLayout(normalizeGroups(normalizeRelationships(schema)));
   next.memos = normalizeMemos(next.memos);
   return next;
 }
@@ -277,6 +284,7 @@ export default function Designer({
   const router = useRouter();
   const [schema, setSchema] = useState<Schema>(() => prepareCanvasSchema(initialSchema));
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedMemoId, setSelectedMemoId] = useState<string | null>(null);
   const [editingMemoId, setEditingMemoId] = useState<string | null>(null);
   const [history, setHistory] = useState<Schema[]>([]);
@@ -291,6 +299,8 @@ export default function Designer({
   } | null>(null);
   const [dragMemoPosition, setDragMemoPosition] = useState<{ id: string; x: number; y: number } | null>(null);
   const [resizeMemo, setResizeMemo] = useState<{ id: string; width: number; height: number } | null>(null);
+  const [dragGroupPosition, setDragGroupPosition] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [resizeGroup, setResizeGroup] = useState<{ id: string; width: number; height: number } | null>(null);
   const [grabbing, setGrabbing] = useState(false);
   const [toast, setToast] = useState<{
     text: string;
@@ -351,9 +361,10 @@ export default function Designer({
    * must not schedule a React render per frame.
    */
   const gestureRef = useRef<{
-    mode: "table" | "memo" | "memo-resize" | "pan";
+    mode: "table" | "memo" | "memo-resize" | "group" | "group-resize" | "pan";
     pointerId: number;
     tableId?: string;
+    groupId?: string;
     memoId?: string;
     grabX: number;
     grabY: number;
@@ -403,6 +414,14 @@ export default function Designer({
       return { x: position.x, y: position.y, width: size.width, height: size.height };
     },
     [dragMemoPosition, resizeMemo],
+  );
+  const liveGroup = useCallback(
+    (group: SchemaGroup) => {
+      const position = dragGroupPosition?.id === group.id ? dragGroupPosition : group;
+      const size = resizeGroup?.id === group.id ? resizeGroup : group;
+      return { x: position.x, y: position.y, width: size.width, height: size.height };
+    },
+    [dragGroupPosition, resizeGroup],
   );
   const canvasPoint = useCallback(
     (event: { clientX: number; clientY: number }) => {
@@ -701,18 +720,26 @@ export default function Designer({
     commit(next);
   };
   const fitView = () => {
-    if (!canvasRef.current || !schema.tables.length) return;
+    if (!canvasRef.current || (!schema.tables.length && !(schema.groups ?? []).length)) return;
     stopAnimationRef.current?.();
     stopAnimationRef.current = null;
     const rect = canvasRef.current.getBoundingClientRect();
     const padding = 48;
-    const minX = Math.min(...schema.tables.map((table) => table.x));
-    const minY = Math.min(...schema.tables.map((table) => table.y));
+    const minX = Math.min(
+      ...schema.tables.map((table) => table.x),
+      ...(schema.groups ?? []).map((group) => group.x),
+    );
+    const minY = Math.min(
+      ...schema.tables.map((table) => table.y),
+      ...(schema.groups ?? []).map((group) => group.y),
+    );
     const maxX = Math.max(
       ...schema.tables.map((table) => table.x + TABLE_WIDTH),
+      ...(schema.groups ?? []).map((group) => group.x + group.width),
     );
     const maxY = Math.max(
       ...schema.tables.map((table) => table.y + tableHeight(table)),
+      ...(schema.groups ?? []).map((group) => group.y + group.height),
     );
     const next = Math.max(
       MIN_ZOOM,
@@ -789,7 +816,7 @@ export default function Designer({
     };
   }, []);
 
-  const commitPosition = useCallback((id: string, x: number, y: number) => {
+  const commitPosition = useCallback((id: string, x: number, y: number, schemaId?: string | null) => {
     if (readOnly) return;
     const resolved = resolveTablePosition(id, x, y);
     setHistory((items) => [
@@ -800,7 +827,7 @@ export default function Designer({
     setSchema((current) => ({
       ...current,
       tables: current.tables.map((table) =>
-        table.id === id ? { ...table, x: resolved.x, y: resolved.y } : table,
+        table.id === id ? { ...table, x: resolved.x, y: resolved.y, schemaId: schemaId === undefined ? table.schemaId : schemaId || undefined } : table,
       ),
     }));
     setDragPosition(null);
@@ -882,6 +909,29 @@ export default function Designer({
       }
 
       const rect = canvasRef.current?.getBoundingClientRect();
+      const group = schemaRef.current.groups?.find((item) => item.id === gesture.groupId);
+      if (gesture.mode === "group" || gesture.mode === "group-resize") {
+        if (!rect || !group) return;
+        const point = {
+          x: (event.clientX - rect.left - panRef.current.x) / zoomRef.current,
+          y: (event.clientY - rect.top - panRef.current.y) / zoomRef.current,
+        };
+        if (gesture.mode === "group") {
+          const bounds = groupBounds(group);
+          setDragGroupPosition({
+            id: group.id,
+            x: Math.max(bounds.minX, Math.min(bounds.maxX, point.x - gesture.grabX)),
+            y: Math.max(bounds.minY, Math.min(bounds.maxY, point.y - gesture.grabY)),
+          });
+        } else {
+          setResizeGroup({
+            id: group.id,
+            width: Math.max(GROUP_MIN_WIDTH, Math.min(CANVAS_WIDTH - group.x, gesture.originWidth! + point.x - gesture.grabX)),
+            height: Math.max(GROUP_MIN_HEIGHT, Math.min(CANVAS_HEIGHT - group.y, gesture.originHeight! + point.y - gesture.grabY)),
+          });
+        }
+        return;
+      }
       const memo = schemaRef.current.memos?.find((item) => item.id === gesture.memoId);
       if (gesture.mode === "memo" || gesture.mode === "memo-resize") {
         if (!rect || !memo) return;
@@ -957,6 +1007,19 @@ export default function Designer({
       }
 
       const memo = schemaRef.current.memos?.find((item) => item.id === gesture.memoId);
+      const group = schemaRef.current.groups?.find((item) => item.id === gesture.groupId);
+      if (gesture.mode === "group" && group) {
+        const live = dragGroupPosition;
+        if (gesture.moved && live?.id === group.id) commitGroupPosition(group.id, live.x, live.y);
+        else setDragGroupPosition(null);
+        return;
+      }
+      if (gesture.mode === "group-resize" && group) {
+        const live = resizeGroup;
+        if (gesture.moved && live?.id === group.id) commitGroupSize(group.id, live.width, live.height);
+        else setResizeGroup(null);
+        return;
+      }
       if (gesture.mode === "memo" && memo) {
         const live = dragMemoPosition;
         if (gesture.moved && live?.id === memo.id) {
@@ -1001,6 +1064,12 @@ export default function Designer({
         y: Math.max(bounds.minY, Math.min(bounds.maxY, projected.y)),
       };
       const target = resolveTablePosition(table.id, projectedTarget.x, projectedTarget.y);
+      const tableCenter = { x: target.x + TABLE_WIDTH / 2, y: target.y + tableHeight(table) / 2 };
+      const targetGroup = (schemaRef.current.groups ?? []).find((group) => {
+        const position = liveGroup(group);
+        return tableCenter.x >= position.x && tableCenter.x <= position.x + position.width &&
+          tableCenter.y >= position.y + GROUP_HEADER_HEIGHT && tableCenter.y <= position.y + position.height;
+      });
       const flicked = Math.hypot(velocity.x, velocity.y) > 60;
       animateTo(
         from,
@@ -1009,7 +1078,7 @@ export default function Designer({
         flicked ? FLICK_SPRING : SETTLE_SPRING,
         (value) => setDragPosition({ id: table.id, ...value }),
         (value) =>
-          commitPosition(table.id, Math.round(value.x), Math.round(value.y)),
+          commitPosition(table.id, Math.round(value.x), Math.round(value.y), targetGroup?.id ?? null),
       );
     };
 
@@ -1023,7 +1092,7 @@ export default function Designer({
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", cancel);
     };
-  }, [animateTo, commitMemoPosition, commitMemoSize, commitPosition, dragMemoPosition, memoBounds, panBounds, resolveTablePosition, resizeMemo, tableBounds]);
+  }, [animateTo, commitGroupPosition, commitGroupSize, commitMemoPosition, commitMemoSize, commitPosition, dragGroupPosition, dragMemoPosition, groupBounds, liveGroup, memoBounds, panBounds, resolveTablePosition, resizeGroup, resizeMemo, tableBounds]);
 
   /**
    * Wheel handling is attached natively because React registers `wheel`
@@ -1107,6 +1176,7 @@ export default function Designer({
     stopAnimation();
     event.currentTarget.setPointerCapture(event.pointerId);
     setSelectedId(null);
+    setSelectedGroupId(null);
     setSelectedMemoId(null);
     setEditingMemoId(null);
     setGrabbing(true);
@@ -1138,6 +1208,7 @@ export default function Designer({
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
     setSelectedId(table.id);
+    setSelectedGroupId(null);
     setSelectedMemoId(null);
     setEditingMemoId(null);
     setGrabbing(true);
@@ -1171,6 +1242,7 @@ export default function Designer({
     if (!rect) return;
     const position = liveMemo(memo);
     setSelectedId(null);
+    setSelectedGroupId(null);
     setSelectedMemoId(memo.id);
     setGrabbing(true);
     gestureRef.current = {
@@ -1229,6 +1301,110 @@ export default function Designer({
     };
   }
 
+  function commitGroupPosition(id: string, x: number, y: number) {
+    if (readOnly) return;
+    const current = schemaRef.current;
+    if (!current.groups?.some((item) => item.id === id)) return;
+    setHistory((items) => [...items.slice(-49), cloneSchema(current)]);
+    setFuture([]);
+    setSchema((next) => ({
+      ...next,
+      groups: (next.groups ?? []).map((item) => item.id === id ? {
+        ...item,
+        x: Math.max(0, Math.min(CANVAS_WIDTH - item.width, Math.round(x))),
+        y: Math.max(0, Math.min(CANVAS_HEIGHT - item.height, Math.round(y))),
+      } : item),
+    }));
+    setDragGroupPosition(null);
+  }
+
+  function commitGroupSize(id: string, width: number, height: number) {
+    if (readOnly) return;
+    const current = schemaRef.current;
+    if (!current.groups?.some((item) => item.id === id)) return;
+    setHistory((items) => [...items.slice(-49), cloneSchema(current)]);
+    setFuture([]);
+    setSchema((next) => ({
+      ...next,
+      groups: (next.groups ?? []).map((item) => item.id === id ? {
+        ...item,
+        width: Math.max(GROUP_MIN_WIDTH, Math.min(CANVAS_WIDTH - item.x, Math.round(width))),
+        height: Math.max(GROUP_MIN_HEIGHT, Math.min(CANVAS_HEIGHT - item.y, Math.round(height))),
+      } : item),
+    }));
+    setResizeGroup(null);
+  }
+
+  function groupBounds(group: SchemaGroup) {
+    return {
+      minX: 0,
+      maxX: CANVAS_WIDTH - group.width,
+      minY: 0,
+      maxY: CANVAS_HEIGHT - group.height,
+    };
+  }
+
+  const onGroupDown = (event: React.PointerEvent<HTMLElement>, group: SchemaGroup) => {
+    if (event.button !== 0 || readOnly) return;
+    event.preventDefault();
+    event.stopPropagation();
+    stopAnimation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const position = liveGroup(group);
+    setSelectedGroupId(group.id);
+    setSelectedId(null);
+    setSelectedMemoId(null);
+    setGrabbing(true);
+    gestureRef.current = {
+      mode: "group",
+      pointerId: event.pointerId,
+      memoId: undefined,
+      grabX: (event.clientX - rect.left - pan.x) / zoom - position.x,
+      grabY: (event.clientY - rect.top - pan.y) / zoom - position.y,
+      originX: position.x,
+      originY: position.y,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+      tracker: new VelocityTracker(),
+    };
+    gestureRef.current.groupId = group.id;
+  };
+
+  const onGroupResizeDown = (event: React.PointerEvent<HTMLButtonElement>, group: SchemaGroup) => {
+    if (event.button !== 0 || readOnly) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const position = liveGroup(group);
+    const pointer = {
+      x: (event.clientX - rect.left - pan.x) / zoom,
+      y: (event.clientY - rect.top - pan.y) / zoom,
+    };
+    setSelectedGroupId(group.id);
+    setSelectedId(null);
+    setGrabbing(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    gestureRef.current = {
+      mode: "group-resize",
+      pointerId: event.pointerId,
+      groupId: group.id,
+      grabX: pointer.x,
+      grabY: pointer.y,
+      originX: position.x,
+      originY: position.y,
+      originWidth: position.width,
+      originHeight: position.height,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+      tracker: new VelocityTracker(),
+    };
+  };
+
   function commitMemoPosition(id: string, x: number, y: number) {
     if (readOnly) return;
     const current = schemaRef.current;
@@ -1272,6 +1448,38 @@ export default function Designer({
     setSelectedId(null);
     setSelectedMemoId(memo.id);
     setEditingMemoId(memo.id);
+  };
+
+  const addGroup = () => {
+    const index = schema.groups?.length ?? 0;
+    const group = makeSchemaGroup(`Schema ${index + 1}`, 90 + (index % 3) * 120, 80 + (index % 2) * 120, index);
+    commit({ ...schema, groups: [...(schema.groups ?? []), group] });
+    setSelectedGroupId(group.id);
+    setSelectedId(null);
+    setSelectedMemoId(null);
+  };
+
+  const patchGroup = (id: string, patch: Partial<SchemaGroup>) => {
+    if (readOnly) return;
+    commit({ ...schema, groups: (schema.groups ?? []).map((group) => group.id === id ? { ...group, ...patch } : group) });
+  };
+
+  const deleteGroup = (id: string) => {
+    if (readOnly) return;
+    commit({
+      ...schema,
+      groups: (schema.groups ?? []).filter((group) => group.id !== id),
+      tables: schema.tables.map((table) => table.schemaId === id ? { ...table, schemaId: undefined } : table),
+    });
+    if (selectedGroupId === id) setSelectedGroupId(null);
+  };
+
+  const assignTableToGroup = (tableId: string, schemaId: string) => {
+    if (readOnly) return;
+    commit({
+      ...schema,
+      tables: schema.tables.map((table) => table.id === tableId ? { ...table, schemaId: schemaId || undefined } : table),
+    });
   };
 
   const patchMemo = (id: string, patch: Partial<Memo>) => {
@@ -1540,6 +1748,7 @@ export default function Designer({
         else if (openMenu) setOpenMenu(null);
         else if (userMenuOpen) setUserMenuOpen(false);
         else if (selectedId) setSelectedId(null);
+        else if (selectedGroupId) setSelectedGroupId(null);
         return;
       }
       if (!(event.metaKey || event.ctrlKey)) return;
@@ -1684,6 +1893,7 @@ export default function Designer({
     { label: "Redo", onSelect: redo, disabled: !future.length, hint: "⇧⌘Z" },
     { separator: true },
     { label: "Add table", onSelect: addTable },
+    { label: "Add schema group", onSelect: addGroup },
     {
       label: "Add junction table",
       onSelect: makeJunction,
@@ -1955,6 +2165,18 @@ export default function Designer({
                                   Generated identity
                                 </option>
                                 <option value="none">Manual / none</option>
+                              </select>
+                            </label>
+                            <label className="field">
+                              <span className="field-label">Schema group</span>
+                              <select
+                                className="select"
+                                value={table.schemaId ?? ""}
+                                disabled={readOnly}
+                                onChange={(event) => assignTableToGroup(table.id, event.target.value)}
+                              >
+                                <option value="">Ungrouped</option>
+                                {(schema.groups ?? []).map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
                               </select>
                             </label>
                           </div>
@@ -2318,6 +2540,68 @@ export default function Designer({
               willChange: grabbing || dragPosition ? "transform" : undefined,
             }}
           >
+            {(schema.groups ?? []).map((group) => {
+              const position = liveGroup(group);
+              const palette = GROUP_PALETTE[group.color];
+              const selectedGroup = selectedGroupId === group.id;
+              const moving = dragGroupPosition?.id === group.id;
+              return (
+                <section
+                  className={`schema-group ${selectedGroup ? "selected" : ""} ${moving ? "moving" : ""}`}
+                  key={group.id}
+                  role="group"
+                  aria-label={`Schema group ${group.name}`}
+                  style={{
+                    transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
+                    width: position.width,
+                    height: position.height,
+                    background: palette.background,
+                    borderColor: palette.border,
+                    zIndex: 0,
+                  }}
+                  onPointerDown={(event) => {
+                    event.stopPropagation();
+                    setSelectedGroupId(group.id);
+                    setSelectedId(null);
+                    setSelectedMemoId(null);
+                  }}
+                >
+                  <div
+                    className="schema-group-head"
+                    style={{ background: palette.header, color: palette.text, borderColor: palette.border }}
+                    onPointerDown={(event) => onGroupDown(event, group)}
+                  >
+                    <Database size={15} aria-hidden="true" />
+                    <input
+                      className="schema-group-name"
+                      aria-label={`Name of schema group ${group.name}`}
+                      value={group.name}
+                      disabled={readOnly}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onChange={(event) => patchGroup(group.id, { name: event.target.value })}
+                    />
+                    <div className="schema-group-actions" onPointerDown={(event) => event.stopPropagation()}>
+                      {Object.entries(GROUP_PALETTE).map(([color, option]) => (
+                        <button
+                          type="button"
+                          key={color}
+                          className={`schema-group-color ${group.color === color ? "active" : ""}`}
+                          aria-label={`Use ${color} group color`}
+                          aria-pressed={group.color === color}
+                          disabled={readOnly}
+                          style={{ background: option.border }}
+                          onClick={() => patchGroup(group.id, { color: color as SchemaGroup["color"] })}
+                        />
+                      ))}
+                      <button type="button" className="schema-group-delete" aria-label={`Delete schema group ${group.name}`} disabled={readOnly} onClick={() => deleteGroup(group.id)}>
+                        <Trash2 size={13} aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
+                  <button type="button" className="schema-group-resize" aria-label={`Resize schema group ${group.name}`} disabled={readOnly} onPointerDown={(event) => onGroupResizeDown(event, group)} />
+                </section>
+              );
+            })}
             {(schema.memos ?? []).map((memo) => {
               const position = liveMemo(memo);
               const color = MEMO_COLORS.find((item) => item.id === memo.color) ?? MEMO_COLORS[0];
@@ -2617,6 +2901,9 @@ export default function Designer({
             <span className="dock-divider" />
             <button type="button" aria-label="Add table" onClick={addTable}>
               <TablePlus size={17} />
+            </button>
+            <button type="button" aria-label="Add schema group" onClick={addGroup}>
+              <Database size={17} />
             </button>
             <button type="button" aria-label="Add memo" onClick={addMemo}>
               <StickyNote size={17} />
