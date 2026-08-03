@@ -1898,6 +1898,20 @@ export default function Designer({
                               </select>
                             </label>
                           </div>
+                          <label className="field">
+                            <span className="field-label">Table comment</span>
+                            <Input
+                              className="input"
+                              aria-label={`Comment for table ${table.name}`}
+                              placeholder="COMMENT ON TABLE"
+                              value={table.comment ?? ""}
+                              onChange={(event) =>
+                                patchTable(table.id, {
+                                  comment: event.target.value,
+                                })
+                              }
+                            />
+                          </label>
                           {primaryKeyColumns(table).length > 1 && (
                             <p className="hint">
                               Composite primary key — manual key generation
@@ -2015,6 +2029,17 @@ export default function Designer({
                                 onChange={(event) =>
                                   patchColumn(table.id, column.id, {
                                     check: event.target.value,
+                                  })
+                                }
+                              />
+                              <Input
+                                className="input"
+                                aria-label={`Comment for ${column.name}`}
+                                placeholder="COLUMN COMMENT"
+                                value={column.comment ?? ""}
+                                onChange={(event) =>
+                                  patchColumn(table.id, column.id, {
+                                    comment: event.target.value,
                                   })
                                 }
                               />
