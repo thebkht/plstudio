@@ -1419,6 +1419,17 @@ button {
 .auth-card h1, .dashboard-shell h1 { margin: 0; font-size: 1.75rem; }
 .auth-card a, .dashboard-shell a { color: var(--primary); }
 .error-text { color: var(--destructive); }
+.share-readonly-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 20; padding: .55rem 1rem; background: var(--primary); color: white; text-align: center; font-size: .85rem; }
+.share-readonly-banner a { color: white; font-weight: 700; }
+.share-read-only { padding-top: 2.25rem; }
+.share-modal { height: auto; max-height: min(650px, calc(100% - 32px)); }
+.share-section { display: grid; gap: .75rem; padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--line); }
+.share-section h3, .share-section p { margin: 0; }
+.share-section p { color: var(--muted-foreground); font-size: .85rem; }
+.share-section > .btn { width: fit-content; }
+.share-link-row { display: flex; align-items: center; gap: .5rem; }
+.share-link-row .input { flex: 1; min-width: 0; }
+@media (max-width: 640px) { .share-link-row { align-items: stretch; flex-direction: column; } }
 .dashboard-shell { max-width: 78rem; margin: auto; }
 .dashboard-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 2rem; }
 .dashboard-actions { display: flex; align-items: center; gap: 1rem; }

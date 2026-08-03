@@ -258,10 +258,14 @@ export default function Designer({
   initialSchema,
   projectId,
   workspaceSlug,
+  shareToken,
+  readOnly = false,
 }: {
   initialSchema: Schema;
   projectId: string;
   workspaceSlug?: string;
+  shareToken?: string;
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const [schema, setSchema] = useState<Schema>(() => prepareCanvasSchema(initialSchema));
@@ -285,7 +289,13 @@ export default function Designer({
     text: string;
     tone: "ok" | "error";
   } | null>(null);
-  const [modal, setModal] = useState<"export" | "import" | null>(null);
+  const [modal, setModal] = useState<"export" | "import" | "share" | null>(null);
+  const [shareLink, setShareLink] = useState("");
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareError, setShareError] = useState("");
+  const [workspaceEmail, setWorkspaceEmail] = useState("");
+  const [workspaceInviteLink, setWorkspaceInviteLink] = useState("");
+  const [workspaceInviteBusy, setWorkspaceInviteBusy] = useState(false);
   const [exportTab, setExportTab] = useState<"ddl" | "plsql" | "combined">(
     "ddl",
   );
@@ -522,12 +532,13 @@ export default function Designer({
 
   const commit = useCallback(
     (next: Schema) => {
+      if (readOnly) return;
       setHistory((items) => [...items.slice(-49), cloneSchema(schema)]);
       setFuture([]);
       setSchema({ ...next, revision: schema.revision });
       setDirty(true);
     },
-    [schema],
+    [readOnly, schema],
   );
 
   const patchTable = useCallback(
@@ -622,6 +633,7 @@ export default function Designer({
     });
 
   const undo = () => {
+    if (readOnly) return;
     const previous = history.at(-1);
     if (!previous) return;
     setFuture((items) => [...items, cloneSchema(schema)]);
@@ -629,6 +641,7 @@ export default function Designer({
     setSchema(previous);
   };
   const redo = () => {
+    if (readOnly) return;
     const next = future.at(-1);
     if (!next) return;
     setHistory((items) => [...items, cloneSchema(schema)]);
@@ -736,6 +749,7 @@ export default function Designer({
   }, []);
 
   const commitPosition = useCallback((id: string, x: number, y: number) => {
+    if (readOnly) return;
     const resolved = resolveTablePosition(id, x, y);
     setHistory((items) => [
       ...items.slice(-49),
@@ -749,7 +763,7 @@ export default function Designer({
       ),
     }));
     setDragPosition(null);
-  }, [resolveTablePosition]);
+  }, [readOnly, resolveTablePosition]);
 
   const stopAnimation = useCallback(() => {
     stopAnimationRef.current?.();
@@ -1175,6 +1189,7 @@ export default function Designer({
   }
 
   function commitMemoPosition(id: string, x: number, y: number) {
+    if (readOnly) return;
     const current = schemaRef.current;
     const memo = current.memos?.find((item) => item.id === id);
     if (!memo) return;
@@ -1193,6 +1208,7 @@ export default function Designer({
   }
 
   function commitMemoSize(id: string, width: number, height: number) {
+    if (readOnly) return;
     const current = schemaRef.current;
     if (!current.memos?.some((item) => item.id === id)) return;
     setHistory((items) => [...items.slice(-49), cloneSchema(current)]);
@@ -1218,6 +1234,7 @@ export default function Designer({
   };
 
   const patchMemo = (id: string, patch: Partial<Memo>) => {
+    if (readOnly) return;
     setSchema((current) => ({
       ...current,
       memos: (current.memos ?? []).map((memo) => memo.id === id ? { ...memo, ...patch } : memo),
@@ -1297,6 +1314,50 @@ export default function Designer({
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
   };
+
+  const copyShareText = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setToast({ text: "Link copied.", tone: "ok" });
+    } catch {
+      setShareError("Clipboard access failed. Select and copy the link manually.");
+    }
+  };
+
+  const generateShareLink = async () => {
+    setShareBusy(true);
+    setShareError("");
+    try {
+      const query = workspaceSlug ? `?workspace=${encodeURIComponent(workspaceSlug)}` : "";
+      const response = await fetch(`/api/projects/${projectId}/share${query}`, { method: "POST" });
+      const body = (await response.json()) as { url?: string; error?: string };
+      if (!response.ok || !body.url) throw new Error(body.error || "Could not create project link.");
+      setShareLink(body.url);
+      await copyShareText(body.url);
+    } catch (error) {
+      setShareError(error instanceof Error ? error.message : "Could not create project link.");
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
+  const inviteToWorkspace = async () => {
+    if (!workspaceSlug || !workspaceEmail.trim()) return;
+    setWorkspaceInviteBusy(true);
+    setShareError("");
+    try {
+      await (authClient.organization as any).setActive({ organizationSlug: workspaceSlug });
+      const result = await (authClient.organization as any).inviteMember({ email: workspaceEmail.trim(), role: "member" });
+      if (result.error || !result.data?.id) throw new Error(result.error?.message || "Could not create workspace invitation.");
+      const url = `${window.location.origin}/invite/${result.data.id}`;
+      setWorkspaceInviteLink(url);
+      await copyShareText(url);
+    } catch (error) {
+      setShareError(error instanceof Error ? error.message : "Could not create workspace invitation.");
+    } finally {
+      setWorkspaceInviteBusy(false);
+    }
+  };
   const download = () => {
     const blob = new Blob([output], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
@@ -1345,9 +1406,13 @@ export default function Designer({
   };
 
   const save = async (overwrite = false) => {
+    if (readOnly) return;
     try {
+      const query = new URLSearchParams();
+      if (workspaceSlug) query.set("workspace", workspaceSlug);
+      if (shareToken) query.set("shareToken", shareToken);
       const response = await fetch(
-        `/api/projects/${projectId}${workspaceSlug ? `?workspace=${encodeURIComponent(workspaceSlug)}` : ""}`,
+        `/api/projects/${projectId}${query.toString() ? `?${query}` : ""}`,
         {
           method: "PUT",
           headers: { "content-type": "application/json" },
@@ -1386,16 +1451,20 @@ export default function Designer({
   };
 
   useEffect(() => {
-    if (!dirty) return;
+    if (readOnly || !dirty) return;
     const timer = window.setTimeout(() => void save(), 1500);
     return () => window.clearTimeout(timer);
-  }, [dirty, schema, projectId, workspaceSlug]);
+  }, [dirty, projectId, readOnly, schema, shareToken, workspaceSlug]);
 
   useEffect(() => {
+    if (readOnly) return;
     if (schema.name === lastSavedNameRef.current) return;
     const timer = window.setTimeout(async () => {
+      const query = new URLSearchParams();
+      if (workspaceSlug) query.set("workspace", workspaceSlug);
+      if (shareToken) query.set("shareToken", shareToken);
       const response = await fetch(
-        `/api/projects/${projectId}${workspaceSlug ? `?workspace=${encodeURIComponent(workspaceSlug)}` : ""}`,
+        `/api/projects/${projectId}${query.toString() ? `?${query}` : ""}`,
         {
           method: "PATCH",
           headers: { "content-type": "application/json" },
@@ -1414,7 +1483,7 @@ export default function Designer({
         setToast({ text: "The name changed elsewhere.", tone: "error" });
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [schema.name, schema.revision, projectId, workspaceSlug]);
+  }, [projectId, readOnly, schema.name, schema.revision, shareToken, workspaceSlug]);
 
   useEffect(() => {
     if (!toast) return;
@@ -1608,7 +1677,7 @@ export default function Designer({
   ];
 
   return (
-    <div className="app">
+    <div className={`app ${readOnly ? "share-read-only" : ""}`}>
       <header className="appbar">
         <a className="appbar-brand" aria-label="DrawSQL home" href="/">
           <BrandMark compact />
@@ -1628,6 +1697,7 @@ export default function Designer({
               aria-label="Diagram name"
               value={schema.name}
               onChange={(event) => {
+                if (readOnly) return;
                 setSchema((current) => ({
                   ...current,
                   name: event.target.value,
@@ -1653,7 +1723,7 @@ export default function Designer({
           </div>
         </div>
         <div className="appbar-actions">
-          <Button className="share-btn" onClick={() => setModal("export")}>
+          <Button className="share-btn" onClick={() => setModal("share")}>
             <Share2 size={15} /> Share
           </Button>
           <div className="user-menu">
@@ -2481,6 +2551,30 @@ export default function Designer({
           </div>
         </div>
       </div>
+
+      {modal === "share" && (
+        <div className="modal-backdrop" onMouseDown={() => setModal(null)}>
+          <div className="modal share-modal" role="dialog" aria-modal="true" aria-label="Share project" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="modal-head">
+              <div><strong>Share project</strong><div className="brand-sub">Invite people to collaborate on this diagram.</div></div>
+              <Button className="btn ghost" aria-label="Close dialog" onClick={() => setModal(null)}><X size={15} /></Button>
+            </div>
+            <section className="share-section">
+              <h3>Project invite link</h3>
+              <p>Anyone with the link can preview the project. Sign-in is required to edit.</p>
+              {shareLink ? <div className="share-link-row"><Input aria-label="Project invite link" value={shareLink} readOnly /><Button className="btn" onClick={() => void copyShareText(shareLink)}><Copy size={15} /> Copy</Button></div> : <Button className="btn primary" isDisabled={shareBusy} onClick={() => void generateShareLink()}>{shareBusy ? "Generating…" : "Generate invite link"}</Button>}
+              {shareLink && <Button className="btn danger" isDisabled={shareBusy} onClick={() => { if (window.confirm("Revoke this link and generate a new one?")) void generateShareLink(); }}>{shareBusy ? "Generating…" : "Revoke and generate new link"}</Button>}
+            </section>
+            {workspaceSlug && <section className="share-section">
+              <h3>Invite to workspace</h3>
+              <p>Send a single-use invitation to a workspace member.</p>
+              <div className="share-link-row"><Input aria-label="Invitee email" type="email" placeholder="person@example.com" value={workspaceEmail} onChange={(event) => setWorkspaceEmail(event.target.value)} /><Button className="btn primary" isDisabled={workspaceInviteBusy || !workspaceEmail.trim()} onClick={() => void inviteToWorkspace()}>{workspaceInviteBusy ? "Generating…" : "Generate link"}</Button></div>
+              {workspaceInviteLink && <div className="share-link-row"><Input aria-label="Workspace invitation link" value={workspaceInviteLink} readOnly /><Button className="btn" onClick={() => void copyShareText(workspaceInviteLink)}><Copy size={15} /> Copy</Button></div>}
+            </section>}
+            {shareError && <p className="error-text">{shareError}</p>}
+          </div>
+        </div>
+      )}
 
       {modal === "export" && (
         <div className="modal-backdrop" onMouseDown={() => setModal(null)}>

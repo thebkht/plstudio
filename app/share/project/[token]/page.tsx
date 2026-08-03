@@ -1,0 +1,20 @@
+import Link from "next/link";
+import { headers } from "next/headers";
+import { notFound } from "next/navigation";
+import Designer from "@/app/components/Designer";
+import { findProjectByShareToken } from "@/app/lib/project-share";
+import { auth } from "@/app/lib/auth";
+import { type Schema } from "@/app/lib/schema";
+
+export default async function SharedProjectPage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
+  const shared = await findProjectByShareToken(token);
+  if (!shared) notFound();
+  const session = await auth.api.getSession({ headers: await headers() });
+  return (
+    <>
+      {!session && <div className="share-readonly-banner">Read-only preview · <Link href={`/login?redirect=/share/project/${token}`}>Sign in to edit</Link></div>}
+      <main className="app-shell"><Designer initialSchema={shared.project.schemaJson as Schema} projectId={shared.project.id} shareToken={token} readOnly={!session} /></main>
+    </>
+  );
+}
