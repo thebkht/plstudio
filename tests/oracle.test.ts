@@ -17,7 +17,7 @@ describe("Oracle schema model", () => {
   it("emits the requested sequence block after table definitions", () => {
     const ddl = generateDDL(makeDemoSchema());
     expect(ddl.toLowerCase().indexOf("create table student")).toBeLessThan(ddl.toLowerCase().indexOf("create sequence student_seq"));
-    expect(ddl).toContain("  create sequence student_seq\n  start with 500\n  increment by 1\n  nocache\n  nocycle;");
+    expect(ddl).toContain("create sequence student_seq\nstart with 500\nincrement by 1\nnocache\nnocycle;");
     expect(ddl).not.toContain("create or replace trigger");
   });
 
