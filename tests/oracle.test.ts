@@ -14,9 +14,11 @@ describe("Oracle schema model", () => {
     expect(ddl).not.toContain("create or replace trigger");
   });
 
-  it("creates tables before sequence triggers reference them", () => {
+  it("emits the requested sequence block after table definitions", () => {
     const ddl = generateDDL(makeDemoSchema());
-    expect(ddl.toLowerCase().indexOf("create table student")).toBeLessThan(ddl.toLowerCase().indexOf("create or replace trigger student_trg"));
+    expect(ddl.toLowerCase().indexOf("create table student")).toBeLessThan(ddl.toLowerCase().indexOf("--author: alijonov asilbek"));
+    expect(ddl).toContain("  create sequence student_seq\n  start with 500\n  increment by 1\n  nocache\n  nocycle;");
+    expect(ddl).not.toContain("create or replace trigger");
   });
 
   it("migrates legacy foreign keys into DrawDB-style relationships", () => {

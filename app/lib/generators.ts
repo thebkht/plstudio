@@ -22,19 +22,13 @@ function keyStrategyArtifacts(table: Table, strategy: KeyStrategy, used: Set<str
   if (strategy === "none" || pk.length !== 1 || pk[0].type !== "NUMBER") return [];
   const tableName = sqlIdentifier(table.name);
   const sequenceName = shorten(`${tableName}_seq`, used);
-  const triggerName = shorten(`${tableName}_trg`, used);
   if (strategy === "identity") return [];
   return [
-    `create sequence ${sequenceName} start with 1 increment by 1 nocache;`,
-    `\ncreate or replace trigger ${triggerName}`,
-    `before insert on ${tableName}`,
-    `for each row`,
-    `begin`,
-    `  if :new.${sqlIdentifier(pk[0].name)} is null then`,
-    `    :new.${sqlIdentifier(pk[0].name)} := ${sequenceName}.nextval;`,
-    `  end if;`,
-    `end;`,
-    `/`,
+    `  create sequence ${sequenceName}`,
+    "  start with 500",
+    "  increment by 1",
+    "  nocache",
+    "  nocycle;",
   ];
 }
 
@@ -85,9 +79,19 @@ export function generateDDL(schema: Schema) {
     out.push("");
   });
 
-  canonical.tables.forEach((table) => {
+  const sequenceTables = canonical.tables.filter((table) => keyStrategyArtifacts(table, table.keyStrategy, new Set()).length > 0);
+  if (sequenceTables.length) {
+    out.push(
+      "-----------------------------------------------------------",
+      "  --Author: Alijonov Asilbek ",
+      "  --Date: 31.07.2026",
+      "  -- Sequence for Operations all table ",
+      "  ",
+    );
+  }
+  sequenceTables.forEach((table, index) => {
     const artifacts = keyStrategyArtifacts(table, table.keyStrategy, usedNames);
-    if (artifacts.length) out.push(...artifacts, "--");
+    if (artifacts.length) out.push(...artifacts, ...(index < sequenceTables.length - 1 ? ["  ---------------------------------------------------------"] : []));
   });
   return out.join("\n");
 }
