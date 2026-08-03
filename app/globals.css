@@ -843,9 +843,13 @@ button {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
+  /* The context menu is a blurred material; make it opaque and drop the blur. */
+  [data-slot="context-menu-content"] { background: var(--popover); }
+  [data-slot="context-menu-content"]::before { display: none; }
   .dock { background: var(--surface-0); }
   [data-slot="dialog-overlay"], [data-slot="alert-dialog-overlay"] { background: color-mix(in srgb, var(--surface-0) 92%, transparent); } }
 @media (prefers-contrast: more) { .table-card, [data-slot="dialog-content"], [data-slot="sidebar-container"], .dock { border-color: var(--ink-1); }
+  [data-slot="context-menu-content"] { background: var(--popover); }
   :where(button, [role="button"], a, input, select, textarea, [tabindex]):focus-visible {
     outline-width: 3px;
   } }

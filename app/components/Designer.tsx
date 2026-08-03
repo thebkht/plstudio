@@ -67,6 +67,7 @@ import {
   ContextMenuItem,
   ContextMenuLabel,
   ContextMenuSeparator,
+  ContextMenuShortcut,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { HoverCard } from "@/components/ui/hover-card";
@@ -1992,9 +1993,29 @@ export default function Designer({
         else if (selectedGroupId) setSelectedGroupId(null);
         return;
       }
+      // Backspace is a plain key, so it must never fire while typing a value.
+      const target = event.target as HTMLElement | null;
+      const isEditing =
+        !!target?.isContentEditable ||
+        ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName ?? "");
+      if (
+        (event.key === "Backspace" || event.key === "Delete") &&
+        !isEditing &&
+        !modal &&
+        !readOnly &&
+        selected
+      ) {
+        event.preventDefault();
+        deleteTable(selected.id);
+        return;
+      }
       if (!(event.metaKey || event.ctrlKey)) return;
       const key = event.key.toLowerCase();
-      if (key === "s") {
+      if (key === "enter") {
+        if (readOnly || !selected) return;
+        event.preventDefault();
+        addColumn(selected.id);
+      } else if (key === "s") {
         event.preventDefault();
         void save();
       } else if (key === "e") {
@@ -3288,16 +3309,9 @@ export default function Designer({
                     </HoverCard>
                   ))}
                 </div>
-                <ContextMenu className="w-auto min-w-52">
+                <ContextMenu className="w-auto">
                   <ContextMenuLabel>{table.name.toUpperCase()}</ContextMenuLabel>
                   <ContextMenuGroup>
-                    <ContextMenuItem
-                      isDisabled={readOnly}
-                      onAction={() => addColumn(table.id)}
-                    >
-                      <HugeiconsIcon icon={PlusSignIcon} />
-                      Add column
-                    </ContextMenuItem>
                     <ContextMenuItem
                       onAction={() => {
                         setSelectedId(table.id);
@@ -3307,16 +3321,6 @@ export default function Designer({
                     >
                       <HugeiconsIcon icon={Table01Icon} />
                       Edit in side panel
-                    </ContextMenuItem>
-                  </ContextMenuGroup>
-                  <ContextMenuSeparator />
-                  <ContextMenuGroup>
-                    <ContextMenuItem
-                      isDisabled={readOnly}
-                      onAction={() => makeJunction()}
-                    >
-                      <HugeiconsIcon icon={Link01Icon} />
-                      Add junction table
                     </ContextMenuItem>
                     <ContextMenuItem
                       onAction={() => void copyShareText(tableDDL(table))}
@@ -3328,12 +3332,31 @@ export default function Designer({
                   <ContextMenuSeparator />
                   <ContextMenuGroup>
                     <ContextMenuItem
+                      isDisabled={readOnly}
+                      onAction={() => addColumn(table.id)}
+                    >
+                      <HugeiconsIcon icon={PlusSignIcon} />
+                      Add column
+                      <ContextMenuShortcut>⌘↵</ContextMenuShortcut>
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                      isDisabled={readOnly}
+                      onAction={() => makeJunction()}
+                    >
+                      <HugeiconsIcon icon={Link01Icon} />
+                      Add junction table
+                    </ContextMenuItem>
+                  </ContextMenuGroup>
+                  <ContextMenuSeparator />
+                  <ContextMenuGroup>
+                    <ContextMenuItem
                       variant="destructive"
                       isDisabled={readOnly}
                       onAction={() => deleteTable(table.id)}
                     >
                       <HugeiconsIcon icon={Delete02Icon} />
                       Delete table
+                      <ContextMenuShortcut>⌫</ContextMenuShortcut>
                     </ContextMenuItem>
                   </ContextMenuGroup>
                 </ContextMenu>
