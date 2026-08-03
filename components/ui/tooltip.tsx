@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import {
-  Focusable,
   OverlayArrow,
   Tooltip as TooltipPrimitive,
   TooltipTrigger as TooltipTriggerPrimitive,
@@ -23,9 +22,14 @@ function TooltipTrigger({
       delay={delay}
       {...props}
     >
-      <Focusable>
-        {trigger as React.ComponentProps<typeof Focusable>["children"]}
-      </Focusable>
+      {/*
+        Not wrapped in <Focusable>: every trigger here is already a react-aria
+        component (Button, Toggle), which is focusable and pressable on its own.
+        Focusable is for plain DOM children — it injects tabIndex and press props
+        that an interactive react-aria child never forwards, which is what made
+        it warn once per rendered trigger. Wrap a raw element at the call site.
+      */}
+      {trigger}
       {tooltip}
     </TooltipTriggerPrimitive>
   )
