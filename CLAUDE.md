@@ -58,7 +58,20 @@ Wheel handling is attached natively with `{ passive: false }` because React regi
 
 `app/api/projects/route.ts`, `app/api/projects/[id]/route.ts`, `app/lib/session.ts`, and `db/schema.ts` (Drizzle, Neon serverless HTTP driver). Projects are scoped to Better Auth organizations and addressable at `/[workspace]/[projectId]`. The `projects` table stores the whole `Schema` as a `jsonb` blob alongside a mirrored `revision` and `schema_format_version`.
 
-`PUT` implements optimistic concurrency: if the stored `revision` differs from the client's it returns **409 `REVISION_CONFLICT`** with the current row, unless `{ overwrite: true }` is passed. The new revision is `max(stored, incoming) + 1`. `SCHEMA_FORMAT_VERSION` (currently `1`) is stamped server-side on every write — bump it in `app/lib/schema.ts` when the JSON shape changes.
+`PUT` implements optimistic concurrency: if the stored `revision` differs from the client's it returns **409 `REVISION_CONFLICT`** with the current row, unless `{ overwrite: true }` is passed. The new revision is `max(stored, incoming) + 1`. `SCHEMA_FORMAT_VERSION` (currently `3`) is stamped server-side on every write — bump it in `app/lib/schema.ts` when the JSON shape changes.
+
+### Realtime collaboration
+
+A self-hosted **Hocuspocus** (Yjs) service in `collab/` is the source of truth for a project's schema; `projects.schemaJson` is a **mirror** it rewrites on every store, so the REST routes, share pages, project list and DDL export are unchanged.
+
+- `app/lib/collab/ydoc.ts` — pure `schemaFromYDoc()` / `applySchemaToYDoc()`. Imported by *both* browser and server, so the projection can never diverge. Tested in `tests/ydoc.test.ts`.
+- `app/lib/collab/useCollaborativeSchema.ts` — owns the `Y.Doc` and presents the designer's old surface (`schema`, `commit(next)`, `undo`, `redo`). Undo is per-user via `Y.UndoManager` tracking this client's origin.
+- `app/api/collab/token/route.ts` — the **only** place access is decided, via the same session helpers as the REST routes. It signs a 120s token bound to one `documentName`; the collab server verifies and trusts it. Read-only shares are enforced on the connection.
+- Presence (cursors, selection) rides the Yjs awareness channel — no second transport. Cursor coordinates are canvas space, never screen space.
+
+Without `NEXT_PUBLIC_COLLAB_URL` the app degrades to single-player editing and the debounced `PUT` (with its 409 toast) remains the durability path — do not delete it.
+
+`nextId()` mints UUIDs because ids must be unique across *clients*, not just per session.
 
 `getDb()` throws if `DATABASE_URL` is unset; every route catches and returns 503/400 rather than crashing.
 `PATCH` renames use the same optimistic revision scheme as `PUT`; a successful rename bumps the revision and updates `schemaJson.name`.
