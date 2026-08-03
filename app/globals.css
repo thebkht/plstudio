@@ -1349,35 +1349,6 @@ button {
   from { opacity: 0; transform: scale(0.97) translateY(6px); }
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
-@keyframes toast-in {
-  from { opacity: 0; transform: translateY(10px) scale(0.97); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-.toast-region {
-  position: absolute;
-  left: 50%;
-  bottom: 24px;
-  z-index: 6;
-  transform: translateX(-50%);
-  pointer-events: none;
-}
-.toast {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--card);
-  color: var(--foreground);
-  font-size: var(--text-sm);
-  box-shadow: 0 16px 36px color-mix(in oklch, var(--foreground) 18%, transparent);
-  animation: toast-in var(--duration-slow) var(--ease-out);
-}
-.toast svg { color: var(--accent); }
-.toast-error { border-color: color-mix(in oklch, var(--destructive) 40%, var(--line)); }
-.toast-error svg { color: var(--destructive); }
-
 /*
  * Reduced motion removes travel, not feedback: opacity and color still
  * respond, so pressing a control is still visibly acknowledged.

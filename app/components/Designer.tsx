@@ -40,6 +40,7 @@ import {
   ZoomOutAreaIcon,
 } from "@hugeicons/core-free-icons";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -305,10 +306,6 @@ export default function Designer({
   const [dragGroupPosition, setDragGroupPosition] = useState<{ id: string; x: number; y: number } | null>(null);
   const [resizeGroup, setResizeGroup] = useState<{ id: string; width: number; height: number } | null>(null);
   const [grabbing, setGrabbing] = useState(false);
-  const [toast, setToast] = useState<{
-    text: string;
-    tone: "ok" | "error";
-  } | null>(null);
   const [modal, setModal] = useState<"export" | "import" | "share" | null>(null);
   const [shareLink, setShareLink] = useState("");
   const [shareBusy, setShareBusy] = useState(false);
@@ -354,7 +351,7 @@ export default function Designer({
     if (changed) {
       setSchema(repaired);
       setDirty(true);
-      setToast({ text: "Overlapping tables were separated.", tone: "ok" });
+      toast.success("Overlapping tables were separated.");
     }
   }, [initialSchema]);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -525,10 +522,7 @@ export default function Designer({
           };
           commit(normalizeRelationships({ ...schema, relationships: [...(schema.relationships ?? []), relationship] }));
           setPanelTab("relationships");
-          setToast({
-            text: `Linked ${child.table.name}.${child.column.name} to ${parent.table.name}.${parent.column.name}.`,
-            tone: "ok",
-          });
+          toast.success(`Linked ${child.table.name}.${child.column.name} to ${parent.table.name}.${parent.column.name}.`);
         }
       }
     }
@@ -1583,7 +1577,7 @@ export default function Designer({
   const copyShareText = async (value: string) => {
     try {
       await navigator.clipboard.writeText(value);
-      setToast({ text: "Link copied.", tone: "ok" });
+      toast.success("Link copied.");
     } catch {
       setShareError("Clipboard access failed. Select and copy the link manually.");
     }
@@ -1690,28 +1684,17 @@ export default function Designer({
         setDirty(false);
         lastSavedNameRef.current = next.name;
       } else if (response.status === 409) {
-        setToast({
-          text: "This project changed elsewhere. Overwrite your save?",
-          tone: "error",
+        toast.error("This project changed elsewhere.", {
+          description: "Saving now would overwrite the other changes.",
+          duration: Infinity,
+          action: { label: "Overwrite", onClick: () => void save(true) },
         });
-        if (
-          window.confirm(
-            "This project changed elsewhere. Overwrite the other changes?",
-          )
-        )
-          await save(true);
         return;
       }
-      setToast(
-        response.ok
-          ? { text: "Project saved.", tone: "ok" }
-          : {
-              text: "Database save unavailable — configure DATABASE_URL.",
-              tone: "error",
-            },
-      );
+      if (response.ok) toast.success("Project saved.");
+      else toast.error("Database save unavailable — configure DATABASE_URL.");
     } catch {
-      setToast({ text: "Could not reach the server.", tone: "error" });
+      toast.error("Could not reach the server.");
     }
   };
 
@@ -1745,16 +1728,10 @@ export default function Designer({
         lastSavedNameRef.current = next.name;
         setDirty(false);
       } else if (response.status === 409)
-        setToast({ text: "The name changed elsewhere.", tone: "error" });
+        toast.error("The name changed elsewhere.");
     }, 700);
     return () => window.clearTimeout(timer);
   }, [projectId, readOnly, schema.name, schema.revision, shareToken, workspaceSlug]);
-
-  useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => setToast(null), 4000);
-    return () => clearTimeout(timer);
-  }, [toast]);
 
   /** Escape closes the topmost layer; ⌘S saves and ⌘E exports. */
   useEffect(() => {
@@ -1895,7 +1872,7 @@ export default function Designer({
               ? `/${workspaceSlug}/${created.id}`
               : `/project/${created.id}`,
           );
-        } else setToast({ text: "Could not create project.", tone: "error" });
+        } else toast.error("Could not create project.");
       },
     },
     { separator: true },
@@ -1949,10 +1926,7 @@ export default function Designer({
     {
       label: "Oracle target: 12.2+",
       onSelect: () =>
-        setToast({
-          text: "Generating DDL for Oracle 12.2 and later.",
-          tone: "ok",
-        }),
+        toast.success("Generating DDL for Oracle 12.2 and later."),
     },
   ];
 
@@ -3121,16 +3095,6 @@ export default function Designer({
         </div>
       )}
 
-      <div className="toast-region" role="status" aria-live="polite">
-        {toast && (
-          <div
-            className={`toast ${toast.tone === "error" ? "toast-error" : ""}`}
-          >
-            {toast.tone === "error" ? <HugeiconsIcon icon={Cancel01Icon} size={14} /> : <HugeiconsIcon icon={Tick02Icon} size={14} />}
-            {toast.text}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
