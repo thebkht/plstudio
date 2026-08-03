@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -41,7 +42,16 @@ import {
 } from "@hugeicons/core-free-icons";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -194,6 +204,21 @@ type MenuItem =
   | { label: string; onSelect: () => void; disabled?: boolean; hint?: string }
   | { separator: true };
 
+type MenuAction = Exclude<MenuItem, { separator: true }>;
+
+/** Separators delimit groups rather than being items, which is what MenuSection expects. */
+const groupBySeparator = (items: MenuItem[]) =>
+  items
+    .reduce<MenuAction[][]>(
+      (groups, item) => {
+        if ("separator" in item) groups.push([]);
+        else groups[groups.length - 1].push(item);
+        return groups;
+      },
+      [[]],
+    )
+    .filter((group) => group.length > 0);
+
 /** A menubar menu. Opens on click, closes on select, Escape, or outside press. */
 function Menu({
   name,
@@ -209,64 +234,40 @@ function Menu({
   anyOpen: boolean;
   onOpenChange: (name: string | null) => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const away = (event: PointerEvent) => {
-      if (!ref.current?.contains(event.target as Node)) onOpenChange(null);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onOpenChange(null);
-    };
-    window.addEventListener("pointerdown", away);
-    window.addEventListener("keydown", escape);
-    return () => {
-      window.removeEventListener("pointerdown", away);
-      window.removeEventListener("keydown", escape);
-    };
-  }, [open, onOpenChange]);
-
   return (
-    <div className="menu" ref={ref}>
-      <button
-        type="button"
-        className={`menu-trigger ${open ? "open" : ""}`}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => onOpenChange(open ? null : name)}
+    <DropdownMenuTrigger
+      isOpen={open}
+      onOpenChange={(next) => onOpenChange(next ? name : null)}
+    >
+      <Button
+        variant="ghost"
+        size="sm"
         onPointerEnter={() => anyOpen && onOpenChange(name)}
       >
         {name}
-      </button>
-      {open && (
-        <div className="menu-popup" role="menu">
-          {items.map((item, index) =>
-            "separator" in item ? (
-              <div
-                className="menu-separator"
-                key={`sep-${index}`}
-                role="none"
-              />
-            ) : (
-              <button
-                type="button"
-                role="menuitem"
-                className="menu-item"
-                key={item.label}
-                disabled={item.disabled}
-                onClick={() => {
-                  onOpenChange(null);
-                  item.onSelect();
-                }}
-              >
-                <span>{item.label}</span>
-                {item.hint && <kbd>{item.hint}</kbd>}
-              </button>
-            ),
-          )}
-        </div>
-      )}
-    </div>
+      </Button>
+      <DropdownMenu className="w-auto min-w-52">
+        {groupBySeparator(items).map((group, index) => (
+          <Fragment key={group[0].label}>
+            {index > 0 && <DropdownMenuSeparator />}
+            <DropdownMenuGroup>
+              {group.map((item) => (
+                <DropdownMenuItem
+                  key={item.label}
+                  isDisabled={item.disabled}
+                  onAction={() => void item.onSelect()}
+                >
+                  {item.label}
+                  {item.hint && (
+                    <DropdownMenuShortcut>{item.hint}</DropdownMenuShortcut>
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuGroup>
+          </Fragment>
+        ))}
+      </DropdownMenu>
+    </DropdownMenuTrigger>
   );
 }
 
@@ -1988,32 +1989,30 @@ export default function Designer({
           <Button className="share-btn" onClick={() => setModal("share")}>
             <HugeiconsIcon icon={Share08Icon} size={15} /> Share
           </Button>
-          <div className="user-menu">
-            <button
-              type="button"
-              className="avatar-btn"
-              aria-label="Account menu"
-              aria-haspopup="menu"
-              aria-expanded={userMenuOpen}
-              onClick={() => setUserMenuOpen((open) => !open)}
-            >
-              <HugeiconsIcon icon={UserCircleIcon} size={17} />
-              <HugeiconsIcon icon={ArrowDown01Icon} size={13} />
-            </button>
-            {userMenuOpen && (
-              <div className="user-menu-popup" role="menu">
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() =>
+          <DropdownMenuTrigger
+            isOpen={userMenuOpen}
+            onOpenChange={setUserMenuOpen}
+          >
+            <Button variant="ghost" size="icon" aria-label="Account menu">
+              <Avatar size="sm">
+                <AvatarFallback>
+                  <HugeiconsIcon icon={UserCircleIcon} />
+                </AvatarFallback>
+              </Avatar>
+            </Button>
+            <DropdownMenu placement="bottom end" className="w-auto min-w-40">
+              <DropdownMenuGroup>
+                <DropdownMenuItem
+                  onAction={() =>
                     void authClient.signOut().then(() => router.push("/login"))
                   }
                 >
-                  <HugeiconsIcon icon={UserCircleIcon} size={15} /> Sign out
-                </button>
-              </div>
-            )}
-          </div>
+                  <HugeiconsIcon icon={UserCircleIcon} />
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </DropdownMenu>
+          </DropdownMenuTrigger>
         </div>
       </header>
 

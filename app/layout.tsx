@@ -13,7 +13,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" className={`${inter.variable} ${mono.variable}`}>
       <body>
         {children}
-        <Toaster />
+        <Toaster position="bottom-center" />
       </body>
     </html>
   );

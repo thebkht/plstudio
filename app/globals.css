@@ -238,65 +238,6 @@ button {
   align-items: center;
   gap: 2px;
 }
-.menu { position: relative; }
-.menu-trigger {
-  padding: 3px 9px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--ink-2);
-  font-size: var(--text-sm);
-}
-.menu-trigger:hover,
-.menu-trigger.open {
-  background: var(--surface-2);
-  color: var(--ink-1);
-}
-.menu-popup {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 40;
-  min-width: 216px;
-  padding: 5px;
-  border: 1px solid var(--hairline);
-  border-radius: 10px;
-  background: var(--surface-0);
-  box-shadow: var(--shadow-pop);
-  animation: menu-in var(--duration-fast) var(--ease-out);
-  /* Grows from the trigger it belongs to, not from its own centre. */
-  transform-origin: top left;
-}
-@keyframes menu-in {
-  from { opacity: 0; transform: scale(0.96) translateY(-4px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
-}
-.menu-item {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 7px 9px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--ink-1);
-  font-size: var(--text-sm);
-  text-align: left;
-}
-.menu-item:hover:not(:disabled) { background: var(--surface-2); }
-.menu-item:disabled { color: var(--ink-4); cursor: not-allowed; }
-.menu-item kbd {
-  color: var(--ink-3);
-  font-family: inherit;
-  font-size: var(--text-xs);
-}
-.menu-separator {
-  height: 1px;
-  margin: 5px 4px;
-  background: var(--hairline);
-}
 .status-chip {
   margin-left: 8px;
   padding: 3px 8px;
@@ -332,53 +273,6 @@ button {
 }
 .share-btn svg { color: var(--accent); }
 .share-btn:hover { background: var(--surface-2); }
-.avatar-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 4px 4px 4px 2px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--ink-2);
-}
-.avatar-btn:hover { background: var(--surface-2); }
-.avatar-btn > svg:first-child {
-  width: 30px;
-  height: 30px;
-  padding: 5px;
-  border-radius: 999px;
-  background: var(--surface-3);
-}
-.user-menu { position: relative; }
-.user-menu-popup {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 30;
-  min-width: 140px;
-  padding: 5px;
-  border: 1px solid var(--hairline);
-  border-radius: 9px;
-  background: var(--surface-0);
-  box-shadow: var(--shadow-pop);
-}
-.user-menu-popup button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 9px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--ink-1);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.user-menu-popup button:hover { background: var(--surface-2); }
-
 /* ── Side panel ────────────────────────────────────────────────────── */
 .panel {
   flex: 0 0 var(--sidebar-width);
