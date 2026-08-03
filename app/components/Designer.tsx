@@ -62,6 +62,15 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
+  ContextMenu,
+  ContextMenuGroup,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import { HoverCard } from "@/components/ui/hover-card";
+import {
   Empty,
   EmptyContent,
   EmptyDescription,
@@ -296,6 +305,112 @@ const exportTabs = [
 type MenuItem =
   | { label: string; onSelect: () => void; disabled?: boolean; hint?: string }
   | { separator: true };
+
+const KEY_STRATEGY_LABEL: Record<KeyStrategy, string> = {
+  "sequence-trigger": "Sequence + trigger",
+  identity: "Generated identity",
+  none: "Manual / none",
+};
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-2">
+      <span className="shrink-0 text-muted-foreground">{label}</span>
+      <span className="min-w-0 break-words">{value}</span>
+    </div>
+  );
+}
+
+/** Summary for the table header, so the whole card need not be read column by column. */
+function TableSummaryCard({
+  table,
+  group,
+  relationshipCount,
+}: {
+  table: Table;
+  group?: SchemaGroup;
+  relationshipCount: number;
+}) {
+  const pk = primaryKeyColumns(table);
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-baseline justify-between gap-3">
+        <strong className="min-w-0 truncate">{table.name.toUpperCase()}</strong>
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {table.columns.length} columns
+        </span>
+      </div>
+      <Separator />
+      <div className="flex flex-col gap-1 text-xs">
+        <Detail
+          label="Primary key"
+          value={
+            pk.length
+              ? pk.map((column) => column.name.toUpperCase()).join(", ")
+              : "None"
+          }
+        />
+        <Detail label="Keys" value={KEY_STRATEGY_LABEL[table.keyStrategy]} />
+        <Detail label="Schema group" value={group?.name ?? "Ungrouped"} />
+        <Detail label="Relationships" value={String(relationshipCount)} />
+        {table.comment?.trim() && (
+          <Detail label="Comment" value={table.comment} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** The hover card mirrors what the side panel shows, without a round trip. */
+function ColumnCard({
+  table,
+  column,
+  reference,
+}: {
+  table: Table;
+  column: Column;
+  reference?: { table: Table; column: Column };
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-baseline justify-between gap-3">
+        <strong className="min-w-0 truncate">{column.name.toUpperCase()}</strong>
+        <span
+          className="shrink-0 font-mono text-xs"
+          style={{ color: typeColorVar(column.type) }}
+        >
+          {column.type}
+          {column.size ? `(${column.size})` : ""}
+        </span>
+      </div>
+      {(column.pk || column.unique || column.notNull || column.fk) && (
+        <div className="flex flex-wrap gap-1">
+          {column.pk && <Badge variant="secondary">Primary key</Badge>}
+          {column.fk && <Badge variant="secondary">Foreign key</Badge>}
+          {column.unique && <Badge variant="secondary">Unique</Badge>}
+          {column.notNull && <Badge variant="secondary">Not null</Badge>}
+        </div>
+      )}
+      <Separator />
+      <div className="flex flex-col gap-1 text-xs">
+        <Detail label="Table" value={table.name.toUpperCase()} />
+        {reference && (
+          <Detail
+            label="References"
+            value={`${reference.table.name.toUpperCase()}(${reference.column.name.toUpperCase()})`}
+          />
+        )}
+        {column.defaultValue.trim() && (
+          <Detail label="Default" value={column.defaultValue} />
+        )}
+        {column.check.trim() && <Detail label="Check" value={column.check} />}
+        {column.comment?.trim() && (
+          <Detail label="Comment" value={column.comment} />
+        )}
+      </div>
+    </div>
+  );
+}
 
 /** Dock controls are icon-only, so each one carries its label as a tooltip. */
 function DockButton({
@@ -657,6 +772,21 @@ export default function Designer({
         )
       : schema.tables;
   }, [schema.tables, tableQuery]);
+  const foreignKeyTarget = (column: Column) => {
+    if (!column.fk) return undefined;
+    const target = schema.tables.find((item) => item.id === column.fk!.tableId);
+    const targetColumn = target?.columns.find(
+      (item) => item.id === column.fk!.columnId,
+    );
+    return target && targetColumn
+      ? { table: target, column: targetColumn }
+      : undefined;
+  };
+
+  /** Relationships to tables outside this subset are dropped by normalization. */
+  const tableDDL = (table: Table) =>
+    generateDDL({ ...schema, tables: [table] });
+
   const compatibleForeignKeyTargets = (column: Column) =>
     schema.tables
       .filter(
@@ -3039,9 +3169,12 @@ export default function Designer({
               const position = livePosition(table);
               const moving = dragPosition?.id === table.id;
               return (
+                <ContextMenuTrigger
+                  key={table.id}
+                  onOpenChange={(open) => open && setSelectedId(table.id)}
+                >
                 <div
                   className={`table-card ${selectedId === table.id ? "selected" : ""} ${moving ? "moving" : ""}`}
-                  key={table.id}
                   role="button"
                   tabIndex={0}
                   aria-pressed={selectedId === table.id}
@@ -3062,9 +3195,29 @@ export default function Designer({
                     style={{ background: table.color.a }}
                     aria-hidden="true"
                   />
-                  <div
+                  <HoverCard
                     className="table-head"
+                    isDisabled={moving || grabbing || linking !== null}
                     onPointerDown={(event) => onHeaderDown(event, table)}
+                    content={
+                      <TableSummaryCard
+                        table={table}
+                        group={
+                          table.schemaId
+                            ? (schema.groups ?? []).find(
+                                (item) => item.id === table.schemaId,
+                              )
+                            : undefined
+                        }
+                        relationshipCount={
+                          relationships.filter(
+                            (item) =>
+                              item.from.id === table.id ||
+                              item.to.id === table.id,
+                          ).length
+                        }
+                      />
+                    }
                   >
                     <span className="table-name">
                       {table.name.toUpperCase()}
@@ -3076,13 +3229,21 @@ export default function Designer({
                           ? "IDENTITY"
                           : ""}
                     </span>
-                  </div>
+                  </HoverCard>
                   {table.columns.map((column) => (
-                    <div
+                    <HoverCard
                       className="table-row"
                       key={column.id}
                       data-table-id={table.id}
                       data-column-id={column.id}
+                      isDisabled={moving || grabbing || linking !== null}
+                      content={
+                        <ColumnCard
+                          table={table}
+                          column={column}
+                          reference={foreignKeyTarget(column)}
+                        />
+                      }
                     >
                       <span
                         className="row-grip"
@@ -3124,9 +3285,59 @@ export default function Designer({
                           {column.size ? `(${column.size})` : ""}
                         </span>
                       </span>
-                    </div>
+                    </HoverCard>
                   ))}
                 </div>
+                <ContextMenu className="w-auto min-w-52">
+                  <ContextMenuLabel>{table.name.toUpperCase()}</ContextMenuLabel>
+                  <ContextMenuGroup>
+                    <ContextMenuItem
+                      isDisabled={readOnly}
+                      onAction={() => addColumn(table.id)}
+                    >
+                      <HugeiconsIcon icon={PlusSignIcon} />
+                      Add column
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                      onAction={() => {
+                        setSelectedId(table.id);
+                        setPanelTab("tables");
+                        setSidebarOpen(true);
+                      }}
+                    >
+                      <HugeiconsIcon icon={Table01Icon} />
+                      Edit in side panel
+                    </ContextMenuItem>
+                  </ContextMenuGroup>
+                  <ContextMenuSeparator />
+                  <ContextMenuGroup>
+                    <ContextMenuItem
+                      isDisabled={readOnly}
+                      onAction={() => makeJunction()}
+                    >
+                      <HugeiconsIcon icon={Link01Icon} />
+                      Add junction table
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                      onAction={() => void copyShareText(tableDDL(table))}
+                    >
+                      <HugeiconsIcon icon={Copy01Icon} />
+                      Copy CREATE TABLE
+                    </ContextMenuItem>
+                  </ContextMenuGroup>
+                  <ContextMenuSeparator />
+                  <ContextMenuGroup>
+                    <ContextMenuItem
+                      variant="destructive"
+                      isDisabled={readOnly}
+                      onAction={() => deleteTable(table.id)}
+                    >
+                      <HugeiconsIcon icon={Delete02Icon} />
+                      Delete table
+                    </ContextMenuItem>
+                  </ContextMenuGroup>
+                </ContextMenu>
+                </ContextMenuTrigger>
               );
             })}
           </div>
