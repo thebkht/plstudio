@@ -46,11 +46,11 @@ function keyStrategyArtifacts(
   const sequenceName = shorten(`${tableName}_seq`, used);
   if (strategy === "identity") return [];
   return [
-    `  create sequence ${sequenceName}`,
-    "  start with 500",
-    "  increment by 1",
-    "  nocache",
-    "  nocycle;",
+    `create sequence ${sequenceName}`,
+    "start with 500",
+    "increment by 1",
+    "nocache",
+    "nocycle;",
   ];
 }
 
@@ -206,7 +206,7 @@ export function generateDDL(schema: Schema) {
       out.push(
         ...artifacts,
         ...(index < sequenceTables.length - 1
-          ? ["  ---------------------------------------------------------"]
+          ? ["---------------------------------------------------------"]
           : []),
       );
   });
