@@ -148,11 +148,22 @@ const RELATIONSHIP_KEYS = ["id", "startTableId", "startFieldId", "endTableId", "
 const GROUP_KEYS = ["id", "name", "x", "y", "width", "height", "color"] as const;
 const MEMO_KEYS = ["id", "text", "x", "y", "width", "height", "color"] as const;
 
+/**
+ * Ids are unique by definition in the domain, so a repeated id is always damage —
+ * typically two clients having seeded the same document, whose records the CRDT
+ * merges rather than dedupes. Reading keeps the first and drops the rest so a
+ * damaged document still renders, rather than duplicating every table on screen.
+ */
+const byId = <T extends { id: string }>(items: T[]) => {
+  const seen = new Set<string>();
+  return items.filter((item) => !seen.has(item.id) && seen.add(item.id));
+};
+
 const readColumn = (map: Y.Map<unknown>): Column => ({ ...readRecord<Column>(map, COLUMN_KEYS), fk: (map.get("fk") as Column["fk"]) ?? null });
 
 const readTable = (map: Y.Map<unknown>): Table => ({
   ...readRecord<Table>(map, TABLE_KEYS),
-  columns: ((map.get("columns") as Y.Array<Y.Map<unknown>> | undefined)?.toArray() ?? []).map(readColumn),
+  columns: byId(((map.get("columns") as Y.Array<Y.Map<unknown>> | undefined)?.toArray() ?? []).map(readColumn)),
 });
 
 /**
@@ -167,9 +178,9 @@ export function schemaFromYDoc(ydoc: Y.Doc, overrides: { id?: string; revision?:
     name: (root.meta.get("name") as string) ?? "Untitled",
     revision: overrides.revision ?? 0,
     schemaFormatVersion: (root.meta.get("schemaFormatVersion") as number) ?? SCHEMA_FORMAT_VERSION,
-    tables: root.tables.toArray().map(readTable),
-    relationships: root.relationships.toArray().map((map) => readRecord<Relationship>(map, RELATIONSHIP_KEYS)),
-    groups: root.groups.toArray().map((map) => readRecord<SchemaGroup>(map, GROUP_KEYS)),
-    memos: root.memos.toArray().map((map) => readRecord<Memo>(map, MEMO_KEYS)),
+    tables: byId(root.tables.toArray().map(readTable)),
+    relationships: byId(root.relationships.toArray().map((map) => readRecord<Relationship>(map, RELATIONSHIP_KEYS))),
+    groups: byId(root.groups.toArray().map((map) => readRecord<SchemaGroup>(map, GROUP_KEYS))),
+    memos: byId(root.memos.toArray().map((map) => readRecord<Memo>(map, MEMO_KEYS))),
   };
 }

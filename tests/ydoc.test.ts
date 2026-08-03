@@ -175,3 +175,28 @@ describe("per-user undo", () => {
     expect(merged.tables[1].name).toBe("SIGNUP");
   });
 });
+
+describe("duplicate damage", () => {
+  it("reads a doc that two clients both seeded as a single copy", () => {
+    // Exactly the double-seed failure: a client seeds locally, then the server's
+    // own copy arrives and the CRDT merges the two rather than replacing.
+    const schema = makeDemoSchema();
+    const a = seed(schema);
+    const b = seed(schema);
+    sync(a, b);
+
+    expect(schemaRoot(a).tables.length).toBe(4); // merged, genuinely duplicated
+    expect(read(a, schema).tables.map((table) => table.name)).toEqual(["STUDENT", "ENROLLMENT"]);
+    expect(read(a, schema)).toEqual(read(b, schema));
+  });
+
+  it("drops duplicated columns, groups and memos too", () => {
+    const schema = { ...makeDemoSchema(), groups: [makeSchemaGroup("Billing")], memos: [makeMemo("note")] };
+    const a = seed(schema);
+    sync(a, seed(schema));
+    const merged = read(a, schema);
+    expect(merged.groups).toHaveLength(1);
+    expect(merged.memos).toHaveLength(1);
+    expect(merged.tables[0].columns.map((column) => column.id)).toEqual(schema.tables[0].columns.map((column) => column.id));
+  });
+});

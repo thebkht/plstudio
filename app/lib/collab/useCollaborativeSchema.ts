@@ -63,17 +63,30 @@ export function useCollaborativeSchema({
     [projectId, ydoc],
   );
 
-  // Seed, then mirror every document change — local or remote — into React state.
+  // Held in a ref because it is a seed, not a subscription: re-seeding on every
+  // server render would fight concurrent edits.
+  const seedRef = useRef(initialSchema);
+  seedRef.current = initialSchema;
+
+  /**
+   * Seeding must never race the server. Writing the initial schema into a doc
+   * that is about to receive the server's copy does not overwrite it — the CRDT
+   * *merges* both, duplicating every table. So a connected client seeds only
+   * once the server has said the document is genuinely empty.
+   */
+  const seedIfEmpty = useCallback(() => {
+    if (isEmptyDoc(ydoc)) applySchemaToYDoc(ydoc, seedRef.current);
+  }, [ydoc]);
+
+  // Mirror every document change — local or remote — into React state.
   useEffect(() => {
-    if (isEmptyDoc(ydoc)) applySchemaToYDoc(ydoc, initialSchema);
-    setSchemaState(readSchema());
     const sync = () => setSchemaState(readSchema());
     ydoc.on("update", sync);
+    // With no server, nothing else will ever populate this doc.
+    if (!collabUrl || !identity) seedIfEmpty();
+    sync();
     return () => { ydoc.off("update", sync); };
-    // `initialSchema` is a seed, not a subscription: re-seeding on every server
-    // render would fight concurrent edits.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, readSchema, ydoc]);
+  }, [collabUrl, identity, readSchema, seedIfEmpty, ydoc]);
 
   // The undo manager is built after seeding, so the seed itself is never undoable.
   useEffect(() => {
@@ -105,6 +118,8 @@ export function useCollaborativeSchema({
       },
       onStatus: ({ status: next }) => setStatus(next === "connected" ? "connected" : next === "connecting" ? "connecting" : "disconnected"),
       onAuthenticationFailed: () => setStatus("disconnected"),
+      // Only now is "empty" trustworthy: the server has sent everything it has.
+      onSynced: () => seedIfEmpty(),
     });
     providerRef.current = provider;
 
@@ -133,7 +148,7 @@ export function useCollaborativeSchema({
       setPeers([]);
       setStatus(collabUrl ? "connecting" : "local");
     };
-  }, [collabUrl, identity, projectId, shareToken, workspaceSlug, ydoc]);
+  }, [collabUrl, identity, projectId, seedIfEmpty, shareToken, workspaceSlug, ydoc]);
 
   const commit = useCallback(
     (next: Schema) => { if (!readOnly) applySchemaToYDoc(ydoc, next, localOrigin); },
