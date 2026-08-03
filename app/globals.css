@@ -649,32 +649,6 @@ button {
 }
 .issue.error { border-left-color: var(--danger); }
 .issue:hover { background: var(--surface-2); }
-.issue-strip {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 12px;
-  margin: 0 20px 12px;
-  padding: 12px 14px;
-  border: 1px solid rgb(220 38 38 / 24%);
-  border-radius: 12px;
-  background: #fff7f7;
-  color: var(--danger);
-  font-size: var(--text-sm);
-  line-height: 1.4;
-}
-.issue-strip > svg { flex: 0 0 auto; margin-top: 2px; }
-.issue-strip-copy { min-width: 0; overflow-wrap: anywhere; }
-.issue-strip .btn {
-  min-height: 40px;
-  justify-self: end;
-  white-space: nowrap;
-}
-@media (max-width: 720px) {
-  .issue-strip { grid-template-columns: auto minmax(0, 1fr); }
-  .issue-strip .btn { grid-column: 2; justify-self: start; }
-}
-
 /* ── Floating dock ─────────────────────────────────────────────────── */
 .dock {
   position: absolute;
@@ -1103,57 +1077,12 @@ button {
 .danger {
   color: var(--destructive) !important;
 }
-.modal-backdrop {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  display: grid;
-  place-items: center;
-  background: color-mix(in oklch, var(--background) 68%, transparent);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  animation: scrim-in var(--duration-base) var(--ease-out);
-}
-.modal {
-  width: min(780px, calc(100% - 32px));
-  height: min(650px, calc(100% - 32px));
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid color-mix(in oklch, var(--foreground) 14%, transparent);
-  border-radius: 16px;
-  background: var(--card);
-  box-shadow: 0 28px 80px color-mix(in oklch, var(--background) 50%, transparent);
-  animation: modal-in var(--duration-slow) var(--ease-out);
-}
-.modal-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--line);
-}
-.tabs {
-  display: flex;
-  gap: 4px;
-}
-.tab {
-  min-height: 34px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--muted-foreground);
-}
-.tab.active {
-  background: color-mix(in oklch, var(--foreground) 8%, transparent);
-  color: var(--text);
-}
 .code {
-  flex: 1;
+  /* Bounded so a long export scrolls inside the dialog instead of growing it. */
+  max-height: 60vh;
   overflow: auto;
   margin: 0;
-  padding: 18px;
+  padding: 18px 0;
   color: var(--foreground);
   font:
     12px/1.6 ui-monospace,
@@ -1213,36 +1142,6 @@ button {
 }
 .sql-input::selection { background: color-mix(in oklch, var(--primary) 25%, transparent); }
 .sql-input:focus { box-shadow: inset 0 0 0 2px color-mix(in oklch, var(--primary) 45%, transparent); }
-.import-area {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 16px;
-}
-.import-area textarea {
-  flex: 1;
-  min-height: 250px;
-}
-.parse-result {
-  padding: 10px 12px;
-  border-radius: 9px;
-  background: color-mix(in oklch, var(--accent) 8%, transparent);
-  color: var(--accent);
-  font-size: var(--text-2xs);
-}
-.parse-error {
-  background: color-mix(in oklch, var(--destructive) 10%, transparent);
-  color: var(--destructive);
-}
-@keyframes scrim-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes modal-in {
-  from { opacity: 0; transform: scale(0.97) translateY(6px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
-}
 /*
  * Reduced motion removes travel, not feedback: opacity and color still
  * respond, so pressing a control is still visibly acknowledged.
@@ -1393,26 +1292,6 @@ button {
 .share-readonly-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 20; padding: .55rem 1rem; background: var(--primary); color: white; text-align: center; font-size: .85rem; }
 .share-readonly-banner a { color: white; font-weight: 700; }
 .share-read-only { padding-top: 2.25rem; }
-.share-modal { height: auto; max-height: min(650px, calc(100% - 32px)); }
-.share-section { display: grid; gap: .75rem; padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--line); }
-.share-section h3, .share-section p { margin: 0; }
-.share-section p { color: var(--muted-foreground); font-size: .85rem; }
-.share-section > .btn { width: fit-content; }
-.share-link-row { display: flex; align-items: center; gap: .5rem; }
-.share-link-row .input { flex: 1; min-width: 0; }
-@media (max-width: 640px) { .share-link-row { align-items: stretch; flex-direction: column; } }
-.dashboard-shell { max-width: 78rem; margin: auto; }
-.dashboard-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 2rem; }
-.dashboard-actions { display: flex; align-items: center; gap: 1rem; }
-.eyebrow { margin: 0 0 .25rem; color: var(--muted-foreground); font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; }
-.project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1rem; }
-.project-card { display: block; padding: 1.25rem; border: 1px solid var(--border); border-radius: .75rem; background: var(--card); color: inherit !important; text-decoration: none; transition: transform .15s ease, box-shadow .15s ease; }
-.project-card:hover { transform: translateY(-2px); box-shadow: 0 .75rem 2rem rgb(0 0 0 / 8%); }
-.project-card h2 { margin: 0 0 .75rem; font-size: 1.05rem; }
-.project-card p, .project-card small { color: var(--muted-foreground); }
-.settings-card { margin-top: 2rem; }
-.appbar-user { display: inline-flex; align-items: center; gap: .4rem; margin-left: auto; border: 0; background: transparent; color: inherit; cursor: pointer; }
-
 /* DrawDB-inspired product surfaces. The existing editor tokens remain the
    source of truth for canvas behavior; these layers define the shared shell. */
 .public-page, .templates-page { min-height: 100vh; background: #f4f4f5; color: #18181b; overflow: hidden; }

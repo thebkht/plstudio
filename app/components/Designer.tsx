@@ -42,8 +42,37 @@ import {
 } from "@hugeicons/core-free-icons";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Alert, AlertAction, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import {
   DropdownMenu,
   DropdownMenuGroup,
@@ -200,6 +229,14 @@ function highlightSql(source: string): ReactNode[] {
   return pieces;
 }
 
+type ExportTab = "ddl" | "plsql" | "combined";
+
+const exportTabs = [
+  ["ddl", "DDL"],
+  ["plsql", "PL/SQL Packages"],
+  ["combined", "Combined"],
+] as const satisfies ReadonlyArray<readonly [ExportTab, string]>;
+
 type MenuItem =
   | { label: string; onSelect: () => void; disabled?: boolean; hint?: string }
   | { separator: true };
@@ -314,9 +351,8 @@ export default function Designer({
   const [workspaceEmail, setWorkspaceEmail] = useState("");
   const [workspaceInviteLink, setWorkspaceInviteLink] = useState("");
   const [workspaceInviteBusy, setWorkspaceInviteBusy] = useState(false);
-  const [exportTab, setExportTab] = useState<"ddl" | "plsql" | "combined">(
-    "ddl",
-  );
+  const [exportTab, setExportTab] = useState<ExportTab>("ddl");
+  const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [importText, setImportText] = useState("");
   const [importMessage, setImportMessage] = useState<{
     ok: boolean;
@@ -1738,10 +1774,9 @@ export default function Designer({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        if (modal) setModal(null);
-        else if (openMenu) setOpenMenu(null);
-        else if (userMenuOpen) setUserMenuOpen(false);
-        else if (selectedId) setSelectedId(null);
+        // Overlays dismiss themselves; Escape only clears canvas selection.
+        if (modal || openMenu || userMenuOpen || confirmRevoke) return;
+        if (selectedId) setSelectedId(null);
         else if (selectedGroupId) setSelectedGroupId(null);
         return;
       }
@@ -2928,171 +2963,240 @@ export default function Designer({
         </div>
       </div>
 
-      {modal === "share" && (
-        <div className="modal-backdrop" onMouseDown={() => setModal(null)}>
-          <div className="modal share-modal" role="dialog" aria-modal="true" aria-label="Share project" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="modal-head">
-              <div><strong>Share project</strong><div className="brand-sub">Invite people to collaborate on this diagram.</div></div>
-              <Button className="btn ghost" aria-label="Close dialog" onClick={() => setModal(null)}><HugeiconsIcon icon={Cancel01Icon} size={15} /></Button>
-            </div>
-            <section className="share-section">
-              <h3>Project invite link</h3>
-              <p>Anyone with the link can preview the project. Sign-in is required to edit.</p>
-              {shareLink ? <div className="share-link-row"><Input aria-label="Project invite link" value={shareLink} readOnly /><Button className="btn" onClick={() => void copyShareText(shareLink)}><HugeiconsIcon icon={Copy01Icon} size={15} /> Copy</Button></div> : <Button className="btn primary" isDisabled={shareBusy} onClick={() => void generateShareLink()}>{shareBusy ? "Generating…" : "Generate invite link"}</Button>}
-              {shareLink && <Button className="btn danger" isDisabled={shareBusy} onClick={() => { if (window.confirm("Revoke this link and generate a new one?")) void generateShareLink(); }}>{shareBusy ? "Generating…" : "Revoke and generate new link"}</Button>}
-            </section>
-            {workspaceSlug && <section className="share-section">
-              <h3>Invite to workspace</h3>
-              <p>Send a single-use invitation to a workspace member.</p>
-              <div className="share-link-row"><Input aria-label="Invitee email" type="email" placeholder="person@example.com" value={workspaceEmail} onChange={(event) => setWorkspaceEmail(event.target.value)} /><Button className="btn primary" isDisabled={workspaceInviteBusy || !workspaceEmail.trim()} onClick={() => void inviteToWorkspace()}>{workspaceInviteBusy ? "Generating…" : "Generate link"}</Button></div>
-              {workspaceInviteLink && <div className="share-link-row"><Input aria-label="Workspace invitation link" value={workspaceInviteLink} readOnly /><Button className="btn" onClick={() => void copyShareText(workspaceInviteLink)}><HugeiconsIcon icon={Copy01Icon} size={15} /> Copy</Button></div>}
-            </section>}
-            {shareError && <p className="error-text">{shareError}</p>}
-          </div>
-        </div>
-      )}
-
-      {modal === "export" && (
-        <div className="modal-backdrop" onMouseDown={() => setModal(null)}>
-          <div
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Export SQL"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="modal-head">
-              <div className="tabs">
-                {(
-                  [
-                    ["ddl", "DDL"],
-                    ["plsql", "PL/SQL Packages"],
-                    ["combined", "Combined"],
-                  ] as const
-                ).map(([key, label]) => (
-                  <Button
-                    className={`tab ${exportTab === key ? "active" : ""}`}
-                    key={key}
-                    onClick={() => setExportTab(key)}
-                  >
-                    {label}
-                  </Button>
-                ))}
-              </div>
-              <div className="toolbar">
-                <Button
-                  className="btn ghost"
-                  aria-label="Copy export"
-                  onClick={copyOutput}
-                >
-                  {copied ? (
-                    <HugeiconsIcon icon={Tick02Icon} size={15} color="var(--type-binary)" />
-                  ) : (
-                    <HugeiconsIcon icon={Copy01Icon} size={15} />
-                  )}
-                </Button>
-                <Button
-                  className="btn ghost"
-                  aria-label="Download export"
-                  onClick={download}
-                >
-                  <HugeiconsIcon icon={Download04Icon} size={15} />
-                </Button>
-                <Button
-                  className="btn ghost"
-                  aria-label="Close dialog"
-                  onClick={() => setModal(null)}
-                >
-                  <HugeiconsIcon icon={Cancel01Icon} size={15} />
-                </Button>
-              </div>
-            </div>
-            {errors.length > 0 && (
-              <div className="issue-strip danger">
-                <HugeiconsIcon icon={Cancel01Icon} size={14} />
-                <span className="issue-strip-copy">
-                  Export blocked: {errors[0].message} ({errors.length} error(s))
-                </span>
-                <Button className="btn" onClick={clearInvalidForeignKeys}>
-                  Clear invalid references
-                </Button>
-              </div>
-            )}
-            <pre className="code">
-              <code>{highlightSql(output)}</code>
-            </pre>
-          </div>
-        </div>
-      )}
-
-      {modal === "import" && (
-        <div className="modal-backdrop" onMouseDown={() => setModal(null)}>
-          <div
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Import Oracle DDL"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="modal-head">
-              <div>
-                <strong>Import Oracle DDL</strong>
-                <div className="brand-sub">
-                  Supported CREATE TABLE subset · all-or-nothing
-                </div>
-              </div>
-              <Button
-                className="btn ghost"
-                aria-label="Close dialog"
-                onClick={() => setModal(null)}
-              >
-                <HugeiconsIcon icon={Cancel01Icon} size={15} />
-              </Button>
-            </div>
-            <div className="import-area">
-              <div className="sql-editor">
-                <pre
-                  ref={importHighlightRef}
-                  className="sql-highlight"
-                  aria-hidden="true"
-                >
-                  <code>{highlightSql(importText)}</code>
-                </pre>
-                <Textarea
-                  aria-label="Oracle DDL input"
-                  className="textarea sql-input"
-                  placeholder="CREATE TABLE STUDENT ( ID NUMBER NOT NULL, NAME VARCHAR2(100), CONSTRAINT PK_STUDENT PRIMARY KEY (ID) );"
-                  value={importText}
-                  onScroll={(event) => {
-                    if (importHighlightRef.current) {
-                      importHighlightRef.current.scrollTop =
-                        event.currentTarget.scrollTop;
-                      importHighlightRef.current.scrollLeft =
-                        event.currentTarget.scrollLeft;
-                    }
-                  }}
-                  onChange={(event) => setImportText(event.target.value)}
+      <Dialog
+        isOpen={modal === "share"}
+        onOpenChange={(open) => !open && setModal(null)}
+      >
+        <DialogHeader>
+          <DialogTitle>Share project</DialogTitle>
+          <DialogDescription>
+            Invite people to collaborate on this diagram.
+          </DialogDescription>
+        </DialogHeader>
+        <FieldGroup>
+          <Field>
+            <FieldLabel>Project invite link</FieldLabel>
+            <FieldDescription>
+              Anyone with the link can preview the project. Sign-in is required
+              to edit.
+            </FieldDescription>
+            {shareLink ? (
+              <div className="flex gap-2">
+                <Input
+                  aria-label="Project invite link"
+                  value={shareLink}
+                  readOnly
                 />
-              </div>
-              {importMessage && (
-                <div
-                  className={`parse-result ${importMessage.ok ? "" : "parse-error"}`}
+                <Button
+                  variant="outline"
+                  onClick={() => void copyShareText(shareLink)}
                 >
-                  {importMessage.text}
+                  <HugeiconsIcon icon={Copy01Icon} data-icon="inline-start" />
+                  Copy
+                </Button>
+              </div>
+            ) : (
+              <Button
+                className="self-start"
+                isDisabled={shareBusy}
+                onClick={() => void generateShareLink()}
+              >
+                {shareBusy ? "Generating…" : "Generate invite link"}
+              </Button>
+            )}
+            {shareLink && (
+              <Button
+                variant="outline"
+                className="self-start"
+                isDisabled={shareBusy}
+                onClick={() => setConfirmRevoke(true)}
+              >
+                Revoke and generate new link
+              </Button>
+            )}
+          </Field>
+          {workspaceSlug && (
+            <Field>
+              <FieldLabel>Invite to workspace</FieldLabel>
+              <FieldDescription>
+                Send a single-use invitation to a workspace member.
+              </FieldDescription>
+              <div className="flex gap-2">
+                <Input
+                  aria-label="Invitee email"
+                  type="email"
+                  placeholder="person@example.com"
+                  value={workspaceEmail}
+                  onChange={(event) => setWorkspaceEmail(event.target.value)}
+                />
+                <Button
+                  isDisabled={workspaceInviteBusy || !workspaceEmail.trim()}
+                  onClick={() => void inviteToWorkspace()}
+                >
+                  {workspaceInviteBusy ? "Generating…" : "Generate link"}
+                </Button>
+              </div>
+              {workspaceInviteLink && (
+                <div className="flex gap-2">
+                  <Input
+                    aria-label="Workspace invitation link"
+                    value={workspaceInviteLink}
+                    readOnly
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => void copyShareText(workspaceInviteLink)}
+                  >
+                    <HugeiconsIcon icon={Copy01Icon} data-icon="inline-start" />
+                    Copy
+                  </Button>
                 </div>
               )}
-              <div className="toolbar">
-                <Button className="btn" onClick={() => setImportText(ddl)}>
-                  Use current export
-                </Button>
-                <Button className="btn primary" onClick={importSchema}>
-                  <HugeiconsIcon icon={FileUploadIcon} size={15} /> Parse and replace
-                </Button>
-              </div>
+            </Field>
+          )}
+          {shareError && (
+            <Alert variant="destructive">
+              <AlertTitle>{shareError}</AlertTitle>
+            </Alert>
+          )}
+        </FieldGroup>
+      </Dialog>
+
+      <AlertDialog isOpen={confirmRevoke} onOpenChange={setConfirmRevoke}>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Revoke this link?</AlertDialogTitle>
+          <AlertDialogDescription>
+            The current link stops working immediately and a new one is
+            generated in its place.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => setConfirmRevoke(false)}>
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              setConfirmRevoke(false);
+              void generateShareLink();
+            }}
+          >
+            Revoke and generate
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialog>
+
+      <Dialog
+        isOpen={modal === "export"}
+        onOpenChange={(open) => !open && setModal(null)}
+        className="sm:max-w-3xl"
+      >
+        <DialogHeader>
+          <DialogTitle className="sr-only">Export SQL</DialogTitle>
+        </DialogHeader>
+        <Tabs
+          selectedKey={exportTab}
+          onSelectionChange={(key) => setExportTab(key as ExportTab)}
+        >
+          <div className="flex items-center justify-between gap-2 pr-10">
+            <TabsList>
+              {exportTabs.map(([key, label]) => (
+                <TabsTrigger key={key} id={key}>
+                  {label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Copy export"
+                onClick={copyOutput}
+              >
+                <HugeiconsIcon icon={copied ? Tick02Icon : Copy01Icon} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Download export"
+                onClick={download}
+              >
+                <HugeiconsIcon icon={Download04Icon} />
+              </Button>
             </div>
           </div>
+          {errors.length > 0 && (
+            <Alert variant="destructive" className="mt-4">
+              <HugeiconsIcon icon={Cancel01Icon} />
+              <AlertTitle>
+                Export blocked: {errors[0].message} ({errors.length} error(s))
+              </AlertTitle>
+              <AlertAction>
+                <Button variant="outline" onClick={clearInvalidForeignKeys}>
+                  Clear invalid references
+                </Button>
+              </AlertAction>
+            </Alert>
+          )}
+          {exportTabs.map(([key]) => (
+            <TabsContent key={key} id={key}>
+              <pre className="code">
+                <code>{highlightSql(output)}</code>
+              </pre>
+            </TabsContent>
+          ))}
+        </Tabs>
+      </Dialog>
+
+      <Dialog
+        isOpen={modal === "import"}
+        onOpenChange={(open) => !open && setModal(null)}
+        className="sm:max-w-3xl"
+      >
+        <DialogHeader>
+          <DialogTitle>Import Oracle DDL</DialogTitle>
+          <DialogDescription>
+            Supported CREATE TABLE subset · all-or-nothing
+          </DialogDescription>
+        </DialogHeader>
+        <div className="sql-editor">
+          <pre
+            ref={importHighlightRef}
+            className="sql-highlight"
+            aria-hidden="true"
+          >
+            <code>{highlightSql(importText)}</code>
+          </pre>
+          <Textarea
+            aria-label="Oracle DDL input"
+            className="sql-input"
+            placeholder="CREATE TABLE STUDENT ( ID NUMBER NOT NULL, NAME VARCHAR2(100), CONSTRAINT PK_STUDENT PRIMARY KEY (ID) );"
+            value={importText}
+            onScroll={(event) => {
+              if (importHighlightRef.current) {
+                importHighlightRef.current.scrollTop =
+                  event.currentTarget.scrollTop;
+                importHighlightRef.current.scrollLeft =
+                  event.currentTarget.scrollLeft;
+              }
+            }}
+            onChange={(event) => setImportText(event.target.value)}
+          />
         </div>
-      )}
+        {importMessage && (
+          <Alert variant={importMessage.ok ? "default" : "destructive"}>
+            <AlertTitle>{importMessage.text}</AlertTitle>
+          </Alert>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setImportText(ddl)}>
+            Use current export
+          </Button>
+          <Button onClick={importSchema}>
+            <HugeiconsIcon icon={FileUploadIcon} data-icon="inline-start" />
+            Parse and replace
+          </Button>
+        </DialogFooter>
+      </Dialog>
 
     </div>
   );
