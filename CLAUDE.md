@@ -75,6 +75,8 @@ Three things Postgres used to do implicitly and the store now does explicitly �
 
 `PUT` implements optimistic concurrency: if the stored `revision` differs from the client's it returns **409 `REVISION_CONFLICT`** with the current record, unless `{ overwrite: true }` is passed. The new revision is `max(stored, incoming) + 1`. `SCHEMA_FORMAT_VERSION` (currently `3`) is stamped server-side on every write — bump it in `app/lib/schema.ts` when the JSON shape changes.
 
+`scripts/migrate-from-neon.ts` imports an existing Postgres database into `DATA_DIR` (`DATABASE_URL=… pnpm tsx scripts/migrate-from-neon.ts`, `--force` to re-import). It reads only, so it can be re-run and verified before anything is dropped. `pg` is a devDependency for its sake alone.
+
 Because storage is a directory, the app needs a **persistent volume** — it cannot run on an ephemeral-filesystem host. In Docker the `web` and `collab` services must mount the *same* volume, or collab's mirror writes go somewhere the web app never reads.
 
 ### Realtime collaboration

@@ -124,7 +124,10 @@ async function writeProject(record: ProjectRecord) {
   return record;
 }
 
-type NewProject = Pick<ProjectRecord, "id" | "name" | "organizationId" | "createdBy" | "schemaJson" | "revision" | "schemaFormatVersion">;
+// The optional fields exist for the Neon import, which has to preserve the
+// original timestamps and share link; normal creation leaves them off.
+type NewProject = Pick<ProjectRecord, "id" | "name" | "organizationId" | "createdBy" | "schemaJson" | "revision" | "schemaFormatVersion">
+  & Partial<Pick<ProjectRecord, "createdAt" | "updatedAt" | "shareTokenHash">>;
 
 /**
  * Write-if-absent: `app/editor/page.tsx` creates a project from inside an RSC
@@ -134,7 +137,7 @@ export async function createProject(input: NewProject) {
   const existing = await readProject(input.id);
   if (existing) return existing;
   const now = new Date();
-  return writeProject({ ...input, createdAt: now, updatedAt: now, shareTokenHash: null });
+  return writeProject({ ...input, createdAt: input.createdAt ?? now, updatedAt: input.updatedAt ?? now, shareTokenHash: input.shareTokenHash ?? null });
 }
 
 export async function updateProject(id: string, patch: Partial<Omit<ProjectRecord, "id" | "createdAt">>) {
