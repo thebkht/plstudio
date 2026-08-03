@@ -1,5 +1,27 @@
-import Link from "next/link";
 import { requireWorkspace } from "@/app/lib/session";
 import { canManageMembers } from "@/app/lib/workspace";
 import SettingsClient from "@/app/components/SettingsClient";
-export default async function SettingsPage({ params }: { params: Promise<{ workspace: string }> }) { const { workspace } = await params; const { organization, role } = await requireWorkspace(workspace); return <main className="dashboard-shell"><header className="workspace-topbar"><Link href="/"><span className="brand-mark"><span className="brand-mark-icon"><span className="brand-mark-icon-glyph">⌁</span></span><span className="brand-mark-word">draw<span>SQL</span></span></span></Link><nav><Link href={`/${workspace}`}>Projects</Link><Link href="/templates">Templates</Link></nav><Link className="account-link" href={`/${workspace}`}>Back to workspace</Link></header><div className="dashboard-header settings-page-heading"><div><p className="eyebrow">Workspace</p><h1>Settings</h1></div></div><SettingsClient workspace={workspace} organizationId={organization.id} organizationName={organization.name} canManage={canManageMembers(role)} /></main>; }
+import WorkspaceTopbar from "@/app/components/WorkspaceTopbar";
+
+export default async function SettingsPage({ params }: { params: Promise<{ workspace: string }> }) {
+  const { workspace } = await params;
+  const { organization, role } = await requireWorkspace(workspace);
+  return (
+    <main className="dashboard-shell">
+      <WorkspaceTopbar
+        links={[
+          { href: `/${workspace}`, label: "Projects" },
+          { href: "/templates", label: "Templates" },
+        ]}
+        account={{ href: `/${workspace}`, label: "Back to workspace" }}
+      />
+      <div className="dashboard-header settings-page-heading">
+        <div>
+          <p className="eyebrow">Workspace</p>
+          <h1>Settings</h1>
+        </div>
+      </div>
+      <SettingsClient workspace={workspace} organizationId={organization.id} organizationName={organization.name} canManage={canManageMembers(role)} />
+    </main>
+  );
+}
