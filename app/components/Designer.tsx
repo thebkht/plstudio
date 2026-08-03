@@ -258,12 +258,14 @@ export default function Designer({
   initialSchema,
   projectId,
   workspaceSlug,
+  workspaceId,
   shareToken,
   readOnly = false,
 }: {
   initialSchema: Schema;
   projectId: string;
   workspaceSlug?: string;
+  workspaceId?: string;
   shareToken?: string;
   readOnly?: boolean;
 }) {
@@ -1347,7 +1349,7 @@ export default function Designer({
     setShareError("");
     try {
       await (authClient.organization as any).setActive({ organizationSlug: workspaceSlug });
-      const result = await (authClient.organization as any).inviteMember({ email: workspaceEmail.trim(), role: "member" });
+      const result = await (authClient.organization as any).inviteMember({ organizationId: workspaceId, email: workspaceEmail.trim(), role: "member" });
       if (result.error || !result.data?.id) throw new Error(result.error?.message || "Could not create workspace invitation.");
       const url = `${window.location.origin}/invite/${result.data.id}`;
       setWorkspaceInviteLink(url);

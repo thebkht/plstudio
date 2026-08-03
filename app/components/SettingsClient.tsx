@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { authClient } from "@/app/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-export default function SettingsClient({ workspace, organizationName, canManage }: { workspace: string; organizationName: string; canManage: boolean }) {
+export default function SettingsClient({ workspace, organizationId, organizationName, canManage }: { workspace: string; organizationId: string; organizationName: string; canManage: boolean }) {
   const [members, setMembers] = useState<any[]>([]);
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
@@ -18,7 +18,7 @@ export default function SettingsClient({ workspace, organizationName, canManage 
   }, [workspace]);
 
   const invite = async () => {
-    const result = await (authClient.organization as any).inviteMember({ email: email.trim(), role: "member" });
+    const result = await (authClient.organization as any).inviteMember({ organizationId, email: email.trim(), role: "member" });
     if (result.data?.id) {
       const url = `${window.location.origin}/invite/${result.data.id}`;
       try {
