@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { generateDDL } from "@/app/lib/generators";
+import { generateDDL, generateDML } from "@/app/lib/generators";
 import { parseCreateTable } from "@/app/lib/parser";
 import { makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, normalizeMemos, normalizeGroups, normalizeRelationships, tableWidth } from "@/app/lib/schema";
 import { validateCheckExpression, validateSchema, validateTypeSpec } from "@/app/lib/validation";
@@ -192,5 +192,45 @@ describe("Oracle schema model", () => {
       { id: "legacy", text: "", x: 160, y: 120, width: 280, height: 170, color: "yellow" },
     ]);
     expect(normalizeMemos(undefined)).toEqual([]);
+  });
+
+  it("generates DML package body with Ins, Upd, Del procedures matching requested structure", () => {
+    const schema = {
+      id: "schema_1",
+      name: "Osm Schema",
+      revision: 1,
+      schemaFormatVersion: 3,
+      tables: [
+        {
+          id: "tbl_1",
+          name: "Osm_R_Operations",
+          x: 0,
+          y: 0,
+          color: { a: "#000", b: "#000" },
+          keyStrategy: "sequence-trigger" as const,
+          columns: [
+            { id: "c1", name: "Operation_Id", type: "NUMBER" as const, size: "", notNull: true, pk: true, unique: false, defaultValue: "", check: "", fk: null },
+            { id: "c2", name: "Operation_Code", type: "VARCHAR2" as const, size: "50", notNull: false, pk: false, unique: false, defaultValue: "", check: "", fk: null },
+            { id: "c3", name: "Module_Code", type: "VARCHAR2" as const, size: "50", notNull: false, pk: false, unique: false, defaultValue: "", check: "", fk: null },
+            { id: "c4", name: "State", type: "VARCHAR2" as const, size: "1", notNull: false, pk: false, unique: false, defaultValue: "", check: "", fk: null },
+            { id: "c5", name: "Modify_On", type: "DATE" as const, size: "", notNull: false, pk: false, unique: false, defaultValue: "", check: "", fk: null },
+            { id: "c6", name: "Modify_By", type: "NUMBER" as const, size: "", notNull: false, pk: false, unique: false, defaultValue: "", check: "", fk: null },
+          ],
+        },
+      ],
+    };
+    const dml = generateDML(schema);
+    expect(dml).toContain("create or replace package body Osm_Dml is");
+    expect(dml).toContain("Procedure Ins_Operation(Io_Row in out nocopy Osm_R_Operations%rowtype) is");
+    expect(dml).toContain("Io_Row.Operation_Id := Osm_R_Operations_Seq.Nextval;");
+    expect(dml).toContain("Io_Row.Modify_On    := sysdate;");
+    expect(dml).toContain("Io_Row.Modify_By    := Core.User_Env.Get_User_Id;");
+    expect(dml).toContain("insert into Osm_R_Operations values Io_Row;");
+    expect(dml).toContain("Procedure Upd_Operation(Io_Row in out nocopy Osm_R_Operations%rowtype) is");
+    expect(dml).toContain("update Osm_R_Operations");
+    expect(dml).toContain("where Operation_Id = Io_Row.Operation_Id;");
+    expect(dml).toContain("Procedure Del_Operation(i_Operation_Id number) is");
+    expect(dml).toContain("set State     = 'P',");
+    expect(dml).toContain("end Osm_Dml;");
   });
 });
