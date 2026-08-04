@@ -13,7 +13,7 @@ import { afterAll, expect, it } from "vitest";
  * The tables come from `drizzle-kit push` rather than hand-written DDL so the
  * test cannot drift from `db/schema.ts`.
  */
-const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawsql-auth-"));
+const root = await fs.mkdtemp(path.join(os.tmpdir(), "plstudio-auth-"));
 process.env.DATA_DIR = root;
 process.env.BETTER_AUTH_SECRET = "test-secret-0123456789";
 process.env.BETTER_AUTH_URL = "http://localhost:3000";

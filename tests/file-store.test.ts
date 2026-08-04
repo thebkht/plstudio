@@ -5,7 +5,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 // `db/paths.ts` resolves DATA_DIR once at module load, so it has to be set
 // before the store is imported — hence the dynamic import below.
-const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawsql-store-"));
+const root = await fs.mkdtemp(path.join(os.tmpdir(), "plstudio-store-"));
 process.env.DATA_DIR = root;
 
 const store = await import("@/db/file-store");

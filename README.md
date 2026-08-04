@@ -1,8 +1,8 @@
-# Oracle Schema Designer (DrawSQL)
+# Oracle Schema Designer (PLStudio)
 
 A modern, visual Oracle 12.2+ database schema designer and visual canvas built with Next.js, React, Tailwind CSS, TypeScript, and Hocuspocus (Yjs) for real-time collaboration.
 
-![DrawSQL Canvas](https://raw.githubusercontent.com/placeholder/hero.png)
+![PLStudio Canvas](https://raw.githubusercontent.com/placeholder/hero.png)
 
 ## Features
 

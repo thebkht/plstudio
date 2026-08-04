@@ -572,7 +572,7 @@ export default function Designer({
 
   useEffect(() => {
     try {
-      const saved = window.localStorage.getItem("drawsql-settings");
+      const saved = window.localStorage.getItem("plstudio-settings") || window.localStorage.getItem("drawsql-settings");
       if (saved)
         setRelationSettings((current) => ({
           ...current,
@@ -585,7 +585,7 @@ export default function Designer({
 
   useEffect(() => {
     window.localStorage.setItem(
-      "drawsql-settings",
+      "plstudio-settings",
       JSON.stringify(relationSettings),
     );
   }, [relationSettings]);
@@ -2741,7 +2741,7 @@ export default function Designer({
   return (
     <div className={`app ${readOnly ? "share-read-only" : ""}`}>
       <header className="appbar">
-        <a className="appbar-brand" aria-label="DrawSQL home" href="/">
+        <a className="appbar-brand" aria-label="PLStudio home" href="/">
           <BrandMark compact />
         </a>
         <div className="appbar-main">

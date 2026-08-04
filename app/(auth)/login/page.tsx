@@ -37,7 +37,7 @@ export default function LoginPage() {
         <form onSubmit={submit}>
           <CardHeader>
             <CardTitle>Welcome back</CardTitle>
-            <CardDescription>Sign in to your DrawSQL account.</CardDescription>
+            <CardDescription>Sign in to your PLStudio account.</CardDescription>
           </CardHeader>
           <CardContent>
             <FieldGroup>

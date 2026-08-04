@@ -17,7 +17,7 @@ export default function WorkspaceTopbar({
 }) {
   return (
     <header className="workspace-topbar">
-      <Link href="/" aria-label="DrawSQL home">
+      <Link href="/" aria-label="PLStudio home">
         <BrandMark />
       </Link>
       <Separator orientation="vertical" className="h-6" />

@@ -24,7 +24,7 @@ There is **no database server**. `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` are 
 
 ## Architecture
 
-An Oracle 12.2+ schema designer: a DrawSQL-style canvas where you draw tables, and the app generates Oracle DDL and PL/SQL CRUD packages.
+An Oracle 12.2+ schema designer: a PLStudio-style canvas where you draw tables, and the app generates Oracle DDL and PL/SQL CRUD packages.
 
 **The domain model is the center of the app.** `app/lib/schema.ts` defines `Schema → Table → Column`, and everything else is a pure function over it:
 

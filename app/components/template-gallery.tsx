@@ -39,7 +39,7 @@ export default function TemplateGallery({ workspace }: { workspace?: string }) {
   return (
     <main className="templates-page">
       <header className="templates-header">
-        <Link href={homeHref} className="brand-link" aria-label="DrawSQL home">
+        <Link href={homeHref} className="brand-link" aria-label="PLStudio home">
           <BrandMark />
         </Link>
         <Separator orientation="vertical" className="h-6" />
@@ -93,7 +93,7 @@ export default function TemplateGallery({ workspace }: { workspace?: string }) {
           <Badge variant="secondary">Coming soon</Badge>
         </TabsContent>
       </Tabs>
-      <footer className="templates-footer">DrawSQL · Visual Oracle schema design</footer>
+      <footer className="templates-footer">PLStudio · Visual Oracle schema design</footer>
     </main>
   );
 }
