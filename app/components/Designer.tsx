@@ -203,8 +203,16 @@ import BrandMark from "@/app/components/BrandMark";
 /** Header offset for row anchors: the colour strip sits above the title bar. */
 const HEADER_HEIGHT = TABLE_COLOR_STRIP_HEIGHT + TABLE_HEADER_HEIGHT;
 const ROW_HEIGHT = TABLE_FIELD_HEIGHT;
-const CANVAS_WIDTH = 2400;
-const CANVAS_HEIGHT = 1800;
+/**
+ * The world is not fixed. A constant box pins cards against a wall as soon as
+ * the diagram fills it — `resolveTablePosition` then has nowhere to push a drop
+ * to, so releases near an edge get flung across the canvas. These are floors;
+ * `canvasExtent` grows the world to stay `CANVAS_MARGIN` ahead of the content.
+ */
+const CANVAS_MIN_WIDTH = 4800;
+const CANVAS_MIN_HEIGHT = 3600;
+/** Room kept beyond the furthest content, so dragging outward never hits a wall. */
+const CANVAS_MARGIN = 2400;
 const MIN_ZOOM = 0.45;
 const MAX_ZOOM = 1.8;
 /** Movement before a press is treated as a drag rather than a tap. */
@@ -218,6 +226,8 @@ const MEMO_MAX_HEIGHT = 520;
 const GROUP_MIN_WIDTH = 360;
 const GROUP_MIN_HEIGHT = 260;
 const GROUP_HEADER_HEIGHT = 42;
+/** Clearance kept between two table cards when a drop is resolved. */
+const TABLE_GAP = 18;
 /** How far an edge runs straight out of its anchor before it may turn. Long
  *  enough to clear the cardinality marker that sits on that run. */
 const EDGE_STUB = 44;
@@ -228,8 +238,22 @@ const MEMO_COLORS: { id: MemoColor; label: string; background: string; border: s
   { id: "pink", label: "Pink", background: "#ffe4e9", border: "#d85d78" },
 ];
 
+/** Extent of the drawable world: everything on it, plus a margin to grow into. */
+function canvasExtent(schema: Schema) {
+  const far = [
+    ...schema.tables.map((table) => ({ x: table.x + tableWidth(table), y: table.y + tableHeight(table) })),
+    ...(schema.groups ?? []).map((group) => ({ x: group.x + group.width, y: group.y + group.height })),
+    ...(schema.memos ?? []).map((memo) => ({ x: memo.x + memo.width, y: memo.y + memo.height })),
+  ];
+  return {
+    width: Math.max(CANVAS_MIN_WIDTH, Math.ceil(Math.max(0, ...far.map((point) => point.x)) + CANVAS_MARGIN)),
+    height: Math.max(CANVAS_MIN_HEIGHT, Math.ceil(Math.max(0, ...far.map((point) => point.y)) + CANVAS_MARGIN)),
+  };
+}
+
 function repairInitialLayout(schema: Schema): Schema {
   const next = cloneSchema(schema);
+  const world = canvasExtent(next);
   const gap = 24;
   const overlaps = (table: Table, x: number, y: number) => next.tables.some((other) => {
     if (other.id === table.id) return false;
@@ -249,7 +273,7 @@ function repairInitialLayout(schema: Schema): Schema {
         { x: startX + step, y: startY + step }, { x: startX - step, y: startY + step },
         { x: startX + step, y: startY - step }, { x: startX - step, y: startY - step },
       ];
-      const free = candidates.find((candidate) => candidate.x >= 0 && candidate.y >= 0 && candidate.x <= CANVAS_WIDTH - tableWidth(table) && candidate.y <= CANVAS_HEIGHT - tableHeight(table) && !overlaps(table, candidate.x, candidate.y));
+      const free = candidates.find((candidate) => candidate.x >= 0 && candidate.y >= 0 && candidate.x <= world.width - tableWidth(table) && candidate.y <= world.height - tableHeight(table) && !overlaps(table, candidate.x, candidate.y));
       if (free) { table.x = free.x; table.y = free.y; break; }
     }
   });
@@ -710,13 +734,20 @@ export default function Designer({
   } | null>(null);
   const springsRef = useRef<{ x: Spring; y: Spring } | null>(null);
   const stopAnimationRef = useRef<(() => void) | null>(null);
+  /**
+   * Memoized on `schema`, so the world never resizes mid-gesture — bounds that
+   * moved under a live drag would fight the pointer.
+   */
+  const world = useMemo(() => canvasExtent(schema), [schema]);
   const panRef = useRef(pan);
   const zoomRef = useRef(zoom);
   const schemaRef = useRef(schema);
+  const worldRef = useRef(world);
   const dragPositionRef = useRef(dragPosition);
   panRef.current = pan;
   zoomRef.current = zoom;
   schemaRef.current = schema;
+  worldRef.current = world;
 
   useEffect(() => {
     try {
@@ -1118,9 +1149,9 @@ export default function Designer({
   const tableBounds = useCallback(
     (table: Table) => ({
       minX: 0,
-      maxX: CANVAS_WIDTH - tableWidth(table),
+      maxX: worldRef.current.width - tableWidth(table),
       minY: 0,
-      maxY: CANVAS_HEIGHT - tableHeight(table),
+      maxY: worldRef.current.height - tableHeight(table),
     }),
     [],
   );
@@ -1134,29 +1165,39 @@ export default function Designer({
       x: Math.max(bounds.minX, Math.min(bounds.maxX, Math.round(value.x))),
       y: Math.max(bounds.minY, Math.min(bounds.maxY, Math.round(value.y))),
     });
-    const collides = (position: Vec) => tables.some((other) => {
-      if (other.id === id) return false;
-      const width = tableWidth(table);
-      const otherWidth = tableWidth(other);
-      return position.x < other.x + otherWidth + 18 &&
-        position.x + width + 18 > other.x &&
-        position.y < other.y + tableHeight(other) + 18 &&
-        position.y + tableHeight(table) + 18 > other.y;
-    });
-    const initial = clamp({ x, y });
-    if (!collides(initial)) return initial;
-    const step = 48;
-    for (let ring = 1; ring <= 24; ring += 1) {
-      const candidates = [
-        { x: x + ring * step, y }, { x: x - ring * step, y },
-        { x, y: y + ring * step }, { x, y: y - ring * step },
-        { x: x + ring * step, y: y + ring * step }, { x: x - ring * step, y: y + ring * step },
-        { x: x + ring * step, y: y - ring * step }, { x: x - ring * step, y: y - ring * step },
+    const hits = (position: Vec, other: Table) =>
+      position.x < other.x + tableWidth(other) + TABLE_GAP &&
+      position.x + tableWidth(table) + TABLE_GAP > other.x &&
+      position.y < other.y + tableHeight(other) + TABLE_GAP &&
+      position.y + tableHeight(table) + TABLE_GAP > other.y;
+    const overlapping = (position: Vec) => tables.find((other) => other.id !== id && hits(position, other));
+    /**
+     * Slide out of `other` along whichever axis it is least buried in, so the
+     * table rests against its neighbour instead of being flung to the first
+     * free slot in some arbitrary search order.
+     */
+    const pushOut = (position: Vec, other: Table) => {
+      const moves = [
+        { x: other.x - tableWidth(table) - TABLE_GAP, y: position.y },
+        { x: other.x + tableWidth(other) + TABLE_GAP, y: position.y },
+        { x: position.x, y: other.y - tableHeight(table) - TABLE_GAP },
+        { x: position.x, y: other.y + tableHeight(other) + TABLE_GAP },
       ];
-      const free = candidates.map(clamp).find((candidate) => !collides(candidate));
-      if (free) return free;
+      return moves.reduce((best, move) =>
+        Math.hypot(move.x - position.x, move.y - position.y) <
+        Math.hypot(best.x - position.x, best.y - position.y) ? move : best);
+    };
+    let position = clamp({ x, y });
+    // Each push can land on a different neighbour; a handful of passes settles
+    // any realistic cluster, and the cap keeps a packed canvas from spinning.
+    for (let pass = 0; pass < 8; pass += 1) {
+      const other = overlapping(position);
+      if (!other) return position;
+      const next = clamp(pushOut(position, other));
+      if (next.x === position.x && next.y === position.y) break; // clamped against an edge
+      position = next;
     }
-    return initial;
+    return position;
   }, [tableBounds]);
 
   /** Pan limits that always keep some of the diagram on screen. */
@@ -1166,24 +1207,35 @@ export default function Designer({
     const width = rect?.width ?? 0;
     const height = rect?.height ?? 0;
     return {
-      minX: Math.min(0, width - CANVAS_WIDTH * scale) - slack,
+      minX: Math.min(0, width - worldRef.current.width * scale) - slack,
       maxX: slack,
-      minY: Math.min(0, height - CANVAS_HEIGHT * scale) - slack,
+      minY: Math.min(0, height - worldRef.current.height * scale) - slack,
       maxY: slack,
     };
   }, []);
 
-  const commitPosition = useCallback((id: string, x: number, y: number, schemaId?: string | null) => {
+  /**
+   * Writes an already-resolved position. Deliberately leaves `dragPosition`
+   * alone: the release path commits *before* the settle animation runs, and
+   * clearing it here would snap the card to its target and then yank it back to
+   * the drop point on the animation's first frame.
+   */
+  const writeTablePosition = useCallback((id: string, x: number, y: number, schemaId?: string | null) => {
     if (readOnly) return;
-    const resolved = resolveTablePosition(id, x, y);
     commitWith((current) => ({
       ...current,
       tables: current.tables.map((table) =>
-        table.id === id ? { ...table, x: resolved.x, y: resolved.y, schemaId: schemaId === undefined ? table.schemaId : schemaId || undefined } : table,
+        table.id === id ? { ...table, x, y, schemaId: schemaId === undefined ? table.schemaId : schemaId || undefined } : table,
       ),
     }));
+  }, [commitWith, readOnly]);
+
+  const commitPosition = useCallback((id: string, x: number, y: number, schemaId?: string | null) => {
+    if (readOnly) return;
+    const resolved = resolveTablePosition(id, x, y);
+    writeTablePosition(id, resolved.x, resolved.y, schemaId);
     setDragPosition(null);
-  }, [commitWith, readOnly, resolveTablePosition]);
+  }, [readOnly, resolveTablePosition, writeTablePosition]);
 
   const stopAnimation = useCallback(() => {
     stopAnimationRef.current?.();
@@ -1278,8 +1330,8 @@ export default function Designer({
         } else {
           setResizeGroup({
             id: group.id,
-            width: Math.max(GROUP_MIN_WIDTH, Math.min(CANVAS_WIDTH - group.x, gesture.originWidth! + point.x - gesture.grabX)),
-            height: Math.max(GROUP_MIN_HEIGHT, Math.min(CANVAS_HEIGHT - group.y, gesture.originHeight! + point.y - gesture.grabY)),
+            width: Math.max(GROUP_MIN_WIDTH, Math.min(worldRef.current.width - group.x, gesture.originWidth! + point.x - gesture.grabX)),
+            height: Math.max(GROUP_MIN_HEIGHT, Math.min(worldRef.current.height - group.y, gesture.originHeight! + point.y - gesture.grabY)),
           });
         }
         return;
@@ -1320,8 +1372,8 @@ export default function Designer({
         (event.clientY - rect.top - panRef.current.y) / zoomRef.current -
         gesture.grabY;
       const next = {
-        x: rubberClamp(rawX, bounds.minX, bounds.maxX, CANVAS_WIDTH),
-        y: rubberClamp(rawY, bounds.minY, bounds.maxY, CANVAS_HEIGHT),
+        x: rubberClamp(rawX, bounds.minX, bounds.maxX, worldRef.current.width),
+        y: rubberClamp(rawY, bounds.minY, bounds.maxY, worldRef.current.height),
       };
       gesture.tracker.add(next.x, next.y, now);
       setDragPosition({ id: table.id, ...next });
@@ -1423,14 +1475,24 @@ export default function Designer({
           tableCenter.y >= position.y + GROUP_HEADER_HEIGHT && tableCenter.y <= position.y + position.height;
       });
       const flicked = Math.hypot(velocity.x, velocity.y) > 60;
+      /**
+       * Commit on release, not on settle. Every gesture entry point calls
+       * `stopAnimation()`, which cancels the frame loop without running its
+       * `onSettle` — so anything that grabbed, panned or zoomed inside the
+       * settle window used to discard the move silently. The card kept looking
+       * right only because the stale `dragPosition` masked it, until the next
+       * drag claimed that slot and the table snapped back to its old position.
+       * The spring is now purely cosmetic: the schema already holds `target`,
+       * so an interrupted animation lands there instead of reverting.
+       */
+      writeTablePosition(table.id, target.x, target.y, targetGroup?.id ?? null);
       animateTo(
         from,
         target,
         velocity,
         flicked ? FLICK_SPRING : SETTLE_SPRING,
         (value) => setDragPosition({ id: table.id, ...value }),
-        (value) =>
-          commitPosition(table.id, Math.round(value.x), Math.round(value.y), targetGroup?.id ?? null),
+        () => setDragPosition(null),
       );
     };
 
@@ -1444,7 +1506,7 @@ export default function Designer({
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", cancel);
     };
-  }, [animateTo, commitGroupPosition, commitGroupSize, commitMemoPosition, commitMemoSize, commitPosition, dragGroupPosition, dragMemoPosition, groupBounds, liveGroup, memoBounds, panBounds, resolveTablePosition, resizeGroup, resizeMemo, tableBounds]);
+  }, [animateTo, commitGroupPosition, commitGroupSize, commitMemoPosition, commitMemoSize, writeTablePosition, dragGroupPosition, dragMemoPosition, groupBounds, liveGroup, memoBounds, panBounds, resolveTablePosition, resizeGroup, resizeMemo, tableBounds]);
 
   /**
    * Wheel handling is attached natively because React registers `wheel`
@@ -1647,9 +1709,9 @@ export default function Designer({
   function memoBounds(memo: Memo) {
     return {
       minX: 0,
-      maxX: CANVAS_WIDTH - memo.width,
+      maxX: world.width - memo.width,
       minY: 0,
-      maxY: CANVAS_HEIGHT - memo.height,
+      maxY: world.height - memo.height,
     };
   }
 
@@ -1661,8 +1723,8 @@ export default function Designer({
       ...next,
       groups: (next.groups ?? []).map((item) => item.id === id ? {
         ...item,
-        x: Math.max(0, Math.min(CANVAS_WIDTH - item.width, Math.round(x))),
-        y: Math.max(0, Math.min(CANVAS_HEIGHT - item.height, Math.round(y))),
+        x: Math.max(0, Math.min(world.width - item.width, Math.round(x))),
+        y: Math.max(0, Math.min(world.height - item.height, Math.round(y))),
       } : item),
     }));
     setDragGroupPosition(null);
@@ -1674,8 +1736,8 @@ export default function Designer({
     if (!current.groups?.some((item) => item.id === id)) return;
     const group = current.groups.find((item) => item.id === id);
     if (!group) return;
-    const nextWidth = Math.max(GROUP_MIN_WIDTH, Math.min(CANVAS_WIDTH - group.x, Math.round(width)));
-    const nextHeight = Math.max(GROUP_MIN_HEIGHT, Math.min(CANVAS_HEIGHT - group.y, Math.round(height)));
+    const nextWidth = Math.max(GROUP_MIN_WIDTH, Math.min(world.width - group.x, Math.round(width)));
+    const nextHeight = Math.max(GROUP_MIN_HEIGHT, Math.min(world.height - group.y, Math.round(height)));
     commitWith((next) => ({
       ...next,
       groups: (next.groups ?? []).map((item) => item.id === id ? {
@@ -1697,9 +1759,9 @@ export default function Designer({
   function groupBounds(group: SchemaGroup) {
     return {
       minX: 0,
-      maxX: CANVAS_WIDTH - group.width,
+      maxX: world.width - group.width,
       minY: 0,
-      maxY: CANVAS_HEIGHT - group.height,
+      maxY: world.height - group.height,
     };
   }
 
@@ -3025,8 +3087,8 @@ export default function Designer({
             className="canvas"
             style={{
               transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
-              width: CANVAS_WIDTH,
-              height: CANVAS_HEIGHT,
+              width: world.width,
+              height: world.height,
               willChange: grabbing || dragPosition ? "transform" : undefined,
             }}
           >
@@ -3198,8 +3260,8 @@ export default function Designer({
             })}
             <svg
               className="edges"
-              width={CANVAS_WIDTH}
-              height={CANVAS_HEIGHT}
+              width={world.width}
+              height={world.height}
               aria-hidden="true"
             >
             {relationships.map((relationship) => {
@@ -3457,8 +3519,8 @@ export default function Designer({
           {linking && (
             <svg
               className="linking-overlay"
-              width={CANVAS_WIDTH}
-              height={CANVAS_HEIGHT}
+              width={world.width}
+              height={world.height}
               style={{
                 transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
               }}

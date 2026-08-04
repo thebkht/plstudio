@@ -12,4 +12,6 @@ coverage
 .pnpm-store
 
 # Auth database and project JSON files.
-/data
+data
+
+graphify-out/
