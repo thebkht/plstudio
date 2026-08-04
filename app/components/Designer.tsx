@@ -144,7 +144,7 @@ import {
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { exportSchema, generateDDL, generatePLSQL } from "@/app/lib/generators";
+import { generateDDL, generatePLSQL } from "@/app/lib/generators";
 import { parseCreateTable } from "@/app/lib/parser";
 import { typeColorVar } from "@/app/lib/datatype-color";
 import {
@@ -939,11 +939,27 @@ export default function Designer({
       );
   const issues = useMemo(() => validateSchema(schema), [schema]);
   const errors = issues.filter((issue) => issue.severity === "error");
-  const ddl = useMemo(() => generateDDL(schema), [schema]);
-  const plsql = useMemo(() => generatePLSQL(schema), [schema]);
-  const combined = useMemo(() => exportSchema(schema), [schema]);
+  /**
+   * Generating SQL is the most expensive thing a schema change can trigger, and
+   * almost every schema change discards the result: the code panel and the
+   * export dialog are the only readers. Gate each generator on a visible reader
+   * so typing doesn't rebuild DDL nobody is looking at, and build `combined`
+   * from the two strings rather than calling `exportSchema`, which regenerates
+   * both.
+   */
+  const showsDDL =
+    panelMode === "code" || (modal === "export" && exportTab !== "plsql");
+  const showsPLSQL = modal === "export" && exportTab !== "ddl";
+  const ddl = useMemo(
+    () => (showsDDL ? generateDDL(schema) : ""),
+    [schema, showsDDL],
+  );
+  const plsql = useMemo(
+    () => (showsPLSQL ? generatePLSQL(schema) : ""),
+    [schema, showsPLSQL],
+  );
   const output =
-    exportTab === "ddl" ? ddl : exportTab === "plsql" ? plsql : combined;
+    exportTab === "ddl" ? ddl : exportTab === "plsql" ? plsql : `${ddl}\n\n${plsql}`;
 
   /**
    * Every edit lands in the shared document; undo history is the CRDT's, scoped
@@ -3832,7 +3848,7 @@ export default function Designer({
           </Alert>
         )}
         <DialogFooter>
-          <Button variant="outline" onClick={() => setImportText(ddl)}>
+          <Button variant="outline" onClick={() => setImportText(generateDDL(schema))}>
             Use current export
           </Button>
           <Button onClick={importSchema}>
