@@ -1,7 +1,7 @@
 import { requireWorkspace } from "@/app/lib/session";
 import { canManageMembers } from "@/app/lib/workspace";
-import SettingsClient from "@/app/components/SettingsClient";
-import WorkspaceTopbar from "@/app/components/WorkspaceTopbar";
+import SettingsClient from "@/app/components/settings-client";
+import WorkspaceTopbar from "@/app/components/workspace-topbar";
 
 export default async function SettingsPage({ params }: { params: Promise<{ workspace: string }> }) {
   const { workspace } = await params;

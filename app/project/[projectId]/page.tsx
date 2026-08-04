@@ -1,4 +1,4 @@
-import Designer from "@/app/components/Designer";
+import Designer from "@/app/components/designer";
 import { requirePersonalProjectAccess } from "@/app/lib/session";
 import type { Schema } from "@/app/lib/schema";
 

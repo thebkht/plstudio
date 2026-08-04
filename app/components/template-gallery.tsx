@@ -6,7 +6,7 @@ import { DatabaseIcon, GitForkIcon, Layout01Icon } from "@hugeicons/core-free-ic
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { makeDemoSchema, type Schema } from "@/app/lib/schema";
-import BrandMark from "@/app/components/BrandMark";
+import BrandMark from "@/app/components/brand-mark";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";

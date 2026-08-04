@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { member, organization } from "@/db/schema";
 import { auth } from "@/app/lib/auth";
-import TemplateGallery from "@/app/components/TemplateGallery";
+import TemplateGallery from "@/app/components/template-gallery";
 
 export default async function TemplatesPage() {
   const session = await auth.api.getSession({ headers: await headers() });

@@ -42,7 +42,7 @@ An Oracle 12.2+ schema designer: a DrawSQL-style canvas where you draw tables, a
 
 ### UI
 
-`app/components/Designer.tsx` (~1100 lines) is the whole client app — it owns schema state, selection, undo/redo history stacks, pointer-based drag/pan, zoom, and the export/import modals. `app/page.tsx` just mounts it. The spec assigns it sole ownership of state and command actions; sidebar/editor/canvas are presentation sections within it.
+`app/components/designer.tsx` is the whole client app — it owns schema state, selection, undo/redo history stacks, pointer-based drag/pan, zoom, and the export/import modals. `app/page.tsx` just mounts it. The spec assigns it sole ownership of state and command actions; sidebar/editor/canvas are presentation sections within it. Memoized presentation pieces live under `app/components/designer/` (for example `table-card.tsx`, `column-editor.tsx`, `relationship-edge.tsx`, and `primitives.tsx`); they do not own schema state or commands.
 
 Canvas geometry (`TABLE_WIDTH`, `TABLE_COLOR_STRIP_HEIGHT`, `TABLE_HEADER_HEIGHT`, `TABLE_FIELD_HEIGHT`) is defined once in `app/lib/schema.ts` alongside `tableHeight()`, and imported by `Designer.tsx`. Relationship anchors are derived from these — if the card's visual layout changes, update the constants rather than hardcoding new offsets.
 
@@ -100,6 +100,7 @@ Without `NEXT_PUBLIC_COLLAB_URL` the app degrades to single-player editing and t
 ## Conventions
 
 - Path alias `@/*` maps to the repo root, configured in both `tsconfig.json` and `vitest.config.ts`.
+- Application component filenames use kebab-case (`designer.tsx`, `collab-presence.tsx`, and so on). Component identifiers remain PascalCase. Shadcn components under `components/ui` are already kebab-case and are left as generated.
 - UI components come from shadcn with the `aria-vega` style and Base UI / react-aria-components underneath (`components.json`). Icon library is configured as `hugeicons`, but `Designer.tsx` currently imports from `lucide-react`.
 - Tests live in `tests/` and target the pure domain layer (generators, parser, validation) — not the React tree.
 - Code style is dense: single-line arrow functions and chained array methods over intermediate variables. Match it.

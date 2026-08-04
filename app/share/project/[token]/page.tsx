@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import Designer from "@/app/components/Designer";
+import Designer from "@/app/components/designer";
 import { findProjectByShareToken } from "@/app/lib/project-share";
 import { auth } from "@/app/lib/auth";
 import { type Schema } from "@/app/lib/schema";

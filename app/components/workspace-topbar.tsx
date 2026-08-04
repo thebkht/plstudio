@@ -1,5 +1,5 @@
 import Link from "next/link";
-import BrandMark from "@/app/components/BrandMark";
+import BrandMark from "@/app/components/brand-mark";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Separator } from "@/components/ui/separator";
 

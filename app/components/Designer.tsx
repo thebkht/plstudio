@@ -47,7 +47,7 @@ import {
   useCollaborativeSchema,
   type CollabUser,
 } from "@/app/lib/collab/useCollaborativeSchema";
-import { PeerAvatars, PeerCursors } from "@/app/components/CollabPresence";
+import { PeerAvatars, PeerCursors } from "@/app/components/collab-presence";
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -189,7 +189,7 @@ import {
 } from "@/app/lib/schema";
 import { validateSchema } from "@/app/lib/validation";
 import { authClient } from "@/app/lib/auth-client";
-import BrandMark from "@/app/components/BrandMark";
+import BrandMark from "@/app/components/brand-mark";
 import {
   ColumnCard,
   ColumnFlag,
@@ -218,7 +218,7 @@ const CANVAS_MIN_WIDTH = 4800;
 const CANVAS_MIN_HEIGHT = 3600;
 /** Room kept beyond the furthest content, so dragging outward never hits a wall. */
 const CANVAS_MARGIN = 2400;
-const MIN_ZOOM = 0.45;
+const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 1.8;
 /** Movement before a press is treated as a drag rather than a tap. */
 const DRAG_THRESHOLD = 4;

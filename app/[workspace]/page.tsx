@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { listProjects } from "@/db/file-store";
 import { requireWorkspace } from "@/app/lib/session";
-import NewProjectButton from "@/app/components/NewProjectButton";
-import ProjectCard from "@/app/components/ProjectCard";
-import WorkspaceTopbar from "@/app/components/WorkspaceTopbar";
+import NewProjectButton from "@/app/components/new-project-button";
+import ProjectCard from "@/app/components/project-card";
+import WorkspaceTopbar from "@/app/components/workspace-topbar";
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
   Empty,

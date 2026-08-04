@@ -6,8 +6,8 @@ import { listProjects } from "@/db/file-store";
 import { member, organization } from "@/db/schema";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import ProjectCard from "@/app/components/ProjectCard";
-import WorkspaceTopbar from "@/app/components/WorkspaceTopbar";
+import ProjectCard from "@/app/components/project-card";
+import WorkspaceTopbar from "@/app/components/workspace-topbar";
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
   Empty,
