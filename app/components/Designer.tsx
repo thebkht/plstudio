@@ -17,7 +17,6 @@ import {
   ArrowRight01Icon,
   ArrowTurnBackwardIcon,
   ArrowTurnForwardIcon,
-  Cancel01Icon,
   Copy01Icon,
   ColumnInsertIcon,
   DatabaseIcon,
@@ -38,7 +37,6 @@ import {
   SourceCodeIcon,
   StickyNote01Icon,
   Table01Icon,
-  Tick02Icon,
   UserCircleIcon,
   ZoomInAreaIcon,
   ZoomOutAreaIcon,
@@ -50,7 +48,7 @@ import {
   type CollabUser,
 } from "@/app/lib/collab/useCollaborativeSchema";
 import { PeerAvatars, PeerCursors } from "@/app/components/CollabPresence";
-import { Alert, AlertAction, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -138,7 +136,7 @@ import {
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { generateDDL, generatePLSQL } from "@/app/lib/generators";
+import { generateDDL } from "@/app/lib/generators";
 import { parseCreateTable } from "@/app/lib/parser";
 import { typeColorVar } from "@/app/lib/datatype-color";
 import {
@@ -203,6 +201,7 @@ import {
   type MenuItem,
 } from "@/app/components/designer/primitives";
 import { RelationshipEdge } from "@/app/components/designer/relationship-edge";
+import { ExportModal } from "@/app/components/designer/export-modal";
 import { TableCard } from "./designer/table-card";
 
 /** Header offset for row anchors: the colour strip sits above the title bar. */
@@ -373,19 +372,12 @@ function highlightSql(source: string): ReactNode[] {
   return pieces;
 }
 
-type ExportTab = "ddl" | "plsql" | "combined";
 type PanelTab = "tables" | "relationships";
 type PanelMode = "structure" | "code";
 
 /** Select needs a real key for "no selection", since null renders the placeholder. */
 const NO_GROUP = "__ungrouped__";
 const NO_REFERENCE = "__no_reference__";
-
-const exportTabs = [
-  ["ddl", "DDL"],
-  ["plsql", "PL/SQL Packages"],
-  ["combined", "Combined"],
-] as const satisfies ReadonlyArray<readonly [ExportTab, string]>;
 
 export default function Designer({
   initialSchema,
@@ -478,14 +470,12 @@ export default function Designer({
   const [workspaceEmail, setWorkspaceEmail] = useState("");
   const [workspaceInviteLink, setWorkspaceInviteLink] = useState("");
   const [workspaceInviteBusy, setWorkspaceInviteBusy] = useState(false);
-  const [exportTab, setExportTab] = useState<ExportTab>("ddl");
   const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [importText, setImportText] = useState("");
   const [importMessage, setImportMessage] = useState<{
     ok: boolean;
     text: string;
   } | null>(null);
-  const [copied, setCopied] = useState(false);
   const [tableQuery, setTableQuery] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [panelTab, setPanelTab] = useState<PanelTab>("tables");
@@ -905,23 +895,10 @@ export default function Designer({
    * from the two strings rather than calling `exportSchema`, which regenerates
    * both.
    */
-  const showsDDL =
-    panelMode === "code" || (modal === "export" && exportTab !== "plsql");
-  const showsPLSQL = modal === "export" && exportTab !== "ddl";
   const ddl = useMemo(
-    () => (showsDDL ? generateDDL(schema) : ""),
-    [schema, showsDDL],
+    () => (panelMode === "code" ? generateDDL(schema) : ""),
+    [panelMode, schema],
   );
-  const plsql = useMemo(
-    () => (showsPLSQL ? generatePLSQL(schema) : ""),
-    [schema, showsPLSQL],
-  );
-  const output =
-    exportTab === "ddl"
-      ? ddl
-      : exportTab === "plsql"
-        ? plsql
-        : `${ddl}\n\n${plsql}`;
 
   /**
    * Every edit lands in the shared document; undo history is the CRDT's, scoped
@@ -2192,12 +2169,6 @@ export default function Designer({
     [commitWith],
   );
 
-  const copyOutput = async () => {
-    await navigator.clipboard.writeText(output);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1200);
-  };
-
   const copyShareText = useCallback(async (value: string) => {
     try {
       await navigator.clipboard.writeText(value);
@@ -2285,15 +2256,6 @@ export default function Designer({
     } finally {
       setWorkspaceInviteBusy(false);
     }
-  };
-  const download = () => {
-    const blob = new Blob([output], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = exportTab === "plsql" ? "packages.sql" : "schema.sql";
-    link.click();
-    URL.revokeObjectURL(url);
   };
   const importSchema = () => {
     const result = parseCreateTable(importText);
@@ -4261,67 +4223,13 @@ export default function Designer({
         </AlertDialogFooter>
       </AlertDialog>
 
-      <Dialog
+      <ExportModal
         isOpen={modal === "export"}
         onOpenChange={(open) => !open && setModal(null)}
-        className="sm:max-w-3xl"
-      >
-        <DialogHeader>
-          <DialogTitle className="sr-only">Export SQL</DialogTitle>
-        </DialogHeader>
-        <Tabs
-          selectedKey={exportTab}
-          onSelectionChange={(key) => setExportTab(key as ExportTab)}
-        >
-          <div className="flex items-center justify-between gap-2 pr-10">
-            <TabsList>
-              {exportTabs.map(([key, label]) => (
-                <TabsTrigger key={key} id={key}>
-                  {label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Copy export"
-                onClick={copyOutput}
-              >
-                <HugeiconsIcon icon={copied ? Tick02Icon : Copy01Icon} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Download export"
-                onClick={download}
-              >
-                <HugeiconsIcon icon={Download04Icon} />
-              </Button>
-            </div>
-          </div>
-          {errors.length > 0 && (
-            <Alert variant="destructive" className="mt-4">
-              <HugeiconsIcon icon={Cancel01Icon} />
-              <AlertTitle>
-                Export blocked: {errors[0].message} ({errors.length} error(s))
-              </AlertTitle>
-              <AlertAction>
-                <Button variant="outline" onClick={clearInvalidForeignKeys}>
-                  Clear invalid references
-                </Button>
-              </AlertAction>
-            </Alert>
-          )}
-          {exportTabs.map(([key]) => (
-            <TabsContent key={key} id={key}>
-              <pre className="code">
-                <code>{highlightSql(output)}</code>
-              </pre>
-            </TabsContent>
-          ))}
-        </Tabs>
-      </Dialog>
+        schema={schema}
+        errors={errors}
+        onClearInvalidForeignKeys={clearInvalidForeignKeys}
+      />
 
       <Dialog
         isOpen={modal === "import"}
