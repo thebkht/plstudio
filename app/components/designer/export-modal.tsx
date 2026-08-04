@@ -16,12 +16,11 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-type ExportTab = "ddl" | "dml" | "combined";
+type ExportTab = "ddl" | "dml";
 
 const exportTabs = [
   ["ddl", "DDL"],
   ["dml", "DML"],
-  ["combined", "Combined"],
 ] as const satisfies ReadonlyArray<readonly [ExportTab, string]>;
 
 const SQL_TOKEN = /(--[^\n]*|'(?:''|[^'])*'|\b\d+(?:\.\d+)?\b|\b(?:CREATE|ALTER|DROP|TABLE|COLUMN|CONSTRAINT|PRIMARY|KEY|FOREIGN|REFERENCES|UNIQUE|CHECK|NOT|NULL|DEFAULT|AS|BEGIN|END|PACKAGE|BODY|PROCEDURE|FUNCTION|INSERT|INTO|VALUES|UPDATE|SET|DELETE|FROM|WHERE|RETURNING|INTO|COMMIT)\b)/gi;
@@ -68,15 +67,14 @@ export const ExportModal = ({
   const [exportTab, setExportTab] = useState<ExportTab>("ddl");
   const [copied, setCopied] = useState(false);
   const ddl = useMemo(
-    () => (isOpen && exportTab !== "dml" ? generateDDL(schema) : ""),
+    () => (isOpen && exportTab === "ddl" ? generateDDL(schema) : ""),
     [exportTab, isOpen, schema],
   );
   const dml = useMemo(
-    () => (isOpen && exportTab !== "ddl" ? generateDML(schema) : ""),
+    () => (isOpen && exportTab === "dml" ? generateDML(schema) : ""),
     [exportTab, isOpen, schema],
   );
-  const output =
-    exportTab === "ddl" ? ddl : exportTab === "dml" ? dml : `${ddl}\n\n${dml}`;
+  const output = exportTab === "ddl" ? ddl : dml;
 
   const copyOutput = async () => {
     await navigator.clipboard.writeText(output);
