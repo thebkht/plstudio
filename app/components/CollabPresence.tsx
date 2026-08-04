@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { AvatarStack } from "@/components/kibo-ui/avatar-stack";
 import { Cursor, CursorBody, CursorName, CursorPointer } from "@/components/kibo-ui/cursor";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,7 +13,7 @@ const initials = (name: string) => name.trim().slice(0, 2).toUpperCase() || "?";
  * cursor sits over the same table for everyone, then counter-scaled by `1/zoom`
  * so the label stays legible at any zoom level.
  */
-export function PeerCursors({ peers, zoom }: { peers: Peer[]; zoom: number }) {
+export const PeerCursors = memo(function PeerCursors({ peers, zoom }: { peers: Peer[]; zoom: number }) {
   return (
     <>
       {peers.filter((peer) => peer.cursor).map((peer) => (
@@ -32,10 +33,10 @@ export function PeerCursors({ peers, zoom }: { peers: Peer[]; zoom: number }) {
       ))}
     </>
   );
-}
+});
 
 /** Who else is in the room. Absent entirely when nobody is. */
-export function PeerAvatars({ peers, status }: { peers: Peer[]; status: CollabStatus }) {
+export const PeerAvatars = memo(function PeerAvatars({ peers, status }: { peers: Peer[]; status: CollabStatus }) {
   if (status === "local" || !peers.length) return null;
   return (
     <AvatarStack animate size={26} className="peer-avatars">
@@ -47,4 +48,4 @@ export function PeerAvatars({ peers, status }: { peers: Peer[]; status: CollabSt
       ))}
     </AvatarStack>
   );
-}
+});
