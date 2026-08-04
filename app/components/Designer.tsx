@@ -2124,22 +2124,14 @@ export default function Designer({
       x: otherOrigin.x + tableWidth(other) / 2,
       y: otherOrigin.y + tableHeight(other) / 2,
     };
-    const dx = otherCenter.x - tableCenter.x;
-    const dy = otherCenter.y - tableCenter.y;
-    const rowY = origin.y + HEADER_HEIGHT + index * ROW_HEIGHT + ROW_HEIGHT / 2;
-
-    if (Math.abs(dx) >= Math.abs(dy)) {
-      return {
-        x: origin.x + (dx >= 0 ? tableWidth(table) : 0),
-        y: rowY,
-        axis: "horizontal" as const,
-      };
-    }
-
+    // Anchors always sit on a vertical edge at the row's height, so the edge
+    // leaves the card horizontally. `direction` is that outward normal: the
+    // side facing the other table, so the line never runs back under the card.
+    const direction = otherCenter.x >= tableCenter.x ? 1 : -1;
     return {
-      x: origin.x + tableWidth(table),
-      y: rowY,
-      axis: "vertical" as const,
+      x: origin.x + (direction === 1 ? tableWidth(table) : 0),
+      y: origin.y + HEADER_HEIGHT + index * ROW_HEIGHT + ROW_HEIGHT / 2,
+      direction,
     };
   };
 
@@ -3224,16 +3216,13 @@ export default function Designer({
                   ? `M ${from.x} ${from.y} L ${to.x} ${to.y}`
                   : `M ${from.x} ${from.y} H ${midpointX - horizontalDirection * radius} Q ${midpointX} ${from.y} ${midpointX} ${from.y + verticalDirection * radius} V ${to.y - verticalDirection * radius} Q ${midpointX} ${to.y} ${midpointX + horizontalDirection * radius} ${to.y} H ${to.x}`;
                 const [fromCardinality, toCardinality] = relationshipCardinalities(relationship.relationship);
-                // Keep the markers outside the table cards. The SVG is painted
-                // before the cards, so markers placed exactly on the endpoints
-                // would be covered by the card backgrounds.
+                // Keep the markers outside the table cards: the SVG is painted
+                // before the cards, so anything over one is covered by it. Each
+                // marker rides the outward normal of its own anchor, which is
+                // the only direction guaranteed to clear that card.
                 const markerDistance = 28;
-                const fromMarker = from.axis === "horizontal"
-                  ? { x: from.x + Math.sign(to.x - from.x || relationship.to.x - relationship.from.x) * markerDistance, y: from.y }
-                  : { x: from.x, y: from.y + Math.sign(to.y - from.y || relationship.to.y - relationship.from.y) * markerDistance };
-                const toMarker = to.axis === "horizontal"
-                  ? { x: to.x - Math.sign(to.x - from.x || relationship.to.x - relationship.from.x) * markerDistance, y: to.y }
-                  : { x: to.x, y: to.y - Math.sign(to.y - from.y || relationship.to.y - relationship.from.y) * markerDistance };
+                const fromMarker = { x: from.x + from.direction * markerDistance, y: from.y };
+                const toMarker = { x: to.x + to.direction * markerDistance, y: to.y };
                 const active =
                   selectedId === relationship.from.id ||
                   selectedId === relationship.to.id;
