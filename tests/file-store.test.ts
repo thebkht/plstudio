@@ -11,6 +11,7 @@ process.env.DATA_DIR = root;
 const store = await import("@/db/file-store");
 const { makeEmptySchema, SCHEMA_FORMAT_VERSION } = await import("@/app/lib/schema");
 const { createProjectShare, hashProjectShareToken, revokeProjectShare, findProjectByShareToken } = await import("@/app/lib/project-share");
+const { migrateStorageLayout } = await import("@/scripts/migrate-storage-layout");
 
 const seed = (id: string, overrides: Partial<Parameters<typeof store.createProject>[0]> = {}) =>
   store.createProject({ id, name: id, organizationId: null, createdBy: "user-1", schemaJson: makeEmptySchema(id, id), revision: 1, schemaFormatVersion: SCHEMA_FORMAT_VERSION, ...overrides });
@@ -46,6 +47,50 @@ describe("project records", () => {
   });
 });
 
+describe("on-disk layout", () => {
+  const projects = path.join(root, "projects");
+  const exists = (file: string) => fs.stat(file).then(() => true, () => false);
+
+  it("files a project under its organization, and a personal one under its creator", async () => {
+    await seed("org-scoped", { organizationId: "org-1" });
+    await seed("personal");
+
+    expect(await exists(path.join(projects, "org-1", "org-scoped.json"))).toBe(true);
+    expect(await exists(path.join(projects, "user-1", "personal.json"))).toBe(true);
+    // The flat layout is gone, not merely unused.
+    expect(await exists(path.join(projects, "org-scoped.json"))).toBe(false);
+  });
+
+  it("has a bucket for a project with neither an organization nor a creator", async () => {
+    await seed("imported", { createdBy: null });
+    expect(await exists(path.join(projects, "_unowned", "imported.json"))).toBe(true);
+    expect((await store.readProject("imported"))!.name).toBe("imported");
+  });
+
+  it("reads a project by id alone, without being told the owner", async () => {
+    // The share-link and collab paths: whoever opens the project knows only its id.
+    await seed("p1", { organizationId: "org-1", createdBy: "user-9" });
+    expect((await store.readProject("p1"))!.organizationId).toBe("org-1");
+  });
+
+  it("moves the file when the owner changes, leaving exactly one copy", async () => {
+    await seed("p1", { organizationId: "org-1" });
+    await store.updateProject("p1", { organizationId: "org-2" });
+
+    expect(await exists(path.join(projects, "org-2", "p1.json"))).toBe(true);
+    expect(await fs.readdir(projects)).toEqual(["org-2"]);
+    expect((await store.readProject("p1"))!.organizationId).toBe("org-2");
+  });
+
+  it("moves a personal project when its guest owner links an account", async () => {
+    await seed("p1");
+    await store.reassignProjectOwner("user-1", "user-2");
+
+    expect(await fs.readdir(projects)).toEqual(["user-2"]);
+    expect((await store.readProject("p1"))!.createdBy).toBe("user-2");
+  });
+});
+
 describe("listProjects", () => {
   it("filters by organization, by owner, and to personal projects only", async () => {
     await seed("org-a", { organizationId: "org-1" });
@@ -68,6 +113,17 @@ describe("listProjects", () => {
     expect((await store.listProjects()).map((p) => p.id)).toEqual(["new", "mid", "old"]);
   });
 
+  it("merges owner directories into one ordered list", async () => {
+    await seed("a", { organizationId: "org-1" });
+    await seed("b", { createdBy: "user-2" });
+    await seed("c");
+    await store.updateProject("a", { updatedAt: new Date(2_000) });
+    await store.updateProject("b", { updatedAt: new Date(3_000) });
+    await store.updateProject("c", { updatedAt: new Date(1_000) });
+
+    expect((await store.listProjects()).map((p) => p.id)).toEqual(["b", "a", "c"]);
+  });
+
   it("is empty rather than throwing before any project exists", async () => {
     expect(await store.listProjects()).toEqual([]);
   });
@@ -84,6 +140,46 @@ describe("deleteProject", () => {
     expect(await store.readProject("p1")).toBeNull();
     expect(await store.readYDoc("p1")).toBeNull();
     expect(await store.readShareByTokenHash(hashProjectShareToken(token))).toBeNull();
+  });
+
+  it("takes the owner directory with it once it is empty", async () => {
+    await seed("p1");
+    await seed("p2");
+    await store.deleteProject("p1");
+    expect(await fs.readdir(path.join(root, "projects"))).toEqual(["user-1"]);
+
+    await store.deleteProject("p2");
+    expect(await fs.readdir(path.join(root, "projects"))).toEqual([]);
+  });
+});
+
+describe("migrate-storage-layout", () => {
+  const projects = path.join(root, "projects");
+
+  const flat = async (id: string, owned: { organizationId?: string | null; createdBy?: string | null } = {}) => {
+    await fs.mkdir(projects, { recursive: true });
+    const now = new Date().toISOString();
+    await fs.writeFile(path.join(projects, `${id}.json`), JSON.stringify({ id, name: id, organizationId: null, createdBy: "user-1", ...owned, createdAt: now, updatedAt: now, schemaJson: makeEmptySchema(id, id), revision: 1, schemaFormatVersion: SCHEMA_FORMAT_VERSION, shareTokenHash: null }));
+  };
+
+  it("moves flat files under their owner and is a no-op on a second run", async () => {
+    await flat("p1");
+    await flat("p2", { organizationId: "org-1" });
+
+    expect(await migrateStorageLayout({ log: () => {} })).toEqual({ moved: 2, skipped: 0 });
+    expect((await fs.readdir(projects)).sort()).toEqual(["org-1", "user-1"]);
+    expect((await store.readProject("p2"))!.organizationId).toBe("org-1");
+
+    expect(await migrateStorageLayout({ log: () => {} })).toEqual({ moved: 0, skipped: 0 });
+    expect((await store.listProjects()).map((p) => p.id).sort()).toEqual(["p1", "p2"]);
+  });
+
+  it("leaves a project alone when the destination is already taken", async () => {
+    await seed("p1");
+    await flat("p1");
+
+    expect(await migrateStorageLayout({ log: () => {} })).toEqual({ moved: 0, skipped: 1 });
+    expect(await fs.readdir(projects)).toContain("p1.json");
   });
 });
 

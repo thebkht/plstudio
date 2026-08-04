@@ -35,7 +35,15 @@ export type ShareRecord = {
   revokedAt: Date | null;
 };
 
-const projectFile = (id: string) => path.join(PROJECTS_DIR, `${encodeURIComponent(id)}.json`);
+/**
+ * Projects are filed under their owner — the organization when they belong to
+ * one, otherwise the creator. `createdBy` is nullable (the Neon import carries
+ * through rows that had no creator), so there has to be a bucket for neither.
+ */
+export const ownerSegment = (record: Pick<ProjectRecord, "organizationId" | "createdBy">) =>
+  encodeURIComponent(record.organizationId ?? record.createdBy ?? "_unowned");
+
+export const projectFile = (owner: string, id: string) => path.join(PROJECTS_DIR, owner, `${encodeURIComponent(id)}.json`);
 const yjsFile = (id: string) => path.join(YJS_DIR, `${encodeURIComponent(id)}.bin`);
 const shareFile = (tokenHash: string) => path.join(SHARES_DIR, `${encodeURIComponent(tokenHash)}.json`);
 
@@ -114,15 +122,55 @@ type StoredProject = Omit<ProjectRecord, "createdAt" | "updatedAt"> & { createdA
 // come back as real Dates rather than the ISO strings JSON can carry.
 const hydrate = (stored: StoredProject): ProjectRecord => ({ ...stored, createdAt: new Date(stored.createdAt), updatedAt: new Date(stored.updatedAt) });
 
-export async function readProject(id: string) {
-  const stored = await readJson<StoredProject>(projectFile(id));
-  return stored ? hydrate(stored) : null;
+const ownerDirs = () => fs.readdir(PROJECTS_DIR, { withFileTypes: true })
+  .then((entries) => entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name))
+  .catch((error) => { if (isMissing(error)) return [] as string[]; throw error; });
+
+// Every caller addresses a project by id alone — a share link is opened by
+// someone who is not the owner, and the collab server only ever knows the
+// document name — so the owner directory has to be found, not supplied. The map
+// is a hint, never an authority: a stale entry costs one failed read and a
+// rescan, which is what keeps the collab server moving a file from lying here.
+const ownerOfProject = new Map<string, string>();
+
+async function resolveProject(id: string): Promise<{ file: string; stored: StoredProject } | null> {
+  const cached = ownerOfProject.get(id);
+  if (cached) {
+    const stored = await readJson<StoredProject>(projectFile(cached, id));
+    if (stored) return { file: projectFile(cached, id), stored };
+    ownerOfProject.delete(id);
+  }
+  for (const owner of await ownerDirs()) {
+    if (owner === cached) continue;
+    const stored = await readJson<StoredProject>(projectFile(owner, id));
+    if (stored) { ownerOfProject.set(id, owner); return { file: projectFile(owner, id), stored }; }
+  }
+  return null;
 }
 
-async function writeProject(record: ProjectRecord) {
-  await writeAtomic(projectFile(record.id), JSON.stringify({ ...record, createdAt: record.createdAt.toISOString(), updatedAt: record.updatedAt.toISOString() }, null, 2));
+export async function readProject(id: string) {
+  const found = await resolveProject(id);
+  return found ? hydrate(found.stored) : null;
+}
+
+/**
+ * `previousFile` is where the record used to live: reassigning an owner (a
+ * guest linking their account, a personal project moving into a workspace)
+ * changes the directory, so the write becomes a move. New file first, old file
+ * second — an interrupted move leaves a duplicate the next write repairs,
+ * rather than no file at all.
+ */
+async function writeProject(record: ProjectRecord, previousFile?: string) {
+  const owner = ownerSegment(record);
+  const file = projectFile(owner, record.id);
+  await writeAtomic(file, JSON.stringify({ ...record, createdAt: record.createdAt.toISOString(), updatedAt: record.updatedAt.toISOString() }, null, 2));
+  ownerOfProject.set(record.id, owner);
+  if (previousFile && previousFile !== file) await fs.rm(previousFile, { force: true }).then(() => pruneOwnerDir(previousFile));
   return record;
 }
+
+/** Owner directories are cheap to make and would otherwise pile up empty. */
+const pruneOwnerDir = (file: string) => fs.rmdir(path.dirname(file)).catch(() => {});
 
 // The optional fields exist for the Neon import, which has to preserve the
 // original timestamps and share link; normal creation leaves them off.
@@ -141,27 +189,37 @@ export async function createProject(input: NewProject) {
 }
 
 export async function updateProject(id: string, patch: Partial<Omit<ProjectRecord, "id" | "createdAt">>) {
-  const existing = await readProject(id);
-  if (!existing) return null;
-  return writeProject({ ...existing, ...patch, updatedAt: patch.updatedAt ?? new Date() });
+  const found = await resolveProject(id);
+  if (!found) return null;
+  return writeProject({ ...hydrate(found.stored), ...patch, updatedAt: patch.updatedAt ?? new Date() }, found.file);
 }
 
 export const touchProject = (id: string) => updateProject(id, {});
 
 /** The explicit form of the `ON DELETE CASCADE` the foreign keys used to provide. */
 export async function deleteProject(id: string) {
-  const existing = await readProject(id);
-  await fs.rm(projectFile(id), { force: true });
+  const found = await resolveProject(id);
+  ownerOfProject.delete(id);
+  if (found) { await fs.rm(found.file, { force: true }); await pruneOwnerDir(found.file); }
   await fs.rm(yjsFile(id), { force: true });
-  if (existing?.shareTokenHash) await fs.rm(shareFile(existing.shareTokenHash), { force: true });
+  const shareTokenHash = found?.stored.shareTokenHash;
+  if (shareTokenHash) await fs.rm(shareFile(shareTokenHash), { force: true });
 }
 
 type ListFilter = { organizationId?: string; createdBy?: string; personalOnly?: boolean };
 
+const readOwnerDir = async (owner: string) => {
+  const names = await fs.readdir(path.join(PROJECTS_DIR, owner)).catch((error) => { if (isMissing(error)) return [] as string[]; throw error; });
+  return Promise.all(names.filter((name) => name.endsWith(".json")).map((name) => readJson<StoredProject>(path.join(PROJECTS_DIR, owner, name))));
+};
+
 /** Replaces every `orderBy(desc(projects.updatedAt))` query. */
 export async function listProjects(filter: ListFilter = {}) {
-  const names = await fs.readdir(PROJECTS_DIR).catch((error) => { if (isMissing(error)) return [] as string[]; throw error; });
-  const records = (await Promise.all(names.filter((name) => name.endsWith(".json")).map((name) => readJson<StoredProject>(path.join(PROJECTS_DIR, name)))))
+  // A project carrying an organization id always lives in that organization's
+  // directory, so the workspace dashboards never have to read anyone else's.
+  // The filters below still run on the record fields either way.
+  const owners = filter.organizationId === undefined ? await ownerDirs() : [encodeURIComponent(filter.organizationId)];
+  const records = (await Promise.all(owners.map(readOwnerDir))).flat()
     .filter((stored): stored is StoredProject => stored !== null)
     .map(hydrate);
   return records

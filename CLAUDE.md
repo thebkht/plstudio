@@ -60,10 +60,12 @@ Everything durable lives under `DATA_DIR` (default `./data`), resolved once in `
 
 ```
 <DATA_DIR>/auth.db                    SQLite — Better Auth tables only (db/schema.ts)
-<DATA_DIR>/projects/<projectId>.json  one ProjectRecord each
-<DATA_DIR>/yjs/<projectId>.bin        raw Yjs update log
-<DATA_DIR>/shares/<tokenHash>.json    share links
+<DATA_DIR>/projects/<ownerId>/<projectId>.json   one ProjectRecord each
+<DATA_DIR>/yjs/<projectId>.bin                   raw Yjs update log
+<DATA_DIR>/shares/<tokenHash>.json               share links
 ```
+
+`ownerId` is `organizationId ?? createdBy ?? "_unowned"` (`ownerSegment()`). Callers still address a project by **id alone** — a share link is opened by a non-owner and the collab server knows only the document name — so the store resolves id → owner itself by scanning the owner directories, memoized in a `Map` that is only ever a hint (a stale entry costs one failed read and a rescan). Changing a project's organization or creator therefore *moves* its file: `writeProject` writes the new path before removing the old one. `listProjects({ organizationId })` reads only that organization's directory; the other filters still scan.
 
 `db/file-store.ts` is the **only** module that touches project files; `db/index.ts` is the only one that opens SQLite. `ProjectRecord` keeps the field names of the old `projects` row (`schemaJson`, `revision`, `schemaFormatVersion`, `organizationId`, `createdBy`, `updatedAt`) so readers are unchanged. Projects are still scoped to Better Auth organizations and addressable at `/[workspace]/[projectId]`.
 
@@ -75,7 +77,7 @@ Three things Postgres used to do implicitly and the store now does explicitly �
 
 `PUT` implements optimistic concurrency: if the stored `revision` differs from the client's it returns **409 `REVISION_CONFLICT`** with the current record, unless `{ overwrite: true }` is passed. The new revision is `max(stored, incoming) + 1`. `SCHEMA_FORMAT_VERSION` (currently `3`) is stamped server-side on every write — bump it in `app/lib/schema.ts` when the JSON shape changes.
 
-`scripts/migrate-from-neon.ts` imports an existing Postgres database into `DATA_DIR` (`DATABASE_URL=… pnpm tsx scripts/migrate-from-neon.ts`, `--force` to re-import). It reads only, so it can be re-run and verified before anything is dropped. `pg` is a devDependency for its sake alone.
+`scripts/migrate-from-neon.ts` imports an existing Postgres database into `DATA_DIR` (`DATABASE_URL=… pnpm tsx scripts/migrate-from-neon.ts`, `--force` to re-import). It reads only, so it can be re-run and verified before anything is dropped. `pg` is a devDependency for its sake alone. `scripts/migrate-storage-layout.ts` (`pnpm tsx scripts/migrate-storage-layout.ts`, `--force` to overwrite a taken destination) renames the older flat `projects/<projectId>.json` files into their owner directory; it only touches top-level `*.json`, so re-running it does nothing.
 
 Because storage is a directory, the app needs a **persistent volume** — it cannot run on an ephemeral-filesystem host. In Docker the `web` and `collab` services must mount the *same* volume, or collab's mirror writes go somewhere the web app never reads.
 
