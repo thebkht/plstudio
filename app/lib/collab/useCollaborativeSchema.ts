@@ -21,7 +21,7 @@ export const peerColor = (id: string) => PEER_COLORS[Math.abs([...id].reduce((ha
  *
  * The `Y.Doc` exists even with no server. When `NEXT_PUBLIC_COLLAB_URL` is unset
  * or the collab service is down, this degrades to single-player editing and the
- * designer's existing debounced `PUT` remains the durability path.
+ * designer's explicit save (`PUT`) is the only durability path.
  */
 export function useCollaborativeSchema({
   projectId,

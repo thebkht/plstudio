@@ -90,7 +90,7 @@ A self-hosted **Hocuspocus** (Yjs) service in `collab/` is the source of truth f
 - `app/api/collab/token/route.ts` — the **only** place access is decided, via the same session helpers as the REST routes. It signs a 120s token bound to one `documentName`; the collab server verifies and trusts it. Read-only shares are enforced on the connection.
 - Presence (cursors, selection) rides the Yjs awareness channel — no second transport. Cursor coordinates are canvas space, never screen space.
 
-Without `NEXT_PUBLIC_COLLAB_URL` the app degrades to single-player editing and the debounced `PUT` (with its 409 toast) remains the durability path — do not delete it.
+Without `NEXT_PUBLIC_COLLAB_URL` the app degrades to single-player editing and the **explicit** save (`PUT`, with its 409 overwrite toast) is the only durability path — do not delete it. There is no autosave: nothing writes to the project file unless the user hits Save/⌘S. Renames go out with that same `PUT`, which persists `schemaJson.name` and the record's `name`; the `PATCH` route is still there but has no client caller.
 
 `nextId()` mints UUIDs because ids must be unique across *clients*, not just per session.
 

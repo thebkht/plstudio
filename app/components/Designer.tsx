@@ -672,7 +672,6 @@ export default function Designer({
     y: number;
   } | null>(null);
   const [dirty, setDirty] = useState(false);
-  const lastSavedNameRef = useRef(initialSchema.name);
   useEffect(() => {
     const repaired = prepareCanvasSchema(initialSchema);
     const changed = repaired.tables.some((table, index) => table.x !== initialSchema.tables[index]?.x || table.y !== initialSchema.tables[index]?.y);
@@ -914,8 +913,8 @@ export default function Designer({
 
   /**
    * Every edit lands in the shared document; undo history is the CRDT's, scoped
-   * to this client. `dirty` still drives the fallback save for when the collab
-   * service is unreachable.
+   * to this client. `dirty` only tracks whether an explicit save is pending —
+   * saving to the project file is manual.
    */
   const commit = useCallback(
     (next: Schema) => {
@@ -2022,7 +2021,6 @@ export default function Designer({
         const next = (await response.json()) as Schema;
         setRevision(next.revision);
         setDirty(false);
-        lastSavedNameRef.current = next.name;
       } else if (response.status === 409) {
         toast.error("This project changed elsewhere.", {
           description: "Saving now would overwrite the other changes.",
@@ -2037,41 +2035,6 @@ export default function Designer({
       toast.error("Could not reach the server.");
     }
   };
-
-  useEffect(() => {
-    if (readOnly || !dirty) return;
-    const timer = window.setTimeout(() => void save(), 1500);
-    return () => window.clearTimeout(timer);
-  }, [dirty, projectId, readOnly, schema, shareToken, workspaceSlug]);
-
-  useEffect(() => {
-    if (readOnly) return;
-    if (schema.name === lastSavedNameRef.current) return;
-    const timer = window.setTimeout(async () => {
-      const query = new URLSearchParams();
-      if (workspaceSlug) query.set("workspace", workspaceSlug);
-      if (shareToken) query.set("shareToken", shareToken);
-      const response = await fetch(
-        `/api/projects/${projectId}${query.toString() ? `?${query}` : ""}`,
-        {
-          method: "PATCH",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            name: schema.name,
-            revision: schema.revision,
-          }),
-        },
-      );
-      if (response.ok) {
-        const next = (await response.json()) as Schema;
-        setRevision(next.revision);
-        lastSavedNameRef.current = next.name;
-        setDirty(false);
-      } else if (response.status === 409)
-        toast.error("The name changed elsewhere.");
-    }, 700);
-    return () => window.clearTimeout(timer);
-  }, [projectId, readOnly, schema.name, schema.revision, shareToken, workspaceSlug]);
 
   /** Whatever the canvas selection currently is, remove it. */
   const deleteSelection = () => {
