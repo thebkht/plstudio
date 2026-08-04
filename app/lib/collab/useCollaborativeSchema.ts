@@ -136,7 +136,7 @@ export function useCollaborativeSchema({
     provider.setAwarenessField("color", peerColor(identity.id));
 
     const awareness = provider.awareness;
-    const syncPeers = () => {
+    const readPeers = () => {
       if (!awareness) return;
       setPeers(
         [...awareness.getStates().entries()]
@@ -147,11 +147,26 @@ export function useCollaborativeSchema({
           }),
       );
     };
+    /**
+     * A remote cursor fires an awareness change per frame, and `peers` is read
+     * by the designer itself — so an unthrottled sync means every peer's every
+     * pointermove re-renders the whole canvas. Coalesce to one frame, the same
+     * way `setCursor` below coalesces the send side.
+     */
+    let peersFrame: number | null = null;
+    const syncPeers = () => {
+      if (peersFrame !== null) return;
+      peersFrame = requestAnimationFrame(() => {
+        peersFrame = null;
+        readPeers();
+      });
+    };
     awareness?.on("change", syncPeers);
-    syncPeers();
+    readPeers();
 
     return () => {
       awareness?.off("change", syncPeers);
+      if (peersFrame !== null) cancelAnimationFrame(peersFrame);
       provider.destroy();
       providerRef.current = null;
       setPeers([]);
