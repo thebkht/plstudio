@@ -924,35 +924,76 @@ export default function Designer({
         )
       : schema.tables;
   }, [schema.tables, tableQuery]);
-  const foreignKeyTarget = (column: Column) => {
-    if (!column.fk) return undefined;
-    const target = schema.tables.find((item) => item.id === column.fk!.tableId);
-    const targetColumn = target?.columns.find(
-      (item) => item.id === column.fk!.columnId,
-    );
-    return target && targetColumn
-      ? { table: target, column: targetColumn }
-      : undefined;
-  };
+  /**
+   * Id indexes over the schema. The card tree resolves a foreign key target and
+   * a group for every column of every table on every render, and a linear find
+   * inside those loops makes the render quadratic in table count. Build the
+   * lookups once per schema instead.
+   */
+  const tablesById = useMemo(
+    () => new Map(schema.tables.map((table) => [table.id, table])),
+    [schema.tables],
+  );
+  const groupsById = useMemo(
+    () => new Map((schema.groups ?? []).map((group) => [group.id, group])),
+    [schema.groups],
+  );
+  const foreignKeyTarget = useCallback(
+    (column: Column) => {
+      if (!column.fk) return undefined;
+      const target = tablesById.get(column.fk.tableId);
+      const targetColumn = target?.columns.find(
+        (item) => item.id === column.fk!.columnId,
+      );
+      return target && targetColumn
+        ? { table: target, column: targetColumn }
+        : undefined;
+    },
+    [tablesById],
+  );
 
   /** Relationships to tables outside this subset are dropped by normalization. */
   const tableDDL = (table: Table) =>
     generateDDL({ ...schema, tables: [table] });
 
-  const compatibleForeignKeyTargets = (column: Column) =>
+  /**
+   * Candidate FK targets bucketed by column type, so the editor's per-column
+   * select is a map lookup rather than a fresh sweep of the whole schema.
+   */
+  const foreignKeyCandidates = useMemo(() => {
+    const byType = new Map<string, { table: Table; target: Column }[]>();
+    const byColumnId = new Map<string, { table: Table; target: Column }>();
     schema.tables
       .filter(
         (table) =>
           table.id !== selectedId && primaryKeyColumns(table).length <= 1,
       )
-      .flatMap((table) =>
-        table.columns
-          .filter(
-            (target) =>
-              target.type === column.type || target.id === column.fk?.columnId,
-          )
-          .map((target) => ({ table, target })),
+      .forEach((table) =>
+        table.columns.forEach((target) => {
+          const entry = { table, target };
+          const bucket = byType.get(target.type);
+          if (bucket) bucket.push(entry);
+          else byType.set(target.type, [entry]);
+          byColumnId.set(target.id, entry);
+        }),
       );
+    return { byType, byColumnId };
+  }, [schema.tables, selectedId]);
+
+  const compatibleForeignKeyTargets = useCallback(
+    (column: Column) => {
+      const matches = foreignKeyCandidates.byType.get(column.type) ?? [];
+      // A column whose target has since changed type still has to list that
+      // target, or the select would silently drop the FK it is displaying.
+      const current = column.fk
+        ? foreignKeyCandidates.byColumnId.get(column.fk.columnId)
+        : undefined;
+      return current && !matches.includes(current)
+        ? [...matches, current]
+        : matches;
+    },
+    [foreignKeyCandidates],
+  );
   const issues = useMemo(() => validateSchema(schema), [schema]);
   const errors = issues.filter((issue) => issue.severity === "error");
   /**
@@ -2221,6 +2262,16 @@ export default function Designer({
     }),
     [schema],
   );
+  /** Tallied once instead of filtering the whole list per table card. */
+  const relationshipCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    const bump = (id: string) => counts.set(id, (counts.get(id) ?? 0) + 1);
+    relationships.forEach((item) => {
+      bump(item.from.id);
+      if (item.to.id !== item.from.id) bump(item.to.id);
+    });
+    return counts;
+  }, [relationships]);
   const relationshipPoint = (table: Table, index: number, other: Table) => {
     // Anchors follow the live position so edges stay attached mid-drag.
     const origin = livePosition(table);
@@ -2292,6 +2343,10 @@ export default function Designer({
           fromId: relationship.from.id,
           name: relationship.relationship.name,
           relationship: relationship.relationship,
+          // Already resolved here; the row body used to look both up again on
+          // every render of the sidebar, which is every drag frame.
+          startTable: relationship.from,
+          endTable: relationship.to,
         };
       }),
     [relationships],
@@ -2924,8 +2979,7 @@ export default function Designer({
                   .filter((row) => row.name.toUpperCase().includes(relationshipQuery.trim().toUpperCase()))
                   .map((row) => {
                     const relationship = row.relationship;
-                    const startTable = schema.tables.find((table) => table.id === relationship.startTableId);
-                    const endTable = schema.tables.find((table) => table.id === relationship.endTableId);
+                    const { startTable, endTable } = row;
                     const pairs = relationship.fields.length ? relationship.fields : [{ startFieldId: relationship.startFieldId, endFieldId: relationship.endFieldId }];
                     return (
                       <Collapsible className={`relationship-editor ${openRelationshipId === relationship.id ? "open" : ""}`} key={relationship.id} isExpanded={openRelationshipId === relationship.id} onExpandedChange={(expanded) => setOpenRelationshipId(expanded ? relationship.id : null)}>
@@ -3412,18 +3466,10 @@ export default function Designer({
                         table={table}
                         group={
                           table.schemaId
-                            ? (schema.groups ?? []).find(
-                                (item) => item.id === table.schemaId,
-                              )
+                            ? groupsById.get(table.schemaId)
                             : undefined
                         }
-                        relationshipCount={
-                          relationships.filter(
-                            (item) =>
-                              item.from.id === table.id ||
-                              item.to.id === table.id,
-                          ).length
-                        }
+                        relationshipCount={relationshipCounts.get(table.id) ?? 0}
                       />
                     }
                   >
@@ -3438,7 +3484,7 @@ export default function Designer({
                           : ""}
                     </span>
                   </HoverCard>
-                  {table.columns.map((column) => (
+                  {table.columns.map((column, columnIndex) => (
                     <HoverCard
                       className="table-row"
                       key={column.id}
@@ -3459,12 +3505,7 @@ export default function Designer({
                         tabIndex={0}
                         aria-label={`Link ${table.name}.${column.name}`}
                         onPointerDown={(event) =>
-                          startLinking(
-                            event,
-                            table,
-                            column,
-                            table.columns.indexOf(column),
-                          )
+                          startLinking(event, table, column, columnIndex)
                         }
                         aria-hidden="false"
                       />
