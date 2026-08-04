@@ -7,10 +7,8 @@ FROM base AS deps
 # it compiles from source and needs a toolchain. Confined to this stage — the
 # runtime only copies the finished node_modules.
 RUN apk add --no-cache build-base python3
-# pnpm-workspace.yaml carries `allowBuilds`; without it pnpm 11 refuses to run
-# better-sqlite3's, esbuild's and sharp's install scripts and fails the install outright.
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+RUN pnpm install --frozen-lockfile --config.onlyBuiltDependencies=better-sqlite3,esbuild,sharp,@esbuild-kit/core-utils,@esbuild-kit/esm-loader
 
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
@@ -46,4 +44,4 @@ RUN mkdir -p /data
 VOLUME /data
 
 EXPOSE 3000
-CMD ["pnpm", "next", "start"]
+CMD ["node_modules/.bin/next", "start"]

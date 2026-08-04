@@ -476,6 +476,16 @@ button {
 .canvas {
   position: absolute;
   transform-origin: 0 0;
+  will-change: transform;
+}
+.canvas-wrap.gesturing .canvas {
+  will-change: transform;
+}
+.canvas-wrap.gesturing .table-card,
+.canvas-wrap.gesturing .schema-group,
+.canvas-wrap.gesturing .memo-card,
+.canvas-wrap.gesturing .relationship-path {
+  transition: none !important;
 }
 .edges {
   position: absolute;

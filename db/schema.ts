@@ -38,5 +38,5 @@ export const invitation = sqliteTable("invitation", {
 });
 
 export const rateLimit = sqliteTable("rate_limit", {
-  id: text("id").primaryKey(), key: text("key").notNull().unique(), count: integer("count").notNull(), lastRequest: integer("last_request", { mode: "timestamp" }).notNull(),
+  id: text("id").primaryKey(), key: text("key").notNull().unique(), count: integer("count").notNull(), lastRequest: integer("last_request", { mode: "number" }).notNull(),
 });

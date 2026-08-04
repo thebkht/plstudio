@@ -9,10 +9,10 @@ RUN corepack enable
 # never opens the auth database, but it shares the repo's lockfile, so the
 # toolchain has to be here for the install to succeed.
 RUN apk add --no-cache build-base python3
-# pnpm-workspace.yaml carries `allowBuilds`, which pnpm 11 requires to run
+# .npmrc carries `only-built-dependencies`, which pnpm 11 requires to run
 # esbuild's install script — tsx cannot run without it.
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+RUN pnpm install --frozen-lockfile --config.onlyBuiltDependencies=better-sqlite3,esbuild,sharp,@esbuild-kit/core-utils,@esbuild-kit/esm-loader
 
 COPY tsconfig.json ./
 COPY app ./app

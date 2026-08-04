@@ -1442,6 +1442,35 @@ export default function Designer({
   );
 
   useEffect(() => {
+    let moveFrame: number | null = null;
+    let pendingMoveAction: (() => void) | null = null;
+
+    const flushMove = () => {
+      if (moveFrame !== null) {
+        cancelAnimationFrame(moveFrame);
+        moveFrame = null;
+      }
+      if (pendingMoveAction) {
+        const action = pendingMoveAction;
+        pendingMoveAction = null;
+        action();
+      }
+    };
+
+    const scheduleMove = (action: () => void) => {
+      pendingMoveAction = action;
+      if (moveFrame === null) {
+        moveFrame = requestAnimationFrame(() => {
+          moveFrame = null;
+          if (pendingMoveAction) {
+            const act = pendingMoveAction;
+            pendingMoveAction = null;
+            act();
+          }
+        });
+      }
+    };
+
     const move = (event: PointerEvent) => {
       const gesture = gestureRef.current;
       if (!gesture || event.pointerId !== gesture.pointerId) return;
@@ -1466,7 +1495,7 @@ export default function Designer({
           y: rubberClamp(rawY, bounds.minY, bounds.maxY, window.innerHeight),
         };
         gesture.tracker.add(next.x, next.y, now);
-        setPan(next);
+        scheduleMove(() => setPan(next));
         return;
       }
 
@@ -1482,7 +1511,7 @@ export default function Designer({
         };
         if (gesture.mode === "group") {
           const bounds = groupBounds(group);
-          setDragGroupPosition({
+          const nextGroup = {
             id: group.id,
             x: Math.max(
               bounds.minX,
@@ -1492,9 +1521,10 @@ export default function Designer({
               bounds.minY,
               Math.min(bounds.maxY, point.y - gesture.grabY),
             ),
-          });
+          };
+          scheduleMove(() => setDragGroupPosition(nextGroup));
         } else {
-          setResizeGroup({
+          const nextResize = {
             id: group.id,
             width: Math.max(
               GROUP_MIN_WIDTH,
@@ -1510,7 +1540,8 @@ export default function Designer({
                 gesture.originHeight! + point.y - gesture.grabY,
               ),
             ),
-          });
+          };
+          scheduleMove(() => setResizeGroup(nextResize));
         }
         return;
       }
@@ -1525,7 +1556,7 @@ export default function Designer({
         };
         if (gesture.mode === "memo") {
           const bounds = memoBounds(memo);
-          setDragMemoPosition({
+          const nextMemo = {
             id: memo.id,
             x: Math.max(
               bounds.minX,
@@ -1535,9 +1566,10 @@ export default function Designer({
               bounds.minY,
               Math.min(bounds.maxY, point.y - gesture.grabY),
             ),
-          });
+          };
+          scheduleMove(() => setDragMemoPosition(nextMemo));
         } else {
-          setResizeMemo({
+          const nextMemoResize = {
             id: memo.id,
             width: Math.max(
               MEMO_MIN_WIDTH,
@@ -1553,7 +1585,8 @@ export default function Designer({
                 gesture.originHeight! + point.y - gesture.grabY,
               ),
             ),
-          });
+          };
+          scheduleMove(() => setResizeMemo(nextMemoResize));
         }
         return;
       }
@@ -1574,12 +1607,13 @@ export default function Designer({
         y: rubberClamp(rawY, bounds.minY, bounds.maxY, worldRef.current.height),
       };
       gesture.tracker.add(next.x, next.y, now);
-      setDragPosition({ id: table.id, ...next });
+      scheduleMove(() => setDragPosition({ id: table.id, ...next }));
     };
 
     const up = (event: PointerEvent) => {
       const gesture = gestureRef.current;
       if (!gesture || event.pointerId !== gesture.pointerId) return;
+      flushMove();
       gestureRef.current = null;
       setGrabbing(false);
       const now = event.timeStamp || performance.now();
@@ -1717,6 +1751,7 @@ export default function Designer({
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", cancel);
     return () => {
+      flushMove();
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", cancel);
@@ -1748,6 +1783,21 @@ export default function Designer({
   useEffect(() => {
     const element = canvasRef.current;
     if (!element) return;
+    let wheelFrame: number | null = null;
+    let pendingWheelAction: (() => void) | null = null;
+
+    const flushWheel = () => {
+      if (wheelFrame !== null) {
+        cancelAnimationFrame(wheelFrame);
+        wheelFrame = null;
+      }
+      if (pendingWheelAction) {
+        const action = pendingWheelAction;
+        pendingWheelAction = null;
+        action();
+      }
+    };
+
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
       stopAnimation();
@@ -1770,28 +1820,45 @@ export default function Designer({
           x: (pointer.x - panRef.current.x) / currentZoom,
           y: (pointer.y - panRef.current.y) / currentZoom,
         };
-        setZoom(next);
-        setPan({
-          x: pointer.x - world.x * next,
-          y: pointer.y - world.y * next,
-        });
-        return;
+        pendingWheelAction = () => {
+          setZoom(next);
+          setPan({
+            x: pointer.x - world.x * next,
+            y: pointer.y - world.y * next,
+          });
+        };
+      } else {
+        const bounds = panBounds(zoomRef.current);
+        pendingWheelAction = () => {
+          setPan((current) => ({
+            x: Math.max(
+              bounds.minX,
+              Math.min(bounds.maxX, current.x - event.deltaX),
+            ),
+            y: Math.max(
+              bounds.minY,
+              Math.min(bounds.maxY, current.y - event.deltaY),
+            ),
+          }));
+        };
       }
 
-      const bounds = panBounds(zoomRef.current);
-      setPan((current) => ({
-        x: Math.max(
-          bounds.minX,
-          Math.min(bounds.maxX, current.x - event.deltaX),
-        ),
-        y: Math.max(
-          bounds.minY,
-          Math.min(bounds.maxY, current.y - event.deltaY),
-        ),
-      }));
+      if (wheelFrame === null) {
+        wheelFrame = requestAnimationFrame(() => {
+          wheelFrame = null;
+          if (pendingWheelAction) {
+            const act = pendingWheelAction;
+            pendingWheelAction = null;
+            act();
+          }
+        });
+      }
     };
     element.addEventListener("wheel", onWheel, { passive: false });
-    return () => element.removeEventListener("wheel", onWheel);
+    return () => {
+      flushWheel();
+      element.removeEventListener("wheel", onWheel);
+    };
   }, [canvasRect, panBounds, stopAnimation]);
 
   /** Zoom around the viewport centre, for the HUD buttons and keyboard. */

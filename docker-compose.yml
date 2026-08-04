@@ -15,9 +15,9 @@ services:
     environment:
       DATA_DIR: /data
     volumes:
-      - drawsql-data:/data
+      - ./data:/data
     ports:
-      - "3000:3000"
+      - "5555:3000"
     depends_on:
       - collab
 
@@ -31,12 +31,6 @@ services:
       COLLAB_PORT: "1234"
       DATA_DIR: /data
     volumes:
-      - drawsql-data:/data
+      - ./data:/data
     ports:
       - "1234:1234"
-
-volumes:
-  # Both services must mount the *same* volume: collab mirrors each document back
-  # into the project's JSON file, and separate filesystems would send those writes
-  # somewhere the web app never reads.
-  drawsql-data:
