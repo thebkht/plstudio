@@ -744,10 +744,24 @@ export default function Designer({
   const schemaRef = useRef(schema);
   const worldRef = useRef(world);
   const dragPositionRef = useRef(dragPosition);
+  /**
+   * The release handler needs the live gesture values, but reading them from
+   * state would put them in the pointer effect's dependency array — and they
+   * change every frame, so the window listeners would be torn down and
+   * re-attached ~60 times a second. Mirror them into refs instead.
+   */
+  const dragGroupPositionRef = useRef(dragGroupPosition);
+  const resizeGroupRef = useRef(resizeGroup);
+  const dragMemoPositionRef = useRef(dragMemoPosition);
+  const resizeMemoRef = useRef(resizeMemo);
   panRef.current = pan;
   zoomRef.current = zoom;
   schemaRef.current = schema;
   worldRef.current = world;
+  dragGroupPositionRef.current = dragGroupPosition;
+  resizeGroupRef.current = resizeGroup;
+  dragMemoPositionRef.current = dragMemoPosition;
+  resizeMemoRef.current = resizeMemo;
 
   useEffect(() => {
     try {
@@ -793,6 +807,8 @@ export default function Designer({
     },
     [dragGroupPosition, resizeGroup],
   );
+  const liveGroupRef = useRef(liveGroup);
+  liveGroupRef.current = liveGroup;
   const canvasPoint = useCallback(
     (event: { clientX: number; clientY: number }) => {
       const rect = canvasRef.current?.getBoundingClientRect();
@@ -1299,6 +1315,107 @@ export default function Designer({
     [stopAnimation],
   );
 
+  /**
+   * Bounds and commit helpers for groups and memos. These live above the
+   * pointer effect and read `worldRef` rather than `world` so their identity
+   * never changes — they are dependencies of the window listeners below, and an
+   * unstable one re-attaches those listeners on every frame of every gesture.
+   */
+  const memoBounds = useCallback((memo: Memo) => {
+    const world = worldRef.current;
+    return {
+      minX: 0,
+      maxX: world.width - memo.width,
+      minY: 0,
+      maxY: world.height - memo.height,
+    };
+  }, []);
+
+  const groupBounds = useCallback((group: SchemaGroup) => {
+    const world = worldRef.current;
+    return {
+      minX: 0,
+      maxX: world.width - group.width,
+      minY: 0,
+      maxY: world.height - group.height,
+    };
+  }, []);
+
+  const commitGroupPosition = useCallback((id: string, x: number, y: number) => {
+    if (readOnly) return;
+    const world = worldRef.current;
+    const current = schemaRef.current;
+    if (!current.groups?.some((item) => item.id === id)) return;
+    commitWith((next) => ({
+      ...next,
+      groups: (next.groups ?? []).map((item) => item.id === id ? {
+        ...item,
+        x: Math.max(0, Math.min(world.width - item.width, Math.round(x))),
+        y: Math.max(0, Math.min(world.height - item.height, Math.round(y))),
+      } : item),
+    }));
+    setDragGroupPosition(null);
+  }, [commitWith, readOnly]);
+
+  const commitGroupSize = useCallback((id: string, width: number, height: number) => {
+    if (readOnly) return;
+    const world = worldRef.current;
+    const current = schemaRef.current;
+    if (!current.groups?.some((item) => item.id === id)) return;
+    const group = current.groups.find((item) => item.id === id);
+    if (!group) return;
+    const nextWidth = Math.max(GROUP_MIN_WIDTH, Math.min(world.width - group.x, Math.round(width)));
+    const nextHeight = Math.max(GROUP_MIN_HEIGHT, Math.min(world.height - group.y, Math.round(height)));
+    commitWith((next) => ({
+      ...next,
+      groups: (next.groups ?? []).map((item) => item.id === id ? {
+        ...item,
+        width: nextWidth,
+        height: nextHeight,
+      } : item),
+      tables: next.tables.map((table) => {
+        if (table.schemaId !== undefined && table.schemaId !== id) return table;
+        const centerX = table.x + tableWidth(table) / 2;
+        const centerY = table.y + tableHeight(table) / 2;
+        const inside = centerX >= group.x && centerX <= group.x + nextWidth && centerY >= group.y + GROUP_HEADER_HEIGHT && centerY <= group.y + nextHeight;
+        return { ...table, schemaId: inside ? id : undefined };
+      }),
+    }));
+    setResizeGroup(null);
+  }, [commitWith, readOnly]);
+
+  const commitMemoPosition = useCallback((id: string, x: number, y: number) => {
+    if (readOnly) return;
+    const current = schemaRef.current;
+    const memo = current.memos?.find((item) => item.id === id);
+    if (!memo) return;
+    const bounds = memoBounds(memo);
+    commitWith((next) => ({
+      ...next,
+      memos: (next.memos ?? []).map((item) => item.id === id ? {
+        ...item,
+        x: Math.max(bounds.minX, Math.min(bounds.maxX, Math.round(x))),
+        y: Math.max(bounds.minY, Math.min(bounds.maxY, Math.round(y))),
+      } : item),
+    }));
+    setDragMemoPosition(null);
+  }, [commitWith, memoBounds, readOnly]);
+
+  const commitMemoSize = useCallback((id: string, width: number, height: number) => {
+    if (readOnly) return;
+    const current = schemaRef.current;
+    if (!current.memos?.some((item) => item.id === id)) return;
+    commitWith((next) => ({
+      ...next,
+      memos: (next.memos ?? []).map((item) => item.id === id ? {
+        ...item,
+        width: Math.max(MEMO_MIN_WIDTH, Math.min(MEMO_MAX_WIDTH, Math.round(width))),
+        height: Math.max(MEMO_MIN_HEIGHT, Math.min(MEMO_MAX_HEIGHT, Math.round(height))),
+      } : item),
+    }));
+    setResizeMemo(null);
+  }, [commitWith, readOnly]);
+
   useEffect(() => {
     const move = (event: PointerEvent) => {
       const gesture = gestureRef.current;
@@ -1429,19 +1546,19 @@ export default function Designer({
       const memo = schemaRef.current.memos?.find((item) => item.id === gesture.memoId);
       const group = schemaRef.current.groups?.find((item) => item.id === gesture.groupId);
       if (gesture.mode === "group" && group) {
-        const live = dragGroupPosition;
+        const live = dragGroupPositionRef.current;
         if (gesture.moved && live?.id === group.id) commitGroupPosition(group.id, live.x, live.y);
         else setDragGroupPosition(null);
         return;
       }
       if (gesture.mode === "group-resize" && group) {
-        const live = resizeGroup;
+        const live = resizeGroupRef.current;
         if (gesture.moved && live?.id === group.id) commitGroupSize(group.id, live.width, live.height);
         else setResizeGroup(null);
         return;
       }
       if (gesture.mode === "memo" && memo) {
-        const live = dragMemoPosition;
+        const live = dragMemoPositionRef.current;
         if (gesture.moved && live?.id === memo.id) {
           commitMemoPosition(memo.id, live.x, live.y);
         } else {
@@ -1450,7 +1567,7 @@ export default function Designer({
         return;
       }
       if (gesture.mode === "memo-resize" && memo) {
-        const live = resizeMemo;
+        const live = resizeMemoRef.current;
         if (gesture.moved && live?.id === memo.id) {
           commitMemoSize(memo.id, live.width, live.height);
         } else {
@@ -1486,7 +1603,7 @@ export default function Designer({
       const target = resolveTablePosition(table.id, projectedTarget.x, projectedTarget.y);
       const tableCenter = { x: target.x + tableWidth(table) / 2, y: target.y + tableHeight(table) / 2 };
       const targetGroup = (schemaRef.current.groups ?? []).find((group) => {
-        const position = liveGroup(group);
+        const position = liveGroupRef.current(group);
         return tableCenter.x >= position.x && tableCenter.x <= position.x + position.width &&
           tableCenter.y >= position.y + GROUP_HEADER_HEIGHT && tableCenter.y <= position.y + position.height;
       });
@@ -1522,7 +1639,9 @@ export default function Designer({
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", cancel);
     };
-  }, [animateTo, commitGroupPosition, commitGroupSize, commitMemoPosition, commitMemoSize, writeTablePosition, dragGroupPosition, dragMemoPosition, groupBounds, liveGroup, memoBounds, panBounds, resolveTablePosition, resizeGroup, resizeMemo, tableBounds]);
+    // Every dependency here is stable, so the listeners attach once instead of
+    // once per pointermove. Live gesture values are read through refs above.
+  }, [animateTo, commitGroupPosition, commitGroupSize, commitMemoPosition, commitMemoSize, writeTablePosition, groupBounds, memoBounds, panBounds, resolveTablePosition, tableBounds]);
 
   /**
    * Wheel handling is attached natively because React registers `wheel`
@@ -1722,66 +1841,7 @@ export default function Designer({
     };
   };
 
-  function memoBounds(memo: Memo) {
-    return {
-      minX: 0,
-      maxX: world.width - memo.width,
-      minY: 0,
-      maxY: world.height - memo.height,
-    };
-  }
-
-  function commitGroupPosition(id: string, x: number, y: number) {
-    if (readOnly) return;
-    const current = schemaRef.current;
-    if (!current.groups?.some((item) => item.id === id)) return;
-    commitWith((next) => ({
-      ...next,
-      groups: (next.groups ?? []).map((item) => item.id === id ? {
-        ...item,
-        x: Math.max(0, Math.min(world.width - item.width, Math.round(x))),
-        y: Math.max(0, Math.min(world.height - item.height, Math.round(y))),
-      } : item),
-    }));
-    setDragGroupPosition(null);
-  }
-
-  function commitGroupSize(id: string, width: number, height: number) {
-    if (readOnly) return;
-    const current = schemaRef.current;
-    if (!current.groups?.some((item) => item.id === id)) return;
-    const group = current.groups.find((item) => item.id === id);
-    if (!group) return;
-    const nextWidth = Math.max(GROUP_MIN_WIDTH, Math.min(world.width - group.x, Math.round(width)));
-    const nextHeight = Math.max(GROUP_MIN_HEIGHT, Math.min(world.height - group.y, Math.round(height)));
-    commitWith((next) => ({
-      ...next,
-      groups: (next.groups ?? []).map((item) => item.id === id ? {
-        ...item,
-        width: nextWidth,
-        height: nextHeight,
-      } : item),
-      tables: next.tables.map((table) => {
-        if (table.schemaId !== undefined && table.schemaId !== id) return table;
-        const centerX = table.x + tableWidth(table) / 2;
-        const centerY = table.y + tableHeight(table) / 2;
-        const inside = centerX >= group.x && centerX <= group.x + nextWidth && centerY >= group.y + GROUP_HEADER_HEIGHT && centerY <= group.y + nextHeight;
-        return { ...table, schemaId: inside ? id : undefined };
-      }),
-    }));
-    setResizeGroup(null);
-  }
-
-  function groupBounds(group: SchemaGroup) {
-    return {
-      minX: 0,
-      maxX: world.width - group.width,
-      minY: 0,
-      maxY: world.height - group.height,
-    };
-  }
-
-  const onGroupDown = (event: React.PointerEvent<HTMLElement>, group: SchemaGroup) => {
+  const onGroupDown =(event: React.PointerEvent<HTMLElement>, group: SchemaGroup) => {
     if (event.button !== 0 || readOnly) return;
     event.preventDefault();
     event.stopPropagation();
@@ -1841,38 +1901,6 @@ export default function Designer({
       tracker: new VelocityTracker(),
     };
   };
-
-  function commitMemoPosition(id: string, x: number, y: number) {
-    if (readOnly) return;
-    const current = schemaRef.current;
-    const memo = current.memos?.find((item) => item.id === id);
-    if (!memo) return;
-    const bounds = memoBounds(memo);
-    commitWith((next) => ({
-      ...next,
-      memos: (next.memos ?? []).map((item) => item.id === id ? {
-        ...item,
-        x: Math.max(bounds.minX, Math.min(bounds.maxX, Math.round(x))),
-        y: Math.max(bounds.minY, Math.min(bounds.maxY, Math.round(y))),
-      } : item),
-    }));
-    setDragMemoPosition(null);
-  }
-
-  function commitMemoSize(id: string, width: number, height: number) {
-    if (readOnly) return;
-    const current = schemaRef.current;
-    if (!current.memos?.some((item) => item.id === id)) return;
-    commitWith((next) => ({
-      ...next,
-      memos: (next.memos ?? []).map((item) => item.id === id ? {
-        ...item,
-        width: Math.max(MEMO_MIN_WIDTH, Math.min(MEMO_MAX_WIDTH, Math.round(width))),
-        height: Math.max(MEMO_MIN_HEIGHT, Math.min(MEMO_MAX_HEIGHT, Math.round(height))),
-      } : item),
-    }));
-    setResizeMemo(null);
-  }
 
   const addMemo = () => {
     const index = schema.memos?.length ?? 0;
