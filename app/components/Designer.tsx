@@ -809,16 +809,47 @@ export default function Designer({
   );
   const liveGroupRef = useRef(liveGroup);
   liveGroupRef.current = liveGroup;
+
+  /**
+   * The canvas rect is read on every pointermove — to place the cursor, to
+   * clamp a pan, to convert a drag to canvas space — and each read is a forced
+   * layout, interleaved with the state writes of the same frame. It only
+   * changes when the canvas is resized or the page scrolls, so cache it and
+   * invalidate on those.
+   */
+  const canvasRectRef = useRef<DOMRect | null>(null);
+  const canvasRect = useCallback(() => {
+    if (!canvasRectRef.current)
+      canvasRectRef.current = canvasRef.current?.getBoundingClientRect() ?? null;
+    return canvasRectRef.current;
+  }, []);
+  useEffect(() => {
+    const element = canvasRef.current;
+    if (!element) return;
+    const invalidate = () => { canvasRectRef.current = null; };
+    // A ResizeObserver covers what a window resize misses: collapsing the
+    // sidebar resizes the canvas without resizing the window.
+    const observer = new ResizeObserver(invalidate);
+    observer.observe(element);
+    window.addEventListener("resize", invalidate);
+    window.addEventListener("scroll", invalidate, true);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", invalidate);
+      window.removeEventListener("scroll", invalidate, true);
+    };
+  }, []);
+
   const canvasPoint = useCallback(
     (event: { clientX: number; clientY: number }) => {
-      const rect = canvasRef.current?.getBoundingClientRect();
+      const rect = canvasRect();
       if (!rect) return { x: 0, y: 0 };
       return {
         x: (event.clientX - rect.left - pan.x) / zoom,
         y: (event.clientY - rect.top - pan.y) / zoom,
       };
     },
-    [pan.x, pan.y, zoom],
+    [canvasRect, pan.x, pan.y, zoom],
   );
   const rowPoint = useCallback(
     (table: Table, columnIndex: number) => {
@@ -1275,7 +1306,7 @@ export default function Designer({
 
   /** Pan limits that always keep some of the diagram on screen. */
   const panBounds = useCallback((scale: number) => {
-    const rect = canvasRef.current?.getBoundingClientRect();
+    const rect = canvasRect();
     const slack = 160;
     const width = rect?.width ?? 0;
     const height = rect?.height ?? 0;
@@ -1285,7 +1316,7 @@ export default function Designer({
       minY: Math.min(0, height - worldRef.current.height * scale) - slack,
       maxY: slack,
     };
-  }, []);
+  }, [canvasRect]);
 
   /**
    * Writes an already-resolved position. Deliberately leaves `dragPosition`
@@ -1486,7 +1517,7 @@ export default function Designer({
         return;
       }
 
-      const rect = canvasRef.current?.getBoundingClientRect();
+      const rect = canvasRect();
       const group = schemaRef.current.groups?.find((item) => item.id === gesture.groupId);
       if (gesture.mode === "group" || gesture.mode === "group-resize") {
         if (!rect || !group) return;
@@ -1682,7 +1713,7 @@ export default function Designer({
     };
     // Every dependency here is stable, so the listeners attach once instead of
     // once per pointermove. Live gesture values are read through refs above.
-  }, [animateTo, commitGroupPosition, commitGroupSize, commitMemoPosition, commitMemoSize, writeTablePosition, groupBounds, memoBounds, panBounds, resolveTablePosition, tableBounds]);
+  }, [animateTo, canvasRect, commitGroupPosition, commitGroupSize, commitMemoPosition, commitMemoSize, writeTablePosition, groupBounds, memoBounds, panBounds, resolveTablePosition, tableBounds]);
 
   /**
    * Wheel handling is attached natively because React registers `wheel`
@@ -1697,7 +1728,8 @@ export default function Designer({
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
       stopAnimation();
-      const rect = element.getBoundingClientRect();
+      const rect = canvasRect();
+      if (!rect) return;
 
       if (event.ctrlKey || event.metaKey) {
         const currentZoom = zoomRef.current;
@@ -1737,13 +1769,13 @@ export default function Designer({
     };
     element.addEventListener("wheel", onWheel, { passive: false });
     return () => element.removeEventListener("wheel", onWheel);
-  }, [panBounds, stopAnimation]);
+  }, [canvasRect, panBounds, stopAnimation]);
 
   /** Zoom around the viewport centre, for the HUD buttons and keyboard. */
   const zoomBy = useCallback(
     (delta: number) => {
       stopAnimation();
-      const rect = canvasRef.current?.getBoundingClientRect();
+      const rect = canvasRect();
       const currentZoom = zoomRef.current;
       const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, currentZoom + delta));
       if (next === currentZoom || !rect) {
@@ -1758,7 +1790,7 @@ export default function Designer({
       setZoom(next);
       setPan({ x: centre.x - world.x * next, y: centre.y - world.y * next });
     },
-    [stopAnimation],
+    [canvasRect, stopAnimation],
   );
 
   const onCanvasDown = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -1795,7 +1827,7 @@ export default function Designer({
     event.stopPropagation();
     stopAnimation();
     event.currentTarget.setPointerCapture(event.pointerId);
-    const rect = canvasRef.current?.getBoundingClientRect();
+    const rect = canvasRect();
     if (!rect) return;
     setSelectedId(table.id);
     setSelectedGroupId(null);
@@ -1828,7 +1860,7 @@ export default function Designer({
     event.stopPropagation();
     stopAnimation();
     event.currentTarget.setPointerCapture(event.pointerId);
-    const rect = canvasRef.current?.getBoundingClientRect();
+    const rect = canvasRect();
     if (!rect) return;
     const position = liveMemo(memo);
     setSelectedId(null);
@@ -1854,7 +1886,7 @@ export default function Designer({
     if (event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
-    const rect = canvasRef.current?.getBoundingClientRect();
+    const rect = canvasRect();
     if (!rect) return;
     const position = liveMemo(memo);
     const pointer = {
@@ -1888,7 +1920,7 @@ export default function Designer({
     event.stopPropagation();
     stopAnimation();
     event.currentTarget.setPointerCapture(event.pointerId);
-    const rect = canvasRef.current?.getBoundingClientRect();
+    const rect = canvasRect();
     if (!rect) return;
     const position = liveGroup(group);
     setSelectedGroupId(group.id);
@@ -1915,7 +1947,7 @@ export default function Designer({
     if (event.button !== 0 || readOnly) return;
     event.preventDefault();
     event.stopPropagation();
-    const rect = canvasRef.current?.getBoundingClientRect();
+    const rect = canvasRect();
     if (!rect) return;
     const position = liveGroup(group);
     const pointer = {
