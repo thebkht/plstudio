@@ -218,6 +218,9 @@ const MEMO_MAX_HEIGHT = 520;
 const GROUP_MIN_WIDTH = 360;
 const GROUP_MIN_HEIGHT = 260;
 const GROUP_HEADER_HEIGHT = 42;
+/** How far an edge runs straight out of its anchor before it may turn. Long
+ *  enough to clear the cardinality marker that sits on that run. */
+const EDGE_STUB = 44;
 const MEMO_COLORS: { id: MemoColor; label: string; background: string; border: string }[] = [
   { id: "yellow", label: "Yellow", background: "#fff7bf", border: "#6b58f5" },
   { id: "blue", label: "Blue", background: "#dff3ff", border: "#287da8" },
@@ -2116,18 +2119,22 @@ export default function Designer({
     // Anchors follow the live position so edges stay attached mid-drag.
     const origin = livePosition(table);
     const otherOrigin = livePosition(other);
-    const tableCenter = {
-      x: origin.x + tableWidth(table) / 2,
-      y: origin.y + tableHeight(table) / 2,
-    };
-    const otherCenter = {
-      x: otherOrigin.x + tableWidth(other) / 2,
-      y: otherOrigin.y + tableHeight(other) / 2,
-    };
     // Anchors always sit on a vertical edge at the row's height, so the edge
-    // leaves the card horizontally. `direction` is that outward normal: the
-    // side facing the other table, so the line never runs back under the card.
-    const direction = otherCenter.x >= tableCenter.x ? 1 : -1;
+    // leaves the card horizontally. `direction` is that outward normal.
+    //
+    // Comparing card *extents* rather than centres is what keeps the two ends
+    // in agreement: whenever one side sees the other clear of it, the other
+    // side sees the same thing mirrored.
+    //
+    // Cards that overlap horizontally have no side facing the other, so both
+    // ends route around the same flank and the edge becomes a C. Which flank
+    // is the one the pair sticks out of least — comparing the two near edges,
+    // symmetric in the cards, so each end reaches the same answer alone.
+    const right = origin.x + tableWidth(table);
+    const otherRight = otherOrigin.x + tableWidth(other);
+    const direction = otherOrigin.x >= right ? 1
+      : otherRight <= origin.x ? -1
+      : Math.abs(right - otherRight) <= Math.abs(origin.x - otherOrigin.x) ? 1 : -1;
     return {
       x: origin.x + (direction === 1 ? tableWidth(table) : 0),
       y: origin.y + HEADER_HEIGHT + index * ROW_HEIGHT + ROW_HEIGHT / 2,
@@ -3206,20 +3213,31 @@ export default function Designer({
                   relationship.toIndex,
                   relationship.from,
                 );
-                const deltaX = to.x - from.x;
                 const deltaY = to.y - from.y;
-                const midpointX = from.x + deltaX / 2;
-                const radius = Math.min(10, Math.abs(deltaX) / 2, Math.abs(deltaY) / 2);
-                const horizontalDirection = Math.sign(deltaX) || 1;
+                // Every edge leaves its anchor sideways and runs clear of the
+                // card before it turns, so the line always emerges from the
+                // column's own edge and passes through that end's marker. The
+                // bend can then only be placed beyond both stubs — halfway
+                // between them when the cards face each other, past the further
+                // one when both ends leave on the same side.
+                const fromStub = from.x + from.direction * EDGE_STUB;
+                const toStub = to.x + to.direction * EDGE_STUB;
+                const bendX = from.direction !== to.direction
+                  ? (fromStub + toStub) / 2
+                  : from.direction === 1 ? Math.max(fromStub, toStub) : Math.min(fromStub, toStub);
+                const exitDirection = Math.sign(bendX - from.x) || from.direction;
+                const enterDirection = Math.sign(to.x - bendX) || to.direction;
                 const verticalDirection = Math.sign(deltaY) || 1;
-                const path = Math.abs(deltaY) <= 36
+                const radius = Math.min(10, Math.abs(bendX - from.x) / 2, Math.abs(to.x - bendX) / 2, Math.abs(deltaY) / 2);
+                // Facing anchors on the same row need no bend at all; the
+                // straight run already passes through both markers.
+                const path = Math.abs(deltaY) <= 4 && from.direction !== to.direction
                   ? `M ${from.x} ${from.y} L ${to.x} ${to.y}`
-                  : `M ${from.x} ${from.y} H ${midpointX - horizontalDirection * radius} Q ${midpointX} ${from.y} ${midpointX} ${from.y + verticalDirection * radius} V ${to.y - verticalDirection * radius} Q ${midpointX} ${to.y} ${midpointX + horizontalDirection * radius} ${to.y} H ${to.x}`;
+                  : `M ${from.x} ${from.y} H ${bendX - exitDirection * radius} Q ${bendX} ${from.y} ${bendX} ${from.y + verticalDirection * radius} V ${to.y - verticalDirection * radius} Q ${bendX} ${to.y} ${bendX + enterDirection * radius} ${to.y} H ${to.x}`;
                 const [fromCardinality, toCardinality] = relationshipCardinalities(relationship.relationship);
-                // Keep the markers outside the table cards: the SVG is painted
-                // before the cards, so anything over one is covered by it. Each
-                // marker rides the outward normal of its own anchor, which is
-                // the only direction guaranteed to clear that card.
+                // Markers sit on the stub, short of the bend: the SVG paints
+                // before the cards, so the outward normal is the only direction
+                // that clears the card they belong to.
                 const markerDistance = 28;
                 const fromMarker = { x: from.x + from.direction * markerDistance, y: from.y };
                 const toMarker = { x: to.x + to.direction * markerDistance, y: to.y };
@@ -3240,7 +3258,9 @@ export default function Designer({
                       <rect className="relationship-marker" x={toMarker.x - 14} y={toMarker.y - 12} width="28" height="24" rx="12" />
                       <text className="relationship-marker-text" x={toMarker.x} y={toMarker.y}>{toCardinality}</text>
                     </>}
-                    {relationSettings.showRelationshipLabels && <text className="relationship-label" x={(from.x + to.x) / 2} y={(from.y + to.y) / 2} textAnchor="middle"><title>{relationship.relationship.name}</title>{ellipsize(relationship.relationship.name)}</text>}
+                    {/* On the bend, not between the anchors: the midpoint of a
+                        C-shaped route lands nowhere near the line. */}
+                    {relationSettings.showRelationshipLabels && <text className="relationship-label" x={bendX} y={(from.y + to.y) / 2} textAnchor="middle"><title>{relationship.relationship.name}</title>{ellipsize(relationship.relationship.name)}</text>}
                   </g>
                 );
               })}
