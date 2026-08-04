@@ -202,6 +202,7 @@ import {
 } from "@/app/components/designer/primitives";
 import { RelationshipEdge } from "@/app/components/designer/relationship-edge";
 import { ExportModal } from "@/app/components/designer/export-modal";
+import { ColumnEditor } from "@/app/components/designer/column-editor";
 import { TableCard } from "./designer/table-card";
 
 /** Header offset for row anchors: the colour strip sits above the title bar. */
@@ -2972,188 +2973,14 @@ export default function Designer({
                             )}
 
                             {table.columns.map((column) => (
-                              <div className="column-card" key={column.id}>
-                                <InputGroup>
-                                  <InputGroupInput
-                                    aria-label={`Name of column ${column.name}`}
-                                    value={column.name}
-                                    onChange={(event) =>
-                                      patchColumn(table.id, column.id, {
-                                        name: event.target.value,
-                                      })
-                                    }
-                                  />
-                                  <InputGroupAddon align="inline-end">
-                                    <InputGroupButton
-                                      aria-label={`Delete column ${column.name}`}
-                                      onClick={() =>
-                                        deleteColumn(table.id, column.id)
-                                      }
-                                    >
-                                      <HugeiconsIcon icon={Delete02Icon} />
-                                    </InputGroupButton>
-                                  </InputGroupAddon>
-                                </InputGroup>
-                                <div className="column-card-row">
-                                  <Select
-                                    className="w-full"
-                                    aria-label={`Datatype for ${column.name}`}
-                                    selectedKey={column.type}
-                                    onSelectionChange={(key) =>
-                                      patchColumn(table.id, column.id, {
-                                        type: key as Column["type"],
-                                      })
-                                    }
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectGroup>
-                                        {ORACLE_TYPES.map((type) => (
-                                          <SelectItem key={type} id={type}>
-                                            {type}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectGroup>
-                                    </SelectContent>
-                                  </Select>
-                                  {typeUsesSize(column.type) && (
-                                    <Input
-                                      aria-label={`Size for ${column.name}`}
-                                      placeholder={typeSizePlaceholder(
-                                        column.type,
-                                      )}
-                                      value={column.size}
-                                      onChange={(event) =>
-                                        patchColumn(table.id, column.id, {
-                                          size: event.target.value,
-                                        })
-                                      }
-                                    />
-                                  )}
-                                </div>
-                                <FieldSet>
-                                  <FieldLegend
-                                    variant="label"
-                                    className="sr-only"
-                                  >
-                                    Constraints for {column.name}
-                                  </FieldLegend>
-                                  <div className="column-flags">
-                                    <ColumnFlag
-                                      label="Primary key"
-                                      icon={Key01Icon}
-                                      isSelected={column.pk}
-                                      onChange={(isSelected) =>
-                                        patchColumn(table.id, column.id, {
-                                          pk: isSelected,
-                                          fk: isSelected ? null : column.fk,
-                                        })
-                                      }
-                                    />
-                                    {/* Phrased as "nullable" so the lit state matches the ? glyph. */}
-                                    <ColumnFlag
-                                      label="Nullable"
-                                      glyph="?"
-                                      isSelected={!column.notNull}
-                                      onChange={(isSelected) =>
-                                        patchColumn(table.id, column.id, {
-                                          notNull: !isSelected,
-                                        })
-                                      }
-                                    />
-                                    <ColumnFlag
-                                      label="Unique"
-                                      icon={FingerPrintIcon}
-                                      isSelected={column.unique}
-                                      onChange={(isSelected) =>
-                                        patchColumn(table.id, column.id, {
-                                          unique: isSelected,
-                                        })
-                                      }
-                                    />
-                                  </div>
-                                </FieldSet>
-                                <Input
-                                  aria-label={`Default for ${column.name}`}
-                                  placeholder="DEFAULT expression"
-                                  value={column.defaultValue}
-                                  onChange={(event) =>
-                                    patchColumn(table.id, column.id, {
-                                      defaultValue: event.target.value,
-                                    })
-                                  }
-                                />
-                                <Input
-                                  aria-label={`Check for ${column.name}`}
-                                  placeholder="CHECK expression"
-                                  value={column.check}
-                                  onChange={(event) =>
-                                    patchColumn(table.id, column.id, {
-                                      check: event.target.value,
-                                    })
-                                  }
-                                />
-                                <Input
-                                  aria-label={`Comment for ${column.name}`}
-                                  placeholder="COLUMN COMMENT"
-                                  value={column.comment ?? ""}
-                                  onChange={(event) =>
-                                    patchColumn(table.id, column.id, {
-                                      comment: event.target.value,
-                                    })
-                                  }
-                                />
-                                {!column.pk && (
-                                  <Select
-                                    className="w-full"
-                                    aria-label={`Foreign key for ${column.name}`}
-                                    selectedKey={
-                                      column.fk
-                                        ? `${column.fk.tableId}::${column.fk.columnId}`
-                                        : NO_REFERENCE
-                                    }
-                                    onSelectionChange={(key) => {
-                                      const [tableId, columnId] =
-                                        String(key).split("::");
-                                      patchColumn(table.id, column.id, {
-                                        fk:
-                                          tableId && columnId
-                                            ? { tableId, columnId }
-                                            : null,
-                                      });
-                                    }}
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectGroup>
-                                        <SelectItem id={NO_REFERENCE}>
-                                          No reference
-                                        </SelectItem>
-                                        {compatibleForeignKeyTargets(
-                                          column,
-                                        ).map(
-                                          ({
-                                            table: target,
-                                            target: field,
-                                          }) => (
-                                            <SelectItem
-                                              key={`${target.id}::${field.id}`}
-                                              id={`${target.id}::${field.id}`}
-                                            >
-                                              {target.name.toUpperCase()}.
-                                              {field.name.toUpperCase()}
-                                            </SelectItem>
-                                          ),
-                                        )}
-                                      </SelectGroup>
-                                    </SelectContent>
-                                  </Select>
-                                )}
-                              </div>
+                              <ColumnEditor
+                                key={column.id}
+                                table={table}
+                                column={column}
+                                patchColumn={patchColumn}
+                                deleteColumn={deleteColumn}
+                                compatibleForeignKeyTargets={compatibleForeignKeyTargets}
+                              />
                             ))}
 
                             <ButtonGroup>
