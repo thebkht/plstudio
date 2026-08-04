@@ -204,6 +204,7 @@ import {
   TableSummaryCard,
   type MenuItem,
 } from "@/app/components/designer/primitives";
+import { RelationshipEdge } from "@/app/components/designer/relationship-edge";
 
 /** Header offset for row anchors: the colour strip sits above the title bar. */
 const HEADER_HEIGHT = TABLE_COLOR_STRIP_HEIGHT + TABLE_HEADER_HEIGHT;
@@ -235,7 +236,6 @@ const GROUP_HEADER_HEIGHT = 42;
 const TABLE_GAP = 18;
 /** How far an edge runs straight out of its anchor before it may turn. Long
  *  enough to clear the cardinality marker that sits on that run. */
-const EDGE_STUB = 44;
 const MEMO_COLORS: { id: MemoColor; label: string; background: string; border: string }[] = [
   { id: "yellow", label: "Yellow", background: "#fff7bf", border: "#6b58f5" },
   { id: "blue", label: "Blue", background: "#dff3ff", border: "#287da8" },
@@ -330,13 +330,6 @@ function highlightSql(source: string): ReactNode[] {
   if (cursor < source.length) pieces.push(source.slice(cursor));
   return pieces;
 }
-
-/**
- * SVG text cannot ellipsize in CSS, and generated FK names run long enough to
- * cross the tables they connect. The full name stays in the Relationships panel.
- */
-const ellipsize = (text: string, max = 30) =>
-  text.length > max ? `${text.slice(0, max - 1)}…` : text;
 
 type ExportTab = "ddl" | "plsql" | "combined";
 type PanelTab = "tables" | "relationships";
@@ -3156,55 +3149,26 @@ export default function Designer({
                   relationship.toIndex,
                   relationship.from,
                 );
-                const deltaY = to.y - from.y;
-                // Every edge leaves its anchor sideways and runs clear of the
-                // card before it turns, so the line always emerges from the
-                // column's own edge and passes through that end's marker. The
-                // bend can then only be placed beyond both stubs — halfway
-                // between them when the cards face each other, past the further
-                // one when both ends leave on the same side.
-                const fromStub = from.x + from.direction * EDGE_STUB;
-                const toStub = to.x + to.direction * EDGE_STUB;
-                const bendX = from.direction !== to.direction
-                  ? (fromStub + toStub) / 2
-                  : from.direction === 1 ? Math.max(fromStub, toStub) : Math.min(fromStub, toStub);
-                const exitDirection = Math.sign(bendX - from.x) || from.direction;
-                const enterDirection = Math.sign(to.x - bendX) || to.direction;
-                const verticalDirection = Math.sign(deltaY) || 1;
-                const radius = Math.min(10, Math.abs(bendX - from.x) / 2, Math.abs(to.x - bendX) / 2, Math.abs(deltaY) / 2);
-                // Facing anchors on the same row need no bend at all; the
-                // straight run already passes through both markers.
-                const path = Math.abs(deltaY) <= 4 && from.direction !== to.direction
-                  ? `M ${from.x} ${from.y} L ${to.x} ${to.y}`
-                  : `M ${from.x} ${from.y} H ${bendX - exitDirection * radius} Q ${bendX} ${from.y} ${bendX} ${from.y + verticalDirection * radius} V ${to.y - verticalDirection * radius} Q ${bendX} ${to.y} ${bendX + enterDirection * radius} ${to.y} H ${to.x}`;
                 const [fromCardinality, toCardinality] = relationshipCardinalities(relationship.relationship);
-                // Markers sit on the stub, short of the bend: the SVG paints
-                // before the cards, so the outward normal is the only direction
-                // that clears the card they belong to.
-                const markerDistance = 28;
-                const fromMarker = { x: from.x + from.direction * markerDistance, y: from.y };
-                const toMarker = { x: to.x + to.direction * markerDistance, y: to.y };
-                const active =
-                  selectedId === relationship.from.id ||
-                  selectedId === relationship.to.id;
                 return (
-                  <g className="relationship" key={relationship.id}>
-                    {/* Invisible fat stroke so the thin line is easy to hover. */}
-                    <path d={path} className="relationship-hit" />
-                    <path
-                      d={path}
-                      className={`relationship-path ${active ? "active" : ""}`}
-                    />
-                    {relationSettings.showCardinality && <>
-                      <rect className="relationship-marker" x={fromMarker.x - 14} y={fromMarker.y - 12} width="28" height="24" rx="12" />
-                      <text className="relationship-marker-text" x={fromMarker.x} y={fromMarker.y}>{fromCardinality}</text>
-                      <rect className="relationship-marker" x={toMarker.x - 14} y={toMarker.y - 12} width="28" height="24" rx="12" />
-                      <text className="relationship-marker-text" x={toMarker.x} y={toMarker.y}>{toCardinality}</text>
-                    </>}
-                    {/* On the bend, not between the anchors: the midpoint of a
-                        C-shaped route lands nowhere near the line. */}
-                    {relationSettings.showRelationshipLabels && <text className="relationship-label" x={bendX} y={(from.y + to.y) / 2} textAnchor="middle"><title>{relationship.relationship.name}</title>{ellipsize(relationship.relationship.name)}</text>}
-                  </g>
+                  <RelationshipEdge
+                    key={relationship.id}
+                    fromX={from.x}
+                    fromY={from.y}
+                    fromDirection={from.direction}
+                    toX={to.x}
+                    toY={to.y}
+                    toDirection={to.direction}
+                    fromCardinality={fromCardinality}
+                    toCardinality={toCardinality}
+                    label={relationship.relationship.name}
+                    active={
+                      selectedId === relationship.from.id ||
+                      selectedId === relationship.to.id
+                    }
+                    showCardinality={relationSettings.showCardinality}
+                    showLabel={relationSettings.showRelationshipLabels}
+                  />
                 );
               })}
             </svg>
