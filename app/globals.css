@@ -572,6 +572,7 @@ button {
   stroke-linecap: butt;
   pointer-events: stroke;
   transition:
+    d 120ms ease-out,
     stroke var(--duration-base) var(--ease-out),
     stroke-width var(--duration-base) var(--ease-out);
 }

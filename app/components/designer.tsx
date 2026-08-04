@@ -2510,31 +2510,38 @@ export default function Designer({
     });
     return counts;
   }, [relationships]);
-  const relationshipPoint = (table: Table, index: number, other: Table) => {
+  const edgeSideRef = useRef(new Map<string, 1 | -1>());
+
+  const relationshipPoint = (
+    table: Table,
+    index: number,
+    other: Table,
+    anchorKey: string,
+  ) => {
     // Anchors follow the live position so edges stay attached mid-drag.
     const origin = livePosition(table);
     const otherOrigin = livePosition(other);
-    // Anchors always sit on a vertical edge at the row's height, so the edge
-    // leaves the card horizontally. `direction` is that outward normal.
-    //
-    // Comparing card *extents* rather than centres is what keeps the two ends
-    // in agreement: whenever one side sees the other clear of it, the other
-    // side sees the same thing mirrored.
-    //
-    // Cards that overlap horizontally have no side facing the other, so both
-    // ends route around the same flank and the edge becomes a C. Which flank
-    // is the one the pair sticks out of least — comparing the two near edges,
-    // symmetric in the cards, so each end reaches the same answer alone.
-    const right = origin.x + tableWidth(table);
-    const otherRight = otherOrigin.x + tableWidth(other);
-    const direction =
-      otherOrigin.x >= right
-        ? 1
-        : otherRight <= origin.x
-          ? -1
-          : Math.abs(right - otherRight) <= Math.abs(origin.x - otherOrigin.x)
-            ? 1
-            : -1;
+
+    // Pick the vertical edge facing towards the other table's center.
+    // Facing edges create direct connections or clean S-curves between cards.
+    const tableCenter = origin.x + tableWidth(table) / 2;
+    const otherCenter = otherOrigin.x + tableWidth(other) / 2;
+    const raw: 1 | -1 = otherCenter >= tableCenter ? 1 : -1;
+
+    // Hysteresis: keep the previous side unless the table center has moved
+    // decisively past the target center by more than the margin.
+    const HYSTERESIS = 40; // px
+    const previous = edgeSideRef.current.get(anchorKey);
+    let direction = raw;
+    if (previous !== undefined && previous !== raw) {
+      const keepsPrevious =
+        previous === 1
+          ? otherCenter >= tableCenter - HYSTERESIS
+          : otherCenter <= tableCenter + HYSTERESIS;
+      if (keepsPrevious) direction = previous;
+    }
+    edgeSideRef.current.set(anchorKey, direction);
+
     return {
       x: origin.x + (direction === 1 ? tableWidth(table) : 0),
       y: origin.y + HEADER_HEIGHT + index * ROW_HEIGHT + ROW_HEIGHT / 2,
@@ -3837,11 +3844,13 @@ export default function Designer({
                   relationship.from,
                   relationship.fromIndex,
                   relationship.to,
+                  `${relationship.id}:from`,
                 );
                 const to = relationshipPoint(
                   relationship.to,
                   relationship.toIndex,
                   relationship.from,
+                  `${relationship.id}:to`,
                 );
                 const [fromCardinality, toCardinality] =
                   relationshipCardinalities(relationship.relationship);
