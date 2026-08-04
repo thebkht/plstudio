@@ -58,15 +58,24 @@ export function useCollaborativeSchema({
   const providerRef = useRef<HocuspocusProvider | null>(null);
   const undoRef = useRef<Y.UndoManager | null>(null);
 
-  const readSchema = useCallback(
-    () => schemaFromYDoc(ydoc, { id: projectId, revision: revisionRef.current }),
-    [projectId, ydoc],
-  );
-
   // Held in a ref because it is a seed, not a subscription: re-seeding on every
   // server render would fight concurrent edits.
   const seedRef = useRef(initialSchema);
   seedRef.current = initialSchema;
+
+  /**
+   * An empty document does not mean an empty schema — before the first sync it
+   * only means "not loaded yet", and if the collab service is unreachable that
+   * is the *permanent* state. Projecting it would blank the canvas and let a
+   * save overwrite the stored schema with nothing, so until the doc holds
+   * anything we present the server's copy instead.
+   */
+  const readSchema = useCallback(
+    () => isEmptyDoc(ydoc)
+      ? { ...seedRef.current, id: projectId, revision: revisionRef.current }
+      : schemaFromYDoc(ydoc, { id: projectId, revision: revisionRef.current }),
+    [projectId, ydoc],
+  );
 
   /**
    * Seeding must never race the server. Writing the initial schema into a doc
