@@ -3,6 +3,7 @@ import { SCHEMA_FORMAT_VERSION, type Schema } from "@/app/lib/schema";
 import { canDeleteProject } from "@/app/lib/workspace";
 import { requirePersonalProjectAccess, requireProjectAccess, requireSession } from "@/app/lib/session";
 import { findProjectByShareToken } from "@/app/lib/project-share";
+export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ id: string }> };
 async function access(request: Request, id: string) {

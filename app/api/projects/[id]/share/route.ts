@@ -2,6 +2,7 @@ import { touchProject } from "@/db/file-store";
 import { createProjectShare, revokeProjectShare } from "@/app/lib/project-share";
 import { requirePersonalProjectAccess, requireProjectAccess } from "@/app/lib/session";
 import { canManageProjectShare } from "@/app/lib/workspace";
+export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ id: string }> };
 

@@ -13,10 +13,9 @@ let db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 export function getDb() {
   if (db) return db;
   const sqlite = new Database(AUTH_DB_PATH);
-  // WAL keeps session reads from queueing behind a write; the busy timeout turns
-  // the rare collision into a short wait instead of an immediate SQLITE_BUSY.
-  sqlite.pragma("journal_mode = WAL");
+  // Set busy timeout BEFORE journal_mode so the WAL pragma write doesn't fail with SQLITE_BUSY
   sqlite.pragma("busy_timeout = 5000");
+  sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
   db = drizzle(sqlite, { schema });
   return db;

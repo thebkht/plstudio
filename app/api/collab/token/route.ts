@@ -6,7 +6,8 @@ import { requirePersonalProjectAccess, requireProjectAccess, requireSession } fr
  * Mints a short-lived token for one collab room. Every access decision is made
  * here, by the same helpers the REST routes use — the websocket server verifies
  * the signature and trusts the verdict rather than querying membership itself.
- */
+ */export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
