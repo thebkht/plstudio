@@ -3110,7 +3110,7 @@ export default function Designer({
 
         <div
           ref={canvasRef}
-          className={`canvas-wrap ${grabbing ? "grabbing" : ""}`}
+          className={`canvas-wrap ${grabbing ? "grabbing" : ""} ${grabbing || dragPosition ? "gesturing" : ""}`}
           onPointerDown={onCanvasDown}
           onPointerMove={(event) => {
             // Canvas space, not screen space: peers at other zoom levels must

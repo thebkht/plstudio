@@ -440,6 +440,17 @@ button {
   backdrop-filter: blur(18px) saturate(160%);
   box-shadow: var(--shadow-dock);
 }
+/*
+ * The dock floats over the canvas, so its blur re-reads and re-blurs the
+ * backdrop on every pan, zoom and drag frame -- the frames that can least
+ * afford it. Go opaque for the duration of the gesture; it settles back the
+ * moment the pointer lifts.
+ */
+.canvas-wrap.gesturing .dock {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: var(--surface-0);
+}
 .dock-zoom {
   min-width: 52px;
   text-align: center;
@@ -660,11 +671,19 @@ button {
   border-radius: 8px;
   background: var(--table-surface);
   color: var(--table-ink);
-  filter: drop-shadow(0 10px 8px rgb(0 0 0 / 0.04))
-    drop-shadow(0 4px 3px rgb(0 0 0 / 0.1));
+  /*
+   * box-shadow, not drop-shadow: the card is an opaque rounded rect with
+   * overflow hidden, so the two read identically, but drop-shadow convolves
+   * the alpha of the whole subtree -- every column row -- on each repaint, and
+   * puts the card on its own filter path that the canvas `scale(zoom)` then
+   * re-rasterises on every zoom frame.
+   */
+  box-shadow:
+    0 10px 8px rgb(0 0 0 / 0.04),
+    0 4px 3px rgb(0 0 0 / 0.1);
   transition:
     border-color var(--duration-base) var(--ease-out),
-    filter var(--duration-base) var(--ease-out);
+    box-shadow var(--duration-base) var(--ease-out);
 }
 /* Hovering hints that the card is grabbable before it is picked up. */
 .table-card:hover {
@@ -679,8 +698,9 @@ button {
 .table-card.moving {
   z-index: 2;
   border-style: solid;
-  filter: drop-shadow(0 20px 25px rgb(0 0 0 / 0.15))
-    drop-shadow(0 8px 10px rgb(0 0 0 / 0.1));
+  box-shadow:
+    0 20px 25px rgb(0 0 0 / 0.15),
+    0 8px 10px rgb(0 0 0 / 0.1);
 }
 .table-strip {
   height: 7px;
