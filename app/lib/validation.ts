@@ -63,6 +63,12 @@ function duplicateIssues(items: Array<{ value: string; label: string; tableId?: 
 
 export function validateSchema(schema: Schema): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
+  // Indexed once rather than scanned per foreign key: this runs on every edit,
+  // and a linear find per FK column makes validation quadratic in table count.
+  const byId = new Map(schema.tables.map((table) => [table.id, table]));
+  const columnsById = new Map(
+    schema.tables.map((table) => [table.id, new Map(table.columns.map((column) => [column.id, column]))]),
+  );
   issues.push(...duplicateIssues(schema.tables.map((table) => ({ value: table.name, label: `table ${table.name}`, tableId: table.id }))));
   issues.push(...duplicateIssues((schema.groups ?? []).map((group) => ({ value: group.name, label: `schema group ${group.name}` }))));
   (schema.groups ?? []).forEach((group) => {
@@ -82,8 +88,8 @@ export function validateSchema(schema: Schema): ValidationIssue[] {
       const typeIssue = validateTypeSpec(column.type, column.size);
       if (typeIssue) issues.push({ severity: "error", message: `${table.name}.${column.name}: ${typeIssue}`, tableId: table.id, columnId: column.id });
       if (column.fk) {
-        const target = schema.tables.find((candidate) => candidate.id === column.fk?.tableId);
-        const targetColumn = target?.columns.find((candidate) => candidate.id === column.fk?.columnId);
+        const target = byId.get(column.fk.tableId);
+        const targetColumn = target && columnsById.get(target.id)?.get(column.fk.columnId);
         if (!target || !targetColumn) issues.push({ severity: "error", message: `${table.name}.${column.name}: foreign key target is missing.`, tableId: table.id, columnId: column.id });
         else if (primaryKeyColumns(target).length > 1) issues.push({ severity: "error", message: `${table.name}.${column.name}: composite-PK targets require FK groups, which are not supported in v1.`, tableId: table.id, columnId: column.id });
         else if (targetColumn.type !== column.type) issues.push({ severity: "error", message: `${table.name}.${column.name}: FK type must match ${target.name}.${targetColumn.name}.`, tableId: table.id, columnId: column.id });
