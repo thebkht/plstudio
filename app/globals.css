@@ -473,10 +473,18 @@ button {
 .canvas-wrap.grabbing {
   cursor: grabbing;
 }
+/*
+ * No unconditional `will-change: transform` here. The canvas is as large as the
+ * world -- 4800x3600 at minimum, more once the schema grows -- so promoting it
+ * permanently pins a compositor layer of that size for the whole session, which
+ * is felt as memory pressure on low-end devices long before it is felt as
+ * smoothness. The `.gesturing` rule below promotes it for the duration of a
+ * gesture instead; that class is set on pointerdown, before the first move, so
+ * promotion still happens ahead of the frames that need it.
+ */
 .canvas {
   position: absolute;
   transform-origin: 0 0;
-  will-change: transform;
 }
 .canvas-wrap.gesturing .canvas {
   will-change: transform;
@@ -503,6 +511,9 @@ button {
   box-shadow: 0 8px 20px rgb(50 70 80 / 8%);
   transform-origin: 0 0;
   pointer-events: none;
+  /* Layout and style only -- the head is absolutely positioned above the group's
+     top edge and `overflow` is visible, so paint containment would clip it. */
+  contain: layout style;
   transition: box-shadow var(--duration-base) var(--ease-out), border-color var(--duration-base) var(--ease-out);
 }
 .schema-group.selected { outline: 2px solid color-mix(in oklch, var(--primary) 62%, transparent); outline-offset: 4px; }
@@ -602,6 +613,11 @@ button {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Same reasoning as `.table-card`: absolutely positioned, explicitly sized,
+     already clipping -- so nothing inside it can invalidate anything outside.
+     No `content-visibility` here: memos carry an editable textarea, and
+     skipping its rendering while it holds focus is not worth the few nodes. */
+  contain: layout paint style;
   border: 2px solid;
   border-radius: 10px;
   color: #493c2d;
@@ -678,6 +694,18 @@ button {
   top: 0;
   width: 220px;
   overflow: hidden;
+  /*
+   * A card's layout and paint never affect anything outside it -- it is
+   * absolutely positioned, sized explicitly, and already clips -- so scope
+   * invalidation to the card. `content-visibility` then lets the browser skip
+   * rendering the ones scrolled out of view entirely, which is the cheap half
+   * of viewport culling: unlike unmounting them in React it costs nothing in
+   * focus order or accessibility, because skipped content stays in both.
+   * The intrinsic height is supplied inline from `tableHeight()` -- without it
+   * a skipped card would size to zero.
+   */
+  contain: layout paint style;
+  content-visibility: auto;
   border: 2px solid var(--table-border);
   border-radius: 8px;
   background: var(--table-surface);

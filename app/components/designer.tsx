@@ -2522,22 +2522,35 @@ export default function Designer({
     const origin = livePosition(table);
     const otherOrigin = livePosition(other);
 
-    // Pick the vertical edge facing towards the other table's center.
-    // Facing edges create direct connections or clean S-curves between cards.
-    const tableCenter = origin.x + tableWidth(table) / 2;
-    const otherCenter = otherOrigin.x + tableWidth(other) / 2;
-    const raw: 1 | -1 = otherCenter >= tableCenter ? 1 : -1;
+    const right = origin.x + tableWidth(table);
+    const otherRight = otherOrigin.x + tableWidth(other);
 
-    // Hysteresis: keep the previous side unless the table center has moved
-    // decisively past the target center by more than the margin.
-    const HYSTERESIS = 40; // px
+    // Comparing card extents ensures that when cards are clear of each other,
+    // they leave facing each other (right edge to left edge, or vice versa).
+    // Cards that overlap horizontally have no clear facing side, so both
+    // ends route out the same flank (C-shaped curve) around whichever side
+    // (left or right) has closer aligning edges.
+    const raw: 1 | -1 =
+      otherOrigin.x >= right
+        ? 1
+        : otherRight <= origin.x
+          ? -1
+          : Math.abs(right - otherRight) <= Math.abs(origin.x - otherOrigin.x)
+            ? 1
+            : -1;
+
+    // Hysteresis: keep the previous direction unless the card position has moved
+    // past the boundary margin to avoid edge flipping flicker.
+    const HYSTERESIS = 30; // px
     const previous = edgeSideRef.current.get(anchorKey);
     let direction = raw;
     if (previous !== undefined && previous !== raw) {
       const keepsPrevious =
         previous === 1
-          ? otherCenter >= tableCenter - HYSTERESIS
-          : otherCenter <= tableCenter + HYSTERESIS;
+          ? otherOrigin.x >= origin.x &&
+            right - otherRight <= Math.abs(origin.x - otherOrigin.x) + HYSTERESIS
+          : otherRight <= right &&
+            origin.x - otherOrigin.x <= Math.abs(right - otherRight) + HYSTERESIS;
       if (keepsPrevious) direction = previous;
     }
     edgeSideRef.current.set(anchorKey, direction);

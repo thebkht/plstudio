@@ -35,7 +35,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { HoverCard } from "@/components/ui/hover-card";
-import { tableWidth, type Column, type SchemaGroup, type Table } from "@/app/lib/schema";
+import { tableHeight, tableWidth, type Column, type SchemaGroup, type Table } from "@/app/lib/schema";
 import { typeColorVar } from "@/app/lib/datatype-color";
 import { ColumnCard, ShortcutKeys, TableSummaryCard } from "./primitives";
 
@@ -162,6 +162,14 @@ export const TableCard = memo(function TableCard({
         style={{
           transform: `translate3d(${x}px, ${y}px, 0)`,
           width: tableWidth(table),
+          /*
+           * Paired with `content-visibility: auto` in globals.css. Width is
+           * already explicit above, so only the height is a guess -- and it is
+           * not really a guess: `tableHeight` is the same function the
+           * relationship anchors are derived from, so a skipped card reserves
+           * exactly the box it will occupy when it scrolls back into view.
+           */
+          containIntrinsicHeight: `${tableHeight(table)}px`,
           willChange: moving ? "transform" : undefined,
           ...(heldByColor ? ({ "--peer-color": heldByColor } as React.CSSProperties) : {}),
         }}
