@@ -1,3 +1,12 @@
+/**
+ * The `?redirect=` param the auth pages send you back to. Only same-site paths
+ * are honoured — `//evil.com` and absolute URLs would otherwise turn the login
+ * page into an open redirect.
+ */
+export function safeRedirect(value: string | null | undefined, fallback = "/") {
+  return value && value.startsWith("/") && !value.startsWith("//") ? value : fallback;
+}
+
 export function getRequestOrigin(request: Request): string {
   const envUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL;
   if (envUrl) {

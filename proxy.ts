@@ -2,17 +2,18 @@ import { getSessionCookie } from "better-auth/cookies";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+// Reachable signed out. `/share` is the read-only preview a share link opens —
+// the page itself decides what a session-less viewer may do, so gating it here
+// would make every share link a login wall.
+const PUBLIC_PREFIXES = ["/login", "/signup", "/invite", "/share", "/api/auth"];
+
 export function proxy(request: NextRequest) {
-  if (
-    !getSessionCookie(request) &&
-    !request.nextUrl.pathname.startsWith("/login") &&
-    !request.nextUrl.pathname.startsWith("/signup") &&
-    !request.nextUrl.pathname.startsWith("/invite") &&
-    !request.nextUrl.pathname.startsWith("/api/auth")
-  ) {
-    return NextResponse.redirect(new URL("/login", request.url));
-  }
-  return NextResponse.next();
+  const { pathname, search } = request.nextUrl;
+  if (getSessionCookie(request) || PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))) return NextResponse.next();
+  const login = new URL("/login", request.url);
+  // Same param the login page reads on success; relative-only so the redirect cannot be pointed off-site.
+  login.searchParams.set("redirect", `${pathname}${search}`);
+  return NextResponse.redirect(login);
 }
 
 export const config = {
