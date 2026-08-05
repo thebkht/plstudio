@@ -2,6 +2,7 @@ import { touchProject } from "@/db/file-store";
 import { createProjectShare, revokeProjectShare } from "@/app/lib/project-share";
 import { requirePersonalProjectAccess, requireProjectAccess } from "@/app/lib/session";
 import { canManageProjectShare } from "@/app/lib/workspace";
+import { getRequestOrigin } from "@/app/lib/url";
 export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ id: string }> };
@@ -17,7 +18,8 @@ export async function POST(request: Request, { params }: Params) {
     const { project, session, role } = await access(request, id);
     if (!canManageProjectShare(session.user.id, project.createdBy, role)) return Response.json({ error: "Only project owners can manage share links." }, { status: 403 });
     const token = await createProjectShare(id, session.user.id);
-    return Response.json({ url: `${new URL(request.url).origin}/share/project/${token}` });
+    const origin = getRequestOrigin(request);
+    return Response.json({ url: `${origin}/share/project/${token}` });
   } catch (error) {
     if (error instanceof Response) return error;
     return Response.json({ error: error instanceof Error ? error.message : "Could not create project link" }, { status: 400 });
