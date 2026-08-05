@@ -2,6 +2,17 @@
 #
 # `--env-file` feeds ${...} interpolation below (compose reads `.env` otherwise);
 # `env_file:` puts the same values inside the containers at runtime.
+#
+# DATA_DIR is a named volume, not a bind mount into the repo: this checkout lives
+# under ~/Documents, which macOS redirects into iCloud Drive, and having a sync
+# daemon own the durable store cost us every project once already. Both services
+# mount the same volume — collab mirrors each document back into the project's
+# JSON file, so a split store would silently lose those writes.
+#
+# The trade-off is that the files are no longer browsable from the host. To look:
+#   docker compose run --rm -v drawsql_app-data:/d --entrypoint sh web -c 'ls -R /d'
+# and to back up:
+#   docker run --rm -v drawsql_app-data:/d -v "$PWD":/out node:24-alpine tar czf /out/data-backup.tgz -C /d .
 services:
   web:
     build:
@@ -15,7 +26,7 @@ services:
     environment:
       DATA_DIR: /data
     volumes:
-      - ./data:/data
+      - app-data:/data
     ports:
       - "5555:3000"
     depends_on:
@@ -31,6 +42,9 @@ services:
       COLLAB_PORT: "1234"
       DATA_DIR: /data
     volumes:
-      - ./data:/data
+      - app-data:/data
     ports:
       - "1234:1234"
+
+volumes:
+  app-data:
