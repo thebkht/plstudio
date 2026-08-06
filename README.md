@@ -69,13 +69,109 @@ docker compose --env-file .env.local up --build -d
 
 - **Web App**: [http://localhost:5555](http://localhost:5555) (mapped to container port `3000`)
 - **Collab Server**: `ws://localhost:1234` / `http://localhost:1234`
-- **Data Persistence**: Local directory `./data` is mounted to `/data` inside containers, persisting `auth.db` and project files.
+- **Data Persistence**: the named volume `<project>_app-data` is mounted at `/data` in **both** services, holding `auth.db`, `projects/`, `yjs/` and `shares/`. It is a named volume rather than a bind mount into the checkout on purpose — see the comment at the top of `docker-compose.yml`. Move it between machines with `scripts/data-backup.sh` / `scripts/data-restore.sh` (below).
+- **Schema**: the web container runs `drizzle-kit push` before `next start`, so a fresh volume gets its auth tables automatically and an older one is brought up to date. It is idempotent — an unchanged schema logs `No changes detected`.
 
 To stop the containers:
 
 ```bash
 docker compose down
 ```
+
+### Windows
+
+Docker is the whole toolchain here — Node, pnpm and the build all live inside the
+image — so a Windows host needs **only Docker Desktop**. `setup.sh` is for the
+local-development path (`pnpm dev`) and is neither needed nor runnable here.
+
+```powershell
+# 1. Install Docker Desktop (WSL2 backend) and clone the repo, then:
+copy .env.example .env.local
+#    Edit .env.local: BETTER_AUTH_SECRET, COLLAB_TOKEN_SECRET,
+#    BETTER_AUTH_URL=http://localhost:5555, NEXT_PUBLIC_COLLAB_URL=ws://localhost:1234
+
+# 2. Build and start — the auth tables are created on first boot
+docker compose --env-file .env.local up --build -d
+
+# 3. Bring data over from another machine (optional, see below)
+#    .\scripts\data-restore.sh runs under Git Bash; the raw docker command is in
+#    the "Moving the data between machines" section.
+
+# 4. Start everything at logon
+powershell -ExecutionPolicy Bypass -File scripts\install-boot.ps1
+```
+
+The app is then on <http://localhost:5555>. `-AtStartup` on the installer runs the
+task before any user logs in, but Docker Desktop only starts at logon, so use it
+only with a daemon that runs as a service.
+
+### Moving the data between machines
+
+Everything durable lives in the `app-data` volume, which is not browsable from the
+host. These wrap the container-side `tar` for you:
+
+```bash
+./scripts/data-backup.sh                      # → ./drawsql-data-<timestamp>.tgz
+./scripts/data-restore.sh drawsql-data-*.tgz  # → into this machine's volume
+./scripts/data-restore.sh ./data              # or an old bind-mounted directory
+```
+
+Stop the stack before backing up if the app is in use (`docker compose stop`) —
+SQLite can otherwise be caught mid-transaction. Restore refuses a non-empty volume
+unless you pass `--force`, and stops the stack itself first. Both accept
+`DRAWSQL_VOLUME=…` to target a different volume.
+
+On Windows these run under Git Bash; without it, the same two steps are:
+
+```powershell
+docker run --rm -v drawsql_app-data:/data -v "${PWD}:/backup" alpine tar czf /backup/data.tgz -C /data .
+docker run --rm -v drawsql_app-data:/data -v "${PWD}:/src" alpine tar xzf /src/data.tgz -C /data
+```
+
+A restored `auth.db` from an older build is migrated on the next start by the
+`drizzle-kit push` in the container's command.
+
+### Starting on boot
+
+Both services are declared `restart: unless-stopped`, so the Docker daemon brings
+them back on its own — but only for containers that already exist and were not
+stopped by hand, and only once the daemon itself is running. The boot hook covers
+the rest: it starts the engine, waits for it, then runs `compose up -d`.
+
+```bash
+./scripts/install-boot.sh                 # macOS + Linux
+./scripts/install-boot.sh --uninstall
+
+powershell -ExecutionPolicy Bypass -File scripts\install-boot.ps1   # Windows
+powershell -ExecutionPolicy Bypass -File scripts\install-boot.ps1 -Uninstall
+```
+
+The installer picks the host's own init system and generates the unit from this
+checkout's path, so it works from any clone:
+
+| Host | Mechanism | Installed to |
+| --- | --- | --- |
+| macOS | launchd user agent (at login) | `~/Library/LaunchAgents/com.drawsql.boot.plist` |
+| Linux, root | systemd system unit (at boot) | `/etc/systemd/system/drawsql.service` |
+| Linux, user | systemd user unit + linger | `~/.config/systemd/user/drawsql.service` |
+| Windows | Scheduled Task (at logon; `-AtStartup` for earlier) | Task `drawsql-boot` |
+| No systemd | — | `@reboot /path/to/scripts/boot-drawsql.sh` in crontab |
+
+`scripts/boot-drawsql.sh` (and `.ps1` on Windows) is the script all of these run,
+and it is safe to run directly at any time. It detects `docker compose` vs
+`docker-compose`, picks up `.env.local` or `.env`, and starts the engine the way
+the host does — Docker Desktop, colima, or `systemctl start docker`. Logs go to
+`~/Library/Logs/drawsql-boot.log`, `$XDG_STATE_HOME/drawsql-boot.log`, or
+`%LOCALAPPDATA%\drawsql\boot.log`.
+
+**macOS caveat:** launchd agents are refused access to `~/Documents`, `~/Desktop`
+and `~/Downloads` by TCC, so a checkout in one of those is unreadable at login.
+The installer handles it by placing a shim in `~/Library/Application Support/`
+that falls back to starting the project's existing containers by their compose
+label — no repo access needed. To get a full `compose up -d` (which is what picks
+up compose-file edits, or recreates deleted containers), either move the checkout
+outside those folders or grant `/bin/bash` Full Disk Access in System Settings →
+Privacy & Security.
 
 ---
 
