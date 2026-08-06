@@ -1,5 +1,10 @@
 # Run with:  docker compose --env-file .env.local up --build
 #
+# `restart: unless-stopped` brings both services back when the Docker daemon
+# starts, but only for containers that already exist and were not stopped by
+# hand. `scripts/boot-drawsql.sh` (wired to a LaunchAgent, see README) covers
+# the rest: it starts Docker Desktop itself and runs `up -d` from cold.
+#
 # `--env-file` feeds ${...} interpolation below (compose reads `.env` otherwise);
 # `env_file:` puts the same values inside the containers at runtime.
 #
@@ -11,8 +16,8 @@
 #
 # The trade-off is that the files are no longer browsable from the host. To look:
 #   docker compose run --rm -v drawsql_app-data:/d --entrypoint sh web -c 'ls -R /d'
-# and to back up:
-#   docker run --rm -v drawsql_app-data:/d -v "$PWD":/out node:24-alpine tar czf /out/data-backup.tgz -C /d .
+# and to back up or move to another machine:
+#   ./scripts/data-backup.sh   /   ./scripts/data-restore.sh <file.tgz|dir>
 services:
   web:
     build:
@@ -29,6 +34,7 @@ services:
       - app-data:/data
     ports:
       - "5555:3000"
+    restart: unless-stopped
     depends_on:
       - collab
 
@@ -45,6 +51,7 @@ services:
       - app-data:/data
     ports:
       - "1234:1234"
+    restart: unless-stopped
 
 volumes:
   app-data:
