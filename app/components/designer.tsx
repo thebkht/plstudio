@@ -456,6 +456,14 @@ export default function Designer({
     height: number;
   } | null>(null);
   const [grabbing, setGrabbing] = useState(false);
+  /**
+   * The hand tool. `handMode` is the sticky dock toggle; `spaceHeld` is the
+   * momentary hold. Panning reads the union, so the two can never disagree —
+   * releasing Space while the toggle is on leaves hand mode on, as in Figma.
+   */
+  const [handMode, setHandMode] = useState(false);
+  const [spaceHeld, setSpaceHeld] = useState(false);
+  const panMode = handMode || spaceHeld;
   const [modal, setModal] = useState<
     "export" | "import" | "share" | "shortcuts" | null
   >(null);
@@ -1883,14 +1891,14 @@ export default function Designer({
     [canvasRect, stopAnimation],
   );
 
-  const onCanvasDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget) return;
+  /**
+   * Seeds a pan gesture. Deliberately leaves selection alone: hitting empty
+   * canvas clears it (below), but the hand tool must not — dragging the view
+   * around is not a way of deselecting what you were working on.
+   */
+  const startPan = (event: React.PointerEvent<HTMLDivElement>) => {
     stopAnimation();
     event.currentTarget.setPointerCapture(event.pointerId);
-    setSelectedId(null);
-    setSelectedGroupId(null);
-    setSelectedMemoId(null);
-    setEditingMemoId(null);
     setGrabbing(true);
     const tracker = new VelocityTracker();
     tracker.add(pan.x, pan.y, event.timeStamp || performance.now());
@@ -1906,6 +1914,29 @@ export default function Designer({
       moved: false,
       tracker,
     };
+  };
+
+  const onCanvasDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) return;
+    setSelectedId(null);
+    setSelectedGroupId(null);
+    setSelectedMemoId(null);
+    setEditingMemoId(null);
+    startPan(event);
+  };
+
+  /**
+   * Hand mode pans from anywhere, so it has to win before the cards do — they
+   * all `stopPropagation()` in the bubble phase, and the pan handler below only
+   * fires on a bare-canvas hit. Stopping the capture-phase event halts React's
+   * whole dispatch, which leaves table drag, group/memo resize and relationship
+   * linking inert for as long as the tool is held.
+   */
+  const onCanvasDownCapture = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!panMode || event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    startPan(event);
   };
 
   const onHeaderDown = useCallback(
@@ -3597,7 +3628,8 @@ export default function Designer({
 
         <div
           ref={canvasRef}
-          className={`canvas-wrap ${grabbing ? "grabbing" : ""} ${grabbing || dragPosition ? "gesturing" : ""}`}
+          className={`canvas-wrap ${grabbing ? "grabbing" : ""} ${grabbing || dragPosition ? "gesturing" : ""} ${panMode ? "pan-mode" : ""}`}
+          onPointerDownCapture={onCanvasDownCapture}
           onPointerDown={onCanvasDown}
           onPointerMove={(event) => {
             // Canvas space, not screen space: peers at other zoom levels must
