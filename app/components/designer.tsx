@@ -27,6 +27,7 @@ import {
   FloppyDiskIcon,
   GitMergeIcon,
   GridViewIcon,
+  HandGrabIcon,
   Key01Icon,
   Link01Icon,
   Maximize01Icon,
@@ -4008,6 +4009,16 @@ export default function Designer({
           )}
 
           <ButtonGroup className="dock" aria-label="Canvas controls">
+            <DockButton
+              label={
+                panMode
+                  ? "Hand tool — on (or hold Space)"
+                  : "Hand tool — pan canvas (hold Space)"
+              }
+              icon={HandGrabIcon}
+              isActive={panMode}
+              onClick={() => setHandMode((on) => !on)}
+            />
             <DockButton
               label="Tidy up layout"
               icon={GridViewIcon}
