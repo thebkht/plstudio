@@ -142,6 +142,7 @@ import { typeColorVar } from "@/app/lib/datatype-color";
 import {
   SHORTCUTS,
   SHORTCUT_GROUPS,
+  isEditingTarget,
   isMacPlatform,
   matchShortcut,
   shortcutById,
@@ -2467,6 +2468,21 @@ export default function Designer({
    */
   const keyHandlerRef = useRef<(event: KeyboardEvent) => void>(() => {});
   keyHandlerRef.current = (event: KeyboardEvent) => {
+    // `code`, not `key`, so the hold survives non-US layouts. preventDefault
+    // stops both the page scroll and Space activating a focused dock button.
+    if (event.code === "Space") {
+      if (
+        isEditingTarget(event.target) ||
+        modal ||
+        openMenu ||
+        userMenuOpen ||
+        confirmRevoke
+      )
+        return;
+      event.preventDefault();
+      if (!event.repeat) setSpaceHeld(true);
+      return;
+    }
     if (event.key === "Escape") {
       // Overlays dismiss themselves; Escape only clears canvas selection.
       if (modal || openMenu || userMenuOpen || confirmRevoke) return;
@@ -2494,6 +2510,23 @@ export default function Designer({
     const onKeyDown = (event: KeyboardEvent) => keyHandlerRef.current(event);
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  /**
+   * The other half of the Space hold. `blur` matters as much as `keyup`: tabbing
+   * away mid-hold means the keyup lands on another window, and without this the
+   * canvas would come back stuck in hand mode.
+   */
+  useEffect(() => {
+    const onKeyUp = (event: KeyboardEvent) =>
+      event.code === "Space" && setSpaceHeld(false);
+    const clear = () => setSpaceHeld(false);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", clear);
+    return () => {
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", clear);
+    };
   }, []);
 
   const relationships = useMemo(
