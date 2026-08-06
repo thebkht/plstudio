@@ -4,6 +4,7 @@ import { listProjects } from "@/db/file-store";
 import { listUserWorkspaces } from "@/app/lib/session";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import PendingInvitations from "@/app/components/pending-invitations";
 import ProjectCard from "@/app/components/project-card";
 import WorkspaceTopbar from "@/app/components/workspace-topbar";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -43,6 +44,7 @@ export default async function Page() {
           <Link data-slot="button" className={buttonVariants({ variant: "outline" })} href="/onboarding">New workspace</Link>
         </div>
       </header>
+      <PendingInvitations />
       {workspaces.length > 0 && (
         <section className="workspace-list">
           <h2 className="eyebrow">Your workspaces</h2>

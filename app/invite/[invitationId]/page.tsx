@@ -40,8 +40,12 @@ export default function InvitePage({ params }: { params: Promise<{ invitationId:
   const accept = async () => {
     if (!state.invite) return;
     const result = await (authClient.organization as any).acceptInvitation({ invitationId: state.invite.id });
-    if (result.error) setState({ ...state, message: result.error.message });
-    else router.push(`/${state.invite.organization?.slug || ""}`);
+    if (result.error) return setState({ ...state, message: result.error.message });
+    const slug = state.invite.organization?.slug || result.data?.organization?.slug;
+    // Joining a second workspace leaves the previous one active otherwise, and
+    // its members list is what the settings page would then show.
+    if (slug) await authClient.organization.setActive({ organizationSlug: slug });
+    router.push(`/${slug || ""}`);
   };
   const decline = async () => {
     if (!state.invite) return;
