@@ -157,11 +157,14 @@ export const ColumnCard = memo(function ColumnCard({
 export const DockButton = memo(function DockButton({
   label,
   icon,
+  isActive,
   isDisabled,
   onClick,
 }: {
   label: string;
   icon: IconSvgElement;
+  /** Toggles rather than commands: renders pressed and announces its state. */
+  isActive?: boolean;
   isDisabled?: boolean;
   onClick: () => void;
 }) {
@@ -171,6 +174,7 @@ export const DockButton = memo(function DockButton({
         variant="ghost"
         size="icon"
         aria-label={label}
+        aria-pressed={isActive}
         isDisabled={isDisabled}
         onClick={onClick}
       >
