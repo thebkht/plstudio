@@ -37,6 +37,11 @@ COPY --from=build /app/.next ./.next
 COPY package.json ./
 # No `public/` in this repo; add a COPY for it if static assets are ever introduced.
 
+# Needed by the `drizzle-kit push` in CMD below: the config reads ./db/paths.ts
+# for the database location and ./db/schema.ts for the tables to create.
+COPY db ./db
+COPY drizzle.config.ts ./
+
 # Everything durable — auth.db and the project JSON — lives here, so it must be a
 # mounted volume in any real deployment. See docker-compose.yml.
 ENV DATA_DIR=/data
@@ -44,4 +49,9 @@ RUN mkdir -p /data
 VOLUME /data
 
 EXPOSE 3000
-CMD ["node_modules/.bin/next", "start"]
+# `getDb()` creates auth.db but never its tables, and DATA_DIR is a fresh volume
+# on any new host — so without this a first deploy serves 500s on sign-up. `push`
+# is idempotent and diffs against the live database, so it is a near no-op on
+# every later start; `--force` skips the interactive prompt it would otherwise
+# raise for destructive statements. `exec` keeps next as PID 1 for signals.
+CMD ["sh", "-c", "node_modules/.bin/drizzle-kit push --force && exec node_modules/.bin/next start"]
