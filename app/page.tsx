@@ -1,9 +1,7 @@
 import Link from "next/link";
-import { eq } from "drizzle-orm";
 import { auth } from "@/app/lib/auth";
-import { getDb } from "@/db";
 import { listProjects } from "@/db/file-store";
-import { member, organization } from "@/db/schema";
+import { listUserWorkspaces } from "@/app/lib/session";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import ProjectCard from "@/app/components/project-card";
@@ -20,23 +18,20 @@ import {
 export default async function Page() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
-  const [workspace, personalProjects] = await Promise.all([
-    getDb().select({ slug: organization.slug, name: organization.name }).from(member).innerJoin(organization, eq(member.organizationId, organization.id)).where(eq(member.userId, session.user.id)).limit(1),
+  const [workspaces, personalProjects] = await Promise.all([
+    listUserWorkspaces(session.user.id),
     listProjects({ createdBy: session.user.id, personalOnly: true }),
   ]);
-  const workspaceRow = workspace[0];
   return (
     <main className="dashboard-shell">
       <WorkspaceTopbar
+        workspaces={workspaces}
+        current={null}
         links={[
           { href: "/", label: "Personal projects" },
-          ...(workspaceRow ? [{ href: `/${workspaceRow.slug}`, label: "Workspace" }] : []),
           { href: "/templates", label: "Templates" },
         ]}
-        account={{
-          href: workspaceRow ? `/${workspaceRow.slug}/settings` : "/onboarding",
-          label: workspaceRow ? workspaceRow.name : "Create a workspace",
-        }}
+        account={{ href: "/onboarding", label: "New workspace" }}
       />
       <header className="dashboard-header">
         <div>
@@ -45,9 +40,24 @@ export default async function Page() {
         </div>
         <div className="dashboard-actions">
           <Link data-slot="button" className={buttonVariants()} href="/editor">New diagram</Link>
-          {workspaceRow && <Link data-slot="button" className={buttonVariants({ variant: "outline" })} href={`/${workspaceRow.slug}`}>Open workspace</Link>}
+          <Link data-slot="button" className={buttonVariants({ variant: "outline" })} href="/onboarding">New workspace</Link>
         </div>
       </header>
+      {workspaces.length > 0 && (
+        <section className="workspace-list">
+          <h2 className="eyebrow">Your workspaces</h2>
+          <ul>
+            {workspaces.map((workspace) => (
+              <li key={workspace.id}>
+                <Link href={`/${workspace.slug}`}>
+                  <span>{workspace.name}</span>
+                  <span className="workspace-list-role">{workspace.role}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {personalProjects.length ? (
         <section className="project-grid">
           {personalProjects.map((project) => {

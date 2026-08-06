@@ -1,4 +1,4 @@
-import { requireWorkspace } from "@/app/lib/session";
+import { listUserWorkspaces, requireWorkspace } from "@/app/lib/session";
 import { canManageMembers } from "@/app/lib/workspace";
 import SettingsClient from "@/app/components/settings-client";
 import WorkspaceTopbar from "@/app/components/workspace-topbar";
@@ -6,9 +6,12 @@ import WorkspaceTopbar from "@/app/components/workspace-topbar";
 export default async function SettingsPage({ params }: { params: Promise<{ workspace: string }> }) {
   const { workspace } = await params;
   const { organization, role, session } = await requireWorkspace(workspace);
+  const workspaces = await listUserWorkspaces(session.user.id);
   return (
     <main className="dashboard-shell">
       <WorkspaceTopbar
+        workspaces={workspaces}
+        current={workspace}
         links={[
           { href: `/${workspace}`, label: "Projects" },
           { href: "/templates", label: "Templates" },

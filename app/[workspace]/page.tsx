@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { listProjects } from "@/db/file-store";
-import { requireWorkspace } from "@/app/lib/session";
+import { listUserWorkspaces, requireWorkspace } from "@/app/lib/session";
 import NewProjectButton from "@/app/components/new-project-button";
 import ProjectCard from "@/app/components/project-card";
 import WorkspaceTopbar from "@/app/components/workspace-topbar";
@@ -15,11 +15,13 @@ import {
 
 export default async function WorkspacePage({ params }: { params: Promise<{ workspace: string }> }) {
   const { workspace } = await params;
-  const { organization } = await requireWorkspace(workspace);
-  const rows = await listProjects({ organizationId: organization.id });
+  const { organization, session } = await requireWorkspace(workspace);
+  const [rows, workspaces] = await Promise.all([listProjects({ organizationId: organization.id }), listUserWorkspaces(session.user.id)]);
   return (
     <main className="dashboard-shell">
       <WorkspaceTopbar
+        workspaces={workspaces}
+        current={workspace}
         links={[
           { href: `/${workspace}`, label: "Projects" },
           { href: "/templates", label: "Templates" },

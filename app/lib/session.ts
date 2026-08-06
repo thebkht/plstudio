@@ -12,6 +12,15 @@ export async function requireSession() {
   return session;
 }
 
+/**
+ * Every workspace the user belongs to. A user may own several and be invited to
+ * several more — the organization plugin has always allowed it — so nothing here
+ * takes the first row and calls it "the" workspace.
+ */
+export async function listUserWorkspaces(userId: string) {
+  return getDb().select({ id: organization.id, slug: organization.slug, name: organization.name, role: member.role }).from(member).innerJoin(organization, eq(member.organizationId, organization.id)).where(eq(member.userId, userId)).orderBy(organization.name);
+}
+
 export async function requireWorkspace(slug: string) {
   const session = await requireSession();
   const row = (await getDb().select({ organization, role: member.role }).from(member).innerJoin(organization, eq(member.organizationId, organization.id)).where(and(eq(member.userId, session.user.id), eq(organization.slug, slug))))[0];
