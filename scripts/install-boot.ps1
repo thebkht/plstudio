@@ -8,11 +8,14 @@
 # Run in an elevated shell with -AtStartup to start the stack before any user
 # logs in; that requires the daemon to run as a service (Docker Desktop does not,
 # so at-logon is the right trigger for a Desktop install).
-param([switch]$Uninstall, [switch]$AtStartup)
+#
+# -Native schedules the no-Docker path (two Node processes) instead of the
+# compose stack; see the README section of the same name.
+param([switch]$Uninstall, [switch]$AtStartup, [switch]$Native)
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
-$boot = Join-Path $repo 'scripts\boot-drawsql.ps1'
+$boot = if ($Native) { Join-Path $repo 'scripts\run-native.ps1' } else { Join-Path $repo 'scripts\boot-drawsql.ps1' }
 $name = 'drawsql-boot'
 
 if (-not (Test-Path $boot)) { throw "Missing $boot" }
@@ -35,6 +38,7 @@ Register-ScheduledTask -TaskName $name -Action $action -Trigger $trigger -Settin
   -Description 'Start Docker Desktop and the drawsql compose stack' | Out-Null
 
 $when = if ($AtStartup) { 'at startup' } else { "at logon for $env:USERNAME" }
-Write-Host "Installed scheduled task '$name' — runs $when."
-Write-Host "Log: $env:LOCALAPPDATA\drawsql\boot.log"
+$what = if ($Native) { 'the Node processes directly' } else { 'Docker Desktop and the compose stack' }
+Write-Host "Installed scheduled task '$name' — starts $what $when."
+Write-Host "Log: $env:LOCALAPPDATA\drawsql\$(if ($Native) { 'native.log' } else { 'boot.log' })"
 Write-Host "Test it now with:  Start-ScheduledTask -TaskName $name"

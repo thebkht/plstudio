@@ -105,6 +105,51 @@ The app is then on <http://localhost:5555>. `-AtStartup` on the installer runs t
 task before any user logs in, but Docker Desktop only starts at logon, so use it
 only with a daemon that runs as a service.
 
+### Running without Docker
+
+Docker is a packaging choice, not a requirement — the app is a Next server plus a
+`tsx` process, with SQLite and JSON files in a folder. Use this path when
+virtualization is unavailable: on Windows, Docker can only run these Linux images
+inside a WSL2 (or Hyper-V) VM, and enabling that needs admin rights and
+VT-x/AMD-V turned on in firmware. Nothing here needs either.
+
+```powershell
+pnpm install
+pnpm drizzle-kit push        # once — creates <DATA_DIR>/auth.db and its tables
+pnpm build
+powershell -ExecutionPolicy Bypass -File scripts\run-native.ps1        # start both
+powershell -ExecutionPolicy Bypass -File scripts\run-native.ps1 -Stop  # stop both
+powershell -ExecutionPolicy Bypass -File scripts\install-boot.ps1 -Native  # at logon
+```
+
+On macOS and Linux the same three steps apply, then run the two servers yourself:
+
+```bash
+pnpm start     # Next, on http://localhost:3000
+pnpm collab    # Hocuspocus, in a second terminal
+```
+
+What differs from the Docker path:
+
+- **Port 3000, not 5555.** `next start` serves 3000 directly with no port mapping,
+  so `BETTER_AUTH_URL` must say `http://localhost:3000`.
+- **`DATA_DIR` is a plain folder** (default `./data`) instead of a named volume, so
+  the database and project JSON are browsable and `scripts/data-backup.sh` is not
+  needed to look at them. Copy the folder to move an install.
+- **`pnpm drizzle-kit push` is yours to run.** The container does it on every start;
+  nothing does it for you here. Re-run it after a schema change.
+- **Environment.** Next reads `.env.local` on its own, but `pnpm collab` reads
+  `COLLAB_TOKEN_SECRET` straight from the environment — Docker supplies it through
+  `env_file:`. `run-native.ps1` loads `.env.local` into both processes; if you start
+  them by hand, export the variables first.
+- **No admin needed anywhere.** `better-sqlite3` ships prebuilt binaries for
+  `win32-x64`/`win32-arm64` in its npm package, so `pnpm install` does not compile
+  anything and Visual Studio Build Tools are not required.
+
+Node 20+ (22 recommended) and pnpm are needed on the host for this path — and only
+this one. Both can be installed without admin: extract the official Node zip into
+your user folder, or use `fnm`, rather than the MSI.
+
 ### Moving the data between machines
 
 Everything durable lives in the `app-data` volume, which is not browsable from the
