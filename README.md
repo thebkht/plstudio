@@ -142,9 +142,17 @@ What differs from the Docker path:
   `COLLAB_TOKEN_SECRET` straight from the environment — Docker supplies it through
   `env_file:`. `run-native.ps1` loads `.env.local` into both processes; if you start
   them by hand, export the variables first.
-- **No admin needed anywhere.** `better-sqlite3` ships prebuilt binaries for
-  `win32-x64`/`win32-arm64` in its npm package, so `pnpm install` does not compile
-  anything and Visual Studio Build Tools are not required.
+- **No admin needed anywhere.** `better-sqlite3` is pinned to `12.11.1`, the last
+  release that publishes prebuilt binaries — `pnpm install` downloads a ready-made
+  `win32-x64`/`win32-arm64`/`darwin-arm64` addon and compiles nothing, so Visual
+  Studio Build Tools are not required. **Do not bump it to 13.x**: that release
+  dropped `prebuild-install` and its prebuilt assets entirely, leaving only a
+  `binding.gyp`, so package managers fall back to `node-gyp rebuild` and the
+  install fails on any machine without an MSVC toolchain. (13.x is also outside
+  `better-auth`'s declared `better-sqlite3: ^12.0.0` peer range.) If you ever do
+  need to compile, add the "Desktop development with C++" workload through the
+  Visual Studio Installer — that needs admin; the long-deprecated
+  `npm i -g windows-build-tools` does not work on modern Node and should not be used.
 
 Node 20+ (22 recommended) and pnpm are needed on the host for this path — and only
 this one. Both can be installed without admin: extract the official Node zip into
