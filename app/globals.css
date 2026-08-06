@@ -136,23 +136,29 @@ button {
 }
 
 /*
- * A single visible focus treatment for every interactive surface. The shadcn
- * base layer only sets an outline *color*, which renders no ring at all.
+ * Focus treatment for interactive surfaces the design system does not already
+ * cover — the canvas and the table cards, which are bespoke and focusable.
  *
- * Rows inside a composite widget are excluded. Focus there moves with the arrow
- * keys and is already shown as a filled highlight, so the ring is a second
- * indicator for the same state — and drawn 2px outside a row that sits flush in
- * a popover, it reads as an artifact rather than as focus. Native menus behave
- * the same way: the row highlights, it never gains an outline.
+ * Everything carrying a `data-slot` is excluded: those are shadcn controls, and
+ * each already ships `focus-visible:ring-3` tuned to its own radius. Applying
+ * this on top drew a second, harder ring 2px outside the first — one state
+ * announced twice, in two shapes. Composite-widget rows are excluded for the
+ * same reason plus one more: focus moves through them with the arrow keys and
+ * is already shown as a filled highlight, so an outline on a row sitting flush
+ * inside a popover reads as an artifact. Native menus highlight the row; they
+ * never outline it.
  *
- * No border-radius here either. Setting one changed the control's own corners at
- * the moment it was focused; outlines already follow the element's radius, so
- * the ring now traces each control's real shape.
+ * No border-radius either. Setting one reshaped the control's own corners at the
+ * instant it was focused; outlines follow the element's radius on their own, so
+ * the ring now traces each surface's real shape.
+ *
+ * The :not() argument is wrapped in :where() to keep this at the specificity it
+ * had before, so it cannot start winning against a component's own focus style.
  */
-:where(button, [role="button"], a, input, select, textarea, [tabindex]):not(
-  [role="option"], [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"],
-  [role="tab"], [role="row"], [role="gridcell"]
-):focus-visible {
+:where(button, [role="button"], a, input, select, textarea, [tabindex]):not(:where(
+  [data-slot], [role="option"], [role="menuitem"], [role="menuitemcheckbox"],
+  [role="menuitemradio"], [role="tab"], [role="row"], [role="gridcell"]
+)):focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
