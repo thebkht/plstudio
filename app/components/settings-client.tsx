@@ -20,12 +20,25 @@ import {
   ItemGroup,
   ItemTitle,
 } from "@/components/ui/item";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { assignableRoles, canChangeMemberRole, type WorkspaceRole } from "@/app/lib/workspace";
 
-type WorkspaceMember = { id: string; role: string; user?: { name?: string; email?: string } };
+type WorkspaceMember = { id: string; userId: string; role: string; user?: { name?: string; email?: string } };
 
-export default function SettingsClient({ workspace, organizationId, organizationName, canManage }: { workspace: string; organizationId: string; organizationName: string; canManage: boolean }) {
+const ROLE_LABELS: Record<WorkspaceRole, string> = { owner: "Owner", admin: "Admin", member: "Member" };
+
+export default function SettingsClient({ workspace, organizationId, organizationName, canManage, viewerRole, viewerUserId }: { workspace: string; organizationId: string; organizationName: string; canManage: boolean; viewerRole: WorkspaceRole; viewerUserId: string }) {
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [email, setEmail] = useState("");
+  const [pendingRoleFor, setPendingRoleFor] = useState<string | null>(null);
+  const options = assignableRoles(viewerRole);
 
   useEffect(() => {
     void (async () => {
@@ -50,6 +63,19 @@ export default function SettingsClient({ workspace, organizationId, organization
     } else toast.error(result.error?.message || "Could not create invitation.");
   };
 
+  const changeRole = async (member: WorkspaceMember, role: WorkspaceRole) => {
+    if (role === member.role) return;
+    setPendingRoleFor(member.id);
+    setMembers((current) => current.map((row) => (row.id === member.id ? { ...row, role } : row)));
+    const result = await (authClient.organization as any).updateMemberRole({ memberId: member.id, role, organizationId });
+    setPendingRoleFor(null);
+    if (result.error) {
+      // The server is the authority on who may change what, so put the old role back.
+      setMembers((current) => current.map((row) => (row.id === member.id ? { ...row, role: member.role } : row)));
+      toast.error(result.error.message || "Could not change that member's role.");
+    } else toast.success(`${member.user?.name || member.user?.email} is now ${ROLE_LABELS[role].toLowerCase()}.`);
+  };
+
   return (
     <Card className="settings-card">
       <CardHeader>
@@ -65,7 +91,28 @@ export default function SettingsClient({ workspace, organizationId, organization
                   <ItemTitle>{member.user?.name || member.user?.email}</ItemTitle>
                 </ItemContent>
                 <ItemActions>
-                  <Badge variant="secondary">{member.role}</Badge>
+                  {canChangeMemberRole(viewerRole, member.role, member.userId === viewerUserId) ? (
+                    <Select
+                      className="w-36"
+                      aria-label={`Role for ${member.user?.name || member.user?.email}`}
+                      isDisabled={pendingRoleFor === member.id}
+                      selectedKey={member.role}
+                      onSelectionChange={(key) => void changeRole(member, key as WorkspaceRole)}
+                    >
+                      <SelectTrigger size="sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {options.map((role) => (
+                            <SelectItem key={role} id={role}>{ROLE_LABELS[role]}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Badge variant="secondary">{member.role}</Badge>
+                  )}
                 </ItemActions>
               </Item>
             ))}

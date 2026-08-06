@@ -5,7 +5,7 @@ import WorkspaceTopbar from "@/app/components/workspace-topbar";
 
 export default async function SettingsPage({ params }: { params: Promise<{ workspace: string }> }) {
   const { workspace } = await params;
-  const { organization, role } = await requireWorkspace(workspace);
+  const { organization, role, session } = await requireWorkspace(workspace);
   return (
     <main className="dashboard-shell">
       <WorkspaceTopbar
@@ -21,7 +21,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ works
           <h1>Settings</h1>
         </div>
       </div>
-      <SettingsClient workspace={workspace} organizationId={organization.id} organizationName={organization.name} canManage={canManageMembers(role)} />
+      <SettingsClient workspace={workspace} organizationId={organization.id} organizationName={organization.name} canManage={canManageMembers(role)} viewerRole={role} viewerUserId={session.user.id} />
     </main>
   );
 }
