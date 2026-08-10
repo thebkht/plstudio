@@ -78,7 +78,7 @@ function ForgotPasswordForm() {
               </Field>
             </FieldGroup>
           </CardContent>
-          <CardFooter>
+          <CardFooter className="auth-footer">
             <p>Remembered it? <Link href={login}>Back to sign in</Link></p>
           </CardFooter>
         </form>

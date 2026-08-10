@@ -75,7 +75,7 @@ function SignupForm() {
               </Field>
             </FieldGroup>
           </CardContent>
-          <CardFooter>
+          <CardFooter className="auth-footer">
             <p>Already have an account? <Link href={next === "/" ? "/login" : `/login?redirect=${encodeURIComponent(next)}`}>Sign in</Link></p>
           </CardFooter>
         </form>
