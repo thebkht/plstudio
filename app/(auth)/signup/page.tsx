@@ -47,8 +47,8 @@ function SignupForm() {
             own column gap — otherwise header/content/footer collapse together. */}
         <form onSubmit={submit} className="flex flex-col gap-(--card-spacing)">
           <CardHeader>
-            <CardTitle>Create your account</CardTitle>
-            <CardDescription>Start modeling Oracle schemas visually.</CardDescription>
+            <CardTitle className="text-xl tracking-[-0.02em]">Create your account</CardTitle>
+            <CardDescription className="leading-relaxed">Start modeling Oracle schemas visually.</CardDescription>
           </CardHeader>
           <CardContent>
             <FieldGroup>

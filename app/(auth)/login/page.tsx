@@ -52,8 +52,8 @@ function LoginForm() {
             own column gap — otherwise header/content/footer collapse together. */}
         <form onSubmit={submit} className="flex flex-col gap-(--card-spacing)">
           <CardHeader>
-            <CardTitle>Welcome back</CardTitle>
-            <CardDescription>Sign in to your PLStudio account.</CardDescription>
+            <CardTitle className="text-xl tracking-[-0.02em]">Welcome back</CardTitle>
+            <CardDescription className="leading-relaxed">Sign in to your PLStudio account.</CardDescription>
           </CardHeader>
           <CardContent>
             <FieldGroup>

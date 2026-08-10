@@ -50,8 +50,8 @@ function ForgotPasswordForm() {
             own column gap — otherwise header/content/footer collapse together. */}
         <form onSubmit={submit} className="flex flex-col gap-(--card-spacing)">
           <CardHeader>
-            <CardTitle>Reset your password</CardTitle>
-            <CardDescription>Set a new password for your PLStudio account.</CardDescription>
+            <CardTitle className="text-xl tracking-[-0.02em]">Reset your password</CardTitle>
+            <CardDescription className="leading-relaxed">Set a new password for your PLStudio account.</CardDescription>
           </CardHeader>
           <CardContent>
             <FieldGroup>
