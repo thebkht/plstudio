@@ -24,7 +24,9 @@ export default function LoginPage() {
 
 function LoginForm() {
   const router = useRouter();
-  const next = safeRedirect(useSearchParams().get("redirect"));
+  const params = useSearchParams();
+  const next = safeRedirect(params.get("redirect"));
+  const reset = params.get("reset") === "1";
   const [error, setError] = useState("");
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -41,7 +43,9 @@ function LoginForm() {
   return (
     <main className="auth-shell">
       <Card className="auth-card">
-        <form onSubmit={submit}>
+        {/* The form is the card's only child, so it has to carry the card's
+            own column gap — otherwise header/content/footer collapse together. */}
+        <form onSubmit={submit} className="flex flex-col gap-(--card-spacing)">
           <CardHeader>
             <CardTitle>Welcome back</CardTitle>
             <CardDescription>Sign in to your PLStudio account.</CardDescription>
@@ -53,17 +57,25 @@ function LoginForm() {
                 <Input id="email" name="email" type="email" autoComplete="email" aria-invalid={error ? true : undefined} required />
               </Field>
               <Field data-invalid={error ? true : undefined}>
-                <FieldLabel htmlFor="password">Password</FieldLabel>
+                <div className="auth-label-row">
+                  <FieldLabel htmlFor="password">Password</FieldLabel>
+                  <Link href={next === "/" ? "/forgot-password" : `/forgot-password?redirect=${encodeURIComponent(next)}`}>Forgot password?</Link>
+                </div>
                 <Input id="password" name="password" type="password" autoComplete="current-password" aria-invalid={error ? true : undefined} required />
               </Field>
+              {reset && !error && (
+                <Alert>
+                  <AlertTitle>Password updated. Sign in with your new password.</AlertTitle>
+                </Alert>
+              )}
               {error && (
                 <Alert variant="destructive">
                   <AlertTitle>{error}</AlertTitle>
                 </Alert>
               )}
-              <Field>
-                <Button type="submit">Sign in</Button>
-                <Button type="button" variant="outline" onPress={guest}>Continue as guest</Button>
+              <Field className="gap-2.5">
+                <Button type="submit" size="lg">Sign in</Button>
+                <Button type="button" size="lg" variant="outline" onPress={guest}>Continue as guest</Button>
               </Field>
             </FieldGroup>
           </CardContent>
