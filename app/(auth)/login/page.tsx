@@ -28,16 +28,21 @@ function LoginForm() {
   const next = safeRedirect(params.get("redirect"));
   const reset = params.get("reset") === "1";
   const [error, setError] = useState("");
+  // Held through the redirect too: clearing it on success flashes the idle
+  // label for a frame before the route changes.
+  const [pending, setPending] = useState<"" | "signin" | "guest">("");
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setPending("signin");
     const data = new FormData(event.currentTarget);
     const result = await authClient.signIn.email({ email: String(data.get("email")), password: String(data.get("password")) });
-    if (result.error) setError(result.error.message || "Could not sign in");
+    if (result.error) { setError(result.error.message || "Could not sign in"); setPending(""); }
     else router.push(next);
   };
   const guest = async () => {
+    setPending("guest");
     const result = await authClient.signIn.anonymous();
-    if (result.error) setError(result.error.message || "Could not continue as guest");
+    if (result.error) { setError(result.error.message || "Could not continue as guest"); setPending(""); }
     else router.push(next);
   };
   return (
@@ -74,8 +79,8 @@ function LoginForm() {
                 </Alert>
               )}
               <Field className="gap-2.5">
-                <Button type="submit" size="lg">Sign in</Button>
-                <Button type="button" size="lg" variant="outline" onPress={guest}>Continue as guest</Button>
+                <Button type="submit" size="lg" isDisabled={pending !== ""}>{pending === "signin" ? "Signing in…" : "Sign in"}</Button>
+                <Button type="button" size="lg" variant="outline" isDisabled={pending !== ""} onPress={guest}>{pending === "guest" ? "Starting…" : "Continue as guest"}</Button>
               </Field>
             </FieldGroup>
           </CardContent>

@@ -26,19 +26,21 @@ function ForgotPasswordForm() {
   const next = safeRedirect(useSearchParams().get("redirect"));
   const login = next === "/" ? "/login" : `/login?redirect=${encodeURIComponent(next)}`;
   const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const password = String(data.get("password"));
     if (password !== String(data.get("confirm"))) return setError("Passwords do not match");
     setError("");
+    setPending(true);
     const response = await fetch("/api/account/reset-password", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ email: String(data.get("email")), password }),
     });
     const result = await response.json().catch(() => ({}));
-    if (!response.ok) setError(result.error || "Could not reset your password");
+    if (!response.ok) { setError(result.error || "Could not reset your password"); setPending(false); }
     else router.push(login.includes("?") ? `${login}&reset=1` : `${login}?reset=1`);
   };
   return (
@@ -72,7 +74,7 @@ function ForgotPasswordForm() {
                 </Alert>
               )}
               <Field>
-                <Button type="submit" size="lg">Set new password</Button>
+                <Button type="submit" size="lg" isDisabled={pending}>{pending ? "Saving…" : "Set new password"}</Button>
               </Field>
             </FieldGroup>
           </CardContent>

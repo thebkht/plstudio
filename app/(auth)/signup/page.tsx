@@ -31,11 +31,13 @@ function SignupForm() {
   const router = useRouter();
   const next = safeRedirect(useSearchParams().get("redirect"));
   const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setPending(true);
     const data = new FormData(event.currentTarget);
     const result = await authClient.signUp.email({ name: String(data.get("name")), email: String(data.get("email")), password: String(data.get("password")) });
-    if (result.error) setError(result.error.message || "Could not sign up");
+    if (result.error) { setError(result.error.message || "Could not sign up"); setPending(false); }
     else router.push(next);
   };
   return (
@@ -69,7 +71,7 @@ function SignupForm() {
                 </Alert>
               )}
               <Field>
-                <Button type="submit" size="lg">Sign up</Button>
+                <Button type="submit" size="lg" isDisabled={pending}>{pending ? "Creating account…" : "Sign up"}</Button>
               </Field>
             </FieldGroup>
           </CardContent>
