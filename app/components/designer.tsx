@@ -17,11 +17,9 @@ import {
   ArrowTurnBackwardIcon,
   ArrowTurnForwardIcon,
   Copy01Icon,
-  ColumnInsertIcon,
   DatabaseIcon,
   Delete02Icon,
   Download04Icon,
-  FileUploadIcon,
   FingerPrintIcon,
   FloppyDiskIcon,
   GitMergeIcon,
@@ -101,7 +99,6 @@ import {
 import {
   Dialog,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -128,7 +125,6 @@ import {
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { generateDDL } from "@/app/lib/generators";
 import { appendCreateTable, parseCreateTable } from "@/app/lib/parser";
 import { typeColorVar } from "@/app/lib/datatype-color";
@@ -203,6 +199,10 @@ import { RelationshipEdge } from "@/app/components/designer/relationship-edge";
 import { ExportModal } from "@/app/components/designer/export-modal";
 import { ColumnList } from "@/app/components/designer/column-list";
 import { highlightSql } from "@/app/components/designer/highlight";
+import {
+  ImportModal,
+  type ImportMessage,
+} from "@/app/components/designer/import-modal";
 import { TableCard } from "./designer/table-card";
 
 /** Header offset for row anchors: the colour strip sits above the title bar. */
@@ -470,11 +470,7 @@ export default function Designer({
   const [workspaceInviteLink, setWorkspaceInviteLink] = useState("");
   const [workspaceInviteBusy, setWorkspaceInviteBusy] = useState(false);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
-  const [importText, setImportText] = useState("");
-  const [importMessage, setImportMessage] = useState<{
-    ok: boolean;
-    text: string;
-  } | null>(null);
+  const [importMessage, setImportMessage] = useState<ImportMessage | null>(null);
   const [tableQuery, setTableQuery] = useState("");
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(
     new Set(),
@@ -581,7 +577,6 @@ export default function Designer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSchema]);
   const canvasRef = useRef<HTMLDivElement>(null);
-  const importHighlightRef = useRef<HTMLPreElement>(null);
   /**
    * Gesture state lives in refs, not state: it updates every pointermove and
    * must not schedule a React render per frame.
@@ -2659,8 +2654,8 @@ export default function Designer({
       setWorkspaceInviteBusy(false);
     }
   };
-  const importSchema = () => {
-    const result = parseCreateTable(importText);
+  const importSchema = (text: string) => {
+    const result = parseCreateTable(text);
     if (!result.schema) {
       setImportMessage({ ok: false, text: result.errors.join(" ") });
       return;
@@ -2677,8 +2672,8 @@ export default function Designer({
    * under it. Nothing already on the canvas is edited, so the only new thing
    * to say is what was added and what was already there.
    */
-  const appendSchema = () => {
-    const result = appendCreateTable(schema, importText);
+  const appendSchema = (text: string) => {
+    const result = appendCreateTable(schema, text);
     if (!result.schema) {
       setImportMessage({ ok: false, text: result.errors.join(" ") });
       return;
@@ -4559,64 +4554,14 @@ export default function Designer({
         onClearInvalidForeignKeys={clearInvalidForeignKeys}
       />
 
-      <Dialog
+      <ImportModal
         isOpen={modal === "import"}
         onOpenChange={(open) => !open && setModal(null)}
-        className="sm:max-w-3xl"
-      >
-        <DialogHeader>
-          <DialogTitle>Import Oracle DDL</DialogTitle>
-          <DialogDescription>
-            Supported CREATE TABLE subset · all-or-nothing · add to this project
-            or replace it
-          </DialogDescription>
-        </DialogHeader>
-        <div className="sql-editor">
-          <pre
-            ref={importHighlightRef}
-            className="sql-highlight"
-            aria-hidden="true"
-          >
-            <code>{highlightSql(importText)}</code>
-          </pre>
-          <Textarea
-            aria-label="Oracle DDL input"
-            className="sql-input"
-            placeholder="CREATE TABLE STUDENT ( ID NUMBER NOT NULL, NAME VARCHAR2(100), CONSTRAINT PK_STUDENT PRIMARY KEY (ID) );"
-            value={importText}
-            onScroll={(event) => {
-              if (importHighlightRef.current) {
-                importHighlightRef.current.scrollTop =
-                  event.currentTarget.scrollTop;
-                importHighlightRef.current.scrollLeft =
-                  event.currentTarget.scrollLeft;
-              }
-            }}
-            onChange={(event) => setImportText(event.target.value)}
-          />
-        </div>
-        {importMessage && (
-          <Alert variant={importMessage.ok ? "default" : "destructive"}>
-            <AlertTitle>{importMessage.text}</AlertTitle>
-          </Alert>
-        )}
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => setImportText(generateDDL(schema))}
-          >
-            Use current export
-          </Button>
-          <Button variant="outline" onClick={importSchema}>
-            <HugeiconsIcon icon={FileUploadIcon} data-icon="inline-start" />
-            Replace project
-          </Button>
-          <Button onClick={appendSchema}>
-            <HugeiconsIcon icon={ColumnInsertIcon} data-icon="inline-start" />
-            Add tables to project
-          </Button>
-        </DialogFooter>
-      </Dialog>
+        schema={schema}
+        message={importMessage}
+        onReplace={importSchema}
+        onAppend={appendSchema}
+      />
 
       <Dialog
         isOpen={modal === "shortcuts"}
