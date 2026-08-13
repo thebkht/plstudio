@@ -233,4 +233,38 @@ describe("Oracle schema model", () => {
     expect(dml).toContain("set State     = 'P',");
     expect(dml).toContain("end Osm_Dml;");
   });
+
+  it("singularises the procedure suffix without eating a stem's own e", () => {
+    const table = (index: number, name: string, pk: string) => ({
+      id: `tbl_${index}`,
+      name,
+      x: 0,
+      y: 0,
+      color: { a: "#000", b: "#000" },
+      keyStrategy: "sequence-trigger" as const,
+      columns: [
+        { id: `c${index}_1`, name: pk, type: "NUMBER" as const, size: "", notNull: true, pk: true, unique: false, defaultValue: "", check: "", fk: null },
+        { id: `c${index}_2`, name: "Code", type: "VARCHAR2" as const, size: "50", notNull: false, pk: false, unique: false, defaultValue: "", check: "", fk: null },
+      ],
+    });
+    const dml = generateDML({
+      id: "schema_2",
+      name: "Bmr Schema",
+      revision: 1,
+      schemaFormatVersion: 3,
+      tables: [
+        table(1, "Bmr_Types", "Type_Id"),
+        table(2, "Bmr_Branches", "Branch_Id"),
+        table(3, "Bmr_Statuses", "Status_Id"),
+        table(4, "Bmr_Currencies", "Currency_Id"),
+      ],
+    });
+    expect(dml).toContain("create or replace package body Bmr_Dml is");
+    expect(dml).toContain("Procedure Ins_Type(Io_Row in out nocopy Bmr_Types%rowtype) is");
+    expect(dml).toContain("Procedure Upd_Type(Io_Row in out nocopy Bmr_Types%rowtype) is");
+    expect(dml).toContain("Procedure Del_Type(i_Type_Id number) is");
+    expect(dml).toContain("Procedure Upd_Branch(Io_Row in out nocopy Bmr_Branches%rowtype) is");
+    expect(dml).toContain("Procedure Upd_Status(Io_Row in out nocopy Bmr_Statuses%rowtype) is");
+    expect(dml).toContain("Procedure Upd_Currency(Io_Row in out nocopy Bmr_Currencies%rowtype) is");
+  });
 });

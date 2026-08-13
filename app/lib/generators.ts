@@ -224,14 +224,17 @@ function param(column: Column, tableName: string, mode = "IN") {
 
 function toSingularToken(word: string): string {
   const lower = word.toLowerCase();
-  if (lower.endsWith("ies")) {
+  if (lower.endsWith("ies") && lower.length > 4) {
     return word.slice(0, -3) + (word[word.length - 1] === "S" ? "Y" : "y");
   }
-  if (lower === "validates") return word.slice(0, -1);
-  if (lower.endsWith("es") && !lower.endsWith("tes") && !lower.endsWith("ses") && !lower.endsWith("ces")) {
-    return word.slice(0, -2);
-  }
-  if (lower.endsWith("s") && !lower.endsWith("ss") && !lower.endsWith("us") && !lower.endsWith("is")) {
+  /*
+   * Only a sibilant stem takes a real `-es` plural (boxes, matches, statuses).
+   * Everywhere else the `e` belongs to the singular and just the `s` comes off
+   * -- TYPES is TYPE, not TYP. Matching the stem is what makes that hold; the
+   * older blacklist of `-tes`/`-ses`/`-ces` endings did not.
+   */
+  if (/(?:s|x|z|ch|sh)es$/.test(lower)) return word.slice(0, -2);
+  if (lower.endsWith("s") && !/(?:ss|us|is)$/.test(lower)) {
     return word.slice(0, -1);
   }
   return word;
