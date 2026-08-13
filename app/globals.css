@@ -287,6 +287,57 @@ button {
   tab-size: 2;
 }
 
+.entity-group { margin-bottom: 4px; }
+.entity-group-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-2);
+  text-align: left;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+.entity-group-head:hover { background: var(--surface-2); }
+.entity-group-dot {
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+.entity-group-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.entity-group-count {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.entity-group-chevron {
+  color: var(--ink-3);
+  transition: transform var(--duration-base) var(--ease-out);
+}
+.entity-group.open .entity-group-chevron { transform: rotate(180deg); }
+.entity-group-body {
+  margin: 2px 0 6px 11px;
+  padding-left: 6px;
+  border-left: 1px solid var(--hairline);
+}
+.entity-group-empty {
+  padding: 4px 10px 6px;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
 .entity {
   margin-bottom: 6px;
   border: 1px solid transparent;

@@ -513,6 +513,9 @@ export default function Designer({
     text: string;
   } | null>(null);
   const [tableQuery, setTableQuery] = useState("");
+  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [panelTab, setPanelTab] = useState<PanelTab>("tables");
   const [panelMode, setPanelMode] = useState<PanelMode>("structure");
@@ -890,6 +893,58 @@ export default function Designer({
     () => new Map((schema.groups ?? []).map((group) => [group.id, group])),
     [schema.groups],
   );
+  /**
+   * The tables panel mirrors the canvas' schema groups: one accordion section
+   * per group, plus an ungrouped bucket. Empty groups stay visible so a group
+   * created on the canvas is still discoverable here, but a search hides them —
+   * "0 tables" is not a match.
+   */
+  const tableSections = useMemo(() => {
+    const byGroup = new Map<string, Table[]>();
+    filteredTables.forEach((table) => {
+      const key = groupsById.has(table.schemaId ?? "")
+        ? table.schemaId!
+        : NO_GROUP;
+      const bucket = byGroup.get(key);
+      if (bucket) bucket.push(table);
+      else byGroup.set(key, [table]);
+    });
+    const searching = Boolean(tableQuery.trim());
+    return [
+      ...(schema.groups ?? []).map((group) => ({
+        id: group.id,
+        name: group.name,
+        accent: GROUP_PALETTE[group.color].border,
+        tables: byGroup.get(group.id) ?? [],
+      })),
+      {
+        id: NO_GROUP,
+        name: "Ungrouped",
+        accent: "var(--ink-4)",
+        tables: byGroup.get(NO_GROUP) ?? [],
+      },
+    ].filter(
+      (section) =>
+        section.tables.length || (!searching && section.id !== NO_GROUP),
+    );
+  }, [filteredTables, groupsById, schema.groups, tableQuery]);
+  /**
+   * Selecting a table on the canvas opens its editor in the panel, so its
+   * section has to open with it — otherwise the editor is behind a collapsed
+   * accordion the user never touched.
+   */
+  useEffect(() => {
+    const table = schema.tables.find((item) => item.id === selectedId);
+    if (!table) return;
+    const sectionId = groupsById.has(table.schemaId ?? "")
+      ? table.schemaId!
+      : NO_GROUP;
+    setCollapsedGroupIds((current) =>
+      current.has(sectionId)
+        ? new Set([...current].filter((id) => id !== sectionId))
+        : current,
+    );
+  }, [selectedId, schema.tables, groupsById]);
   const foreignKeyTarget = useCallback(
     (column: Column) => {
       if (!column.fk) return undefined;
@@ -3032,6 +3087,147 @@ export default function Designer({
     },
   ];
 
+  const tableEntity = (table: Table) => (
+    <Collapsible
+      className={`entity ${selectedId === table.id ? "open" : ""}`}
+      key={table.id}
+      isExpanded={selectedId === table.id}
+      onExpandedChange={(expanded) =>
+        setSelectedId(expanded ? table.id : null)
+      }
+    >
+      <CollapsibleTrigger className="entity-head">
+        <span
+          className="entity-swatch"
+          style={{ background: table.color.a }}
+          aria-hidden="true"
+        />
+        <span className="entity-copy">
+          <strong>{table.name.toUpperCase()}</strong>
+          <small>{table.columns.length} columns</small>
+        </span>
+        <HugeiconsIcon
+          icon={ArrowDown01Icon}
+          className="entity-chevron"
+          aria-hidden="true"
+        />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="entity-body">
+          <FieldGroup className="gap-4">
+            <Field>
+              <FieldLabel htmlFor={`name-${table.id}`}>Table name</FieldLabel>
+              <Input
+                id={`name-${table.id}`}
+                value={table.name}
+                onChange={(event) =>
+                  patchTable(table.id, { name: event.target.value })
+                }
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Key generation</FieldLabel>
+              <Select
+                className="w-full"
+                aria-label="Key generation"
+                selectedKey={table.keyStrategy}
+                onSelectionChange={(key) =>
+                  patchTable(table.id, { keyStrategy: key as KeyStrategy })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem id="sequence-trigger">
+                      Sequence + trigger
+                    </SelectItem>
+                    <SelectItem id="identity">Generated identity</SelectItem>
+                    <SelectItem id="none">Manual / none</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel>Schema group</FieldLabel>
+              <Select
+                className="w-full"
+                aria-label="Schema group"
+                isDisabled={readOnly}
+                selectedKey={table.schemaId ?? NO_GROUP}
+                onSelectionChange={(key) =>
+                  assignTableToGroup(
+                    table.id,
+                    key === NO_GROUP ? "" : String(key),
+                  )
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem id={NO_GROUP}>Ungrouped</SelectItem>
+                    {(schema.groups ?? []).map((group) => (
+                      <SelectItem key={group.id} id={group.id}>
+                        {group.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`comment-${table.id}`}>
+                Table comment
+              </FieldLabel>
+              <Input
+                id={`comment-${table.id}`}
+                placeholder="COMMENT ON TABLE"
+                value={table.comment ?? ""}
+                onChange={(event) =>
+                  patchTable(table.id, { comment: event.target.value })
+                }
+              />
+            </Field>
+          </FieldGroup>
+          {primaryKeyColumns(table).length > 1 && (
+            <p className="hint">
+              Composite primary key — manual key generation required.
+            </p>
+          )}
+
+          {table.columns.map((column) => (
+            <ColumnEditor
+              key={column.id}
+              table={table}
+              column={column}
+              patchColumn={patchColumn}
+              deleteColumn={deleteColumn}
+              compatibleForeignKeyTargets={compatibleForeignKeyTargets}
+            />
+          ))}
+
+          <ButtonGroup>
+            <Button variant="outline" onClick={() => addColumn(table.id)}>
+              <HugeiconsIcon icon={PlusSignIcon} data-icon="inline-start" />
+              Add column
+            </Button>
+            <Button variant="outline" onClick={() => makeJunction(table.id)}>
+              <HugeiconsIcon icon={Link01Icon} data-icon="inline-start" />
+              Junction
+            </Button>
+            <Button variant="outline" onClick={() => deleteTable(table.id)}>
+              <HugeiconsIcon icon={Delete02Icon} data-icon="inline-start" />
+              Delete
+            </Button>
+          </ButtonGroup>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+
   const menus: Array<{ name: string; items: MenuItem[] }> = [
     { name: "File", items: fileMenu },
     { name: "Edit", items: editMenu },
@@ -3192,185 +3388,59 @@ export default function Designer({
                         </EmptyDescription>
                       </EmptyHeader>
                     </Empty>
+                  ) : !(schema.groups ?? []).length ? (
+                    filteredTables.map((table) => tableEntity(table))
                   ) : (
-                    filteredTables.map((table) => (
-                      <Collapsible
-                        className={`entity ${selectedId === table.id ? "open" : ""}`}
-                        key={table.id}
-                        isExpanded={selectedId === table.id}
-                        onExpandedChange={(expanded) =>
-                          setSelectedId(expanded ? table.id : null)
-                        }
-                      >
-                        <CollapsibleTrigger className="entity-head">
-                          <span
-                            className="entity-swatch"
-                            style={{ background: table.color.a }}
-                            aria-hidden="true"
-                          />
-                          <span className="entity-copy">
-                            <strong>{table.name.toUpperCase()}</strong>
-                            <small>{table.columns.length} columns</small>
-                          </span>
-                          <HugeiconsIcon
-                            icon={ArrowDown01Icon}
-                            className="entity-chevron"
-                            aria-hidden="true"
-                          />
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <div className="entity-body">
-                            <FieldGroup className="gap-4">
-                              <Field>
-                                <FieldLabel htmlFor={`name-${table.id}`}>
-                                  Table name
-                                </FieldLabel>
-                                <Input
-                                  id={`name-${table.id}`}
-                                  value={table.name}
-                                  onChange={(event) =>
-                                    patchTable(table.id, {
-                                      name: event.target.value,
-                                    })
-                                  }
-                                />
-                              </Field>
-                              <Field>
-                                <FieldLabel>Key generation</FieldLabel>
-                                <Select
-                                  className="w-full"
-                                  aria-label="Key generation"
-                                  selectedKey={table.keyStrategy}
-                                  onSelectionChange={(key) =>
-                                    patchTable(table.id, {
-                                      keyStrategy: key as KeyStrategy,
-                                    })
-                                  }
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectGroup>
-                                      <SelectItem id="sequence-trigger">
-                                        Sequence + trigger
-                                      </SelectItem>
-                                      <SelectItem id="identity">
-                                        Generated identity
-                                      </SelectItem>
-                                      <SelectItem id="none">
-                                        Manual / none
-                                      </SelectItem>
-                                    </SelectGroup>
-                                  </SelectContent>
-                                </Select>
-                              </Field>
-                              <Field>
-                                <FieldLabel>Schema group</FieldLabel>
-                                <Select
-                                  className="w-full"
-                                  aria-label="Schema group"
-                                  isDisabled={readOnly}
-                                  selectedKey={table.schemaId ?? NO_GROUP}
-                                  onSelectionChange={(key) =>
-                                    assignTableToGroup(
-                                      table.id,
-                                      key === NO_GROUP ? "" : String(key),
-                                    )
-                                  }
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectGroup>
-                                      <SelectItem id={NO_GROUP}>
-                                        Ungrouped
-                                      </SelectItem>
-                                      {(schema.groups ?? []).map((group) => (
-                                        <SelectItem
-                                          key={group.id}
-                                          id={group.id}
-                                        >
-                                          {group.name}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectGroup>
-                                  </SelectContent>
-                                </Select>
-                              </Field>
-                              <Field>
-                                <FieldLabel htmlFor={`comment-${table.id}`}>
-                                  Table comment
-                                </FieldLabel>
-                                <Input
-                                  id={`comment-${table.id}`}
-                                  placeholder="COMMENT ON TABLE"
-                                  value={table.comment ?? ""}
-                                  onChange={(event) =>
-                                    patchTable(table.id, {
-                                      comment: event.target.value,
-                                    })
-                                  }
-                                />
-                              </Field>
-                            </FieldGroup>
-                            {primaryKeyColumns(table).length > 1 && (
-                              <p className="hint">
-                                Composite primary key — manual key generation
-                                required.
-                              </p>
-                            )}
-
-                            {table.columns.map((column) => (
-                              <ColumnEditor
-                                key={column.id}
-                                table={table}
-                                column={column}
-                                patchColumn={patchColumn}
-                                deleteColumn={deleteColumn}
-                                compatibleForeignKeyTargets={
-                                  compatibleForeignKeyTargets
-                                }
-                              />
-                            ))}
-
-                            <ButtonGroup>
-                              <Button
-                                variant="outline"
-                                onClick={() => addColumn(table.id)}
-                              >
-                                <HugeiconsIcon
-                                  icon={PlusSignIcon}
-                                  data-icon="inline-start"
-                                />
-                                Add column
-                              </Button>
-                              <Button
-                                variant="outline"
-                                onClick={() => makeJunction(table.id)}
-                              >
-                                <HugeiconsIcon
-                                  icon={Link01Icon}
-                                  data-icon="inline-start"
-                                />
-                                Junction
-                              </Button>
-                              <Button
-                                variant="outline"
-                                onClick={() => deleteTable(table.id)}
-                              >
-                                <HugeiconsIcon
-                                  icon={Delete02Icon}
-                                  data-icon="inline-start"
-                                />
-                                Delete
-                              </Button>
-                            </ButtonGroup>
-                          </div>
-                        </CollapsibleContent>
-                      </Collapsible>
-                    ))
+                    tableSections.map((section) => {
+                      const expanded =
+                        Boolean(tableQuery.trim()) ||
+                        !collapsedGroupIds.has(section.id);
+                      return (
+                        <Collapsible
+                          className={`entity-group ${expanded ? "open" : ""}`}
+                          key={section.id}
+                          isExpanded={expanded}
+                          onExpandedChange={(next) =>
+                            setCollapsedGroupIds((current) => {
+                              const ids = new Set(current);
+                              if (next) ids.delete(section.id);
+                              else ids.add(section.id);
+                              return ids;
+                            })
+                          }
+                        >
+                          <CollapsibleTrigger className="entity-group-head">
+                            <span
+                              className="entity-group-dot"
+                              style={{ background: section.accent }}
+                              aria-hidden="true"
+                            />
+                            <span className="entity-group-name">
+                              {section.name}
+                            </span>
+                            <span className="entity-group-count">
+                              {section.tables.length}
+                            </span>
+                            <HugeiconsIcon
+                              icon={ArrowDown01Icon}
+                              className="entity-group-chevron"
+                              aria-hidden="true"
+                            />
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <div className="entity-group-body">
+                              {section.tables.length ? (
+                                section.tables.map((table) => tableEntity(table))
+                              ) : (
+                                <p className="entity-group-empty">
+                                  No tables yet — assign one under Schema group.
+                                </p>
+                              )}
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      );
+                    })
                   )}
                 </ScrollArea>
               </>
