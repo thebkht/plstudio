@@ -1,8 +1,8 @@
 "use client";
 
-import { memo } from "react";
+import { memo, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Delete02Icon, FingerPrintIcon, Key01Icon } from "@hugeicons/core-free-icons";
+import { Delete02Icon, DragDropVerticalIcon, FingerPrintIcon, Key01Icon } from "@hugeicons/core-free-icons";
 import { Button } from "@/components/ui/button";
 import { FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -17,34 +17,55 @@ type ForeignKeyTarget = { table: Table; target: Column };
 export const ColumnEditor = memo(function ColumnEditor({
   table,
   column,
+  position,
   patchColumn,
   deleteColumn,
   compatibleForeignKeyTargets,
+  onGrab,
+  onGrabKeyDown,
 }: {
   table: Table;
   column: Column;
+  /** 1-based place in the column list, read out on the drag handle. */
+  position?: string;
   patchColumn: (tableId: string, columnId: string, patch: Partial<Column>) => void;
   deleteColumn: (tableId: string, columnId: string) => void;
   compatibleForeignKeyTargets: (column: Column) => ForeignKeyTarget[];
+  /** Absent when the diagram is read-only — then no handle is rendered at all. */
+  onGrab?: (event: ReactPointerEvent<HTMLButtonElement>, columnId: string) => void;
+  onGrabKeyDown?: (event: KeyboardEvent<HTMLButtonElement>, columnId: string) => void;
 }) {
   const patch = (changes: Partial<Column>) => patchColumn(table.id, column.id, changes);
   return (
     <div className="column-card">
-      <InputGroup>
-        <InputGroupInput
-          aria-label={`Name of column ${column.name}`}
-          value={column.name}
-          onChange={(event) => patch({ name: event.target.value })}
-        />
-        <InputGroupAddon align="inline-end">
-          <InputGroupButton
-            aria-label={`Delete column ${column.name}`}
-            onClick={() => deleteColumn(table.id, column.id)}
+      <div className="column-card-head">
+        {onGrab && (
+          <button
+            type="button"
+            className="column-grip"
+            aria-label={`Reorder column ${column.name}${position ? `, ${position}` : ""}. Press the up or down arrow to move it.`}
+            onPointerDown={(event) => onGrab(event, column.id)}
+            onKeyDown={(event) => onGrabKeyDown?.(event, column.id)}
           >
-            <HugeiconsIcon icon={Delete02Icon} />
-          </InputGroupButton>
-        </InputGroupAddon>
-      </InputGroup>
+            <HugeiconsIcon icon={DragDropVerticalIcon} size={16} aria-hidden="true" />
+          </button>
+        )}
+        <InputGroup>
+          <InputGroupInput
+            aria-label={`Name of column ${column.name}`}
+            value={column.name}
+            onChange={(event) => patch({ name: event.target.value })}
+          />
+          <InputGroupAddon align="inline-end">
+            <InputGroupButton
+              aria-label={`Delete column ${column.name}`}
+              onClick={() => deleteColumn(table.id, column.id)}
+            >
+              <HugeiconsIcon icon={Delete02Icon} />
+            </InputGroupButton>
+          </InputGroupAddon>
+        </InputGroup>
+      </div>
       <div className="column-card-row">
         <Select
           className="w-full"
