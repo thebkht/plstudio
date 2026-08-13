@@ -1,9 +1,9 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { readProject } from "@/db/file-store";
-import { member, organization } from "@/db/schema";
+import { member, organization, user } from "@/db/schema";
 import { auth } from "./auth";
 
 export async function requireSession() {
@@ -19,6 +19,19 @@ export async function requireSession() {
  */
 export async function listUserWorkspaces(userId: string) {
   return getDb().select({ id: organization.id, slug: organization.slug, name: organization.name, role: member.role }).from(member).innerJoin(organization, eq(member.organizationId, organization.id)).where(eq(member.userId, userId)).orderBy(organization.name);
+}
+
+/**
+ * Display names for a set of `createdBy` ids. Projects are files and users are
+ * SQLite rows, so the author of a project card has to be looked up separately —
+ * batched into one query rather than one per card. Ids with no row (a deleted
+ * account, `"_unowned"`) are simply absent from the map.
+ */
+export async function lookupUserNames(ids: string[]) {
+  const wanted = [...new Set(ids.filter(Boolean))];
+  if (!wanted.length) return new Map<string, string>();
+  const rows = await getDb().select({ id: user.id, name: user.name }).from(user).where(inArray(user.id, wanted));
+  return new Map(rows.map((row) => [row.id, row.name]));
 }
 
 export async function requireWorkspace(slug: string) {

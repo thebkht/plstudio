@@ -31,7 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export default function ProjectCard({ projectId, href, name, tableCount, updatedAt, workspace, canDelete = true }: { projectId: string; href: string; name: string; tableCount: number; updatedAt: string; workspace?: string; canDelete?: boolean }) {
+export default function ProjectCard({ projectId, href, name, tableCount, updatedAt, author, workspace, canDelete = true }: { projectId: string; href: string; name: string; tableCount: number; updatedAt: string; author?: string; workspace?: string; canDelete?: boolean }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const remove = async () => {
@@ -71,7 +71,7 @@ export default function ProjectCard({ projectId, href, name, tableCount, updated
         )}
       </CardHeader>
       <CardFooter>
-        <small>Updated {updatedAt}</small>
+        <small>{author ? `${author} · updated ${updatedAt}` : `Updated ${updatedAt}`}</small>
       </CardFooter>
       <AlertDialog isOpen={confirming} onOpenChange={setConfirming}>
         <AlertDialogHeader>

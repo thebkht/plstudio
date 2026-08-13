@@ -65,7 +65,7 @@ export default async function Page() {
         <section className="project-grid">
           {personalProjects.map((project) => {
             const schema = project.schemaJson as { tables?: unknown[] };
-            return <ProjectCard key={project.id} projectId={project.id} href={`/project/${project.id}`} name={project.name} tableCount={schema.tables?.length || 0} updatedAt={project.updatedAt.toLocaleDateString()} />;
+            return <ProjectCard key={project.id} projectId={project.id} href={`/project/${project.id}`} name={project.name} tableCount={schema.tables?.length || 0} updatedAt={project.updatedAt.toLocaleDateString()} author={session.user.name} />;
           })}
         </section>
       ) : (
