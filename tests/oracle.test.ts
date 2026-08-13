@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateDDL, generateDML } from "@/app/lib/generators";
 import { appendCreateTable, parseCreateTable } from "@/app/lib/parser";
-import { makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, normalizeMemos, normalizeGroups, normalizeRelationships, normalizeTables, tableHeight, tableWidth, typeString } from "@/app/lib/schema";
+import { makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, normalizeMemos, normalizeGroups, normalizeRelationships, normalizeTables, SCHEMA_FORMAT_VERSION, tableHeight, tableWidth, typeString } from "@/app/lib/schema";
 import { validateCheckExpression, validateSchema, validateTypeSpec } from "@/app/lib/validation";
 
 describe("Oracle schema model", () => {
@@ -60,7 +60,7 @@ describe("Oracle schema model", () => {
     const schema = makeDemoSchema();
     delete schema.relationships;
     const normalized = normalizeRelationships(schema);
-    expect(normalized.schemaFormatVersion).toBe(3);
+    expect(normalized.schemaFormatVersion).toBe(SCHEMA_FORMAT_VERSION);
     expect(normalized.relationships).toHaveLength(1);
     expect(normalized.relationships?.[0]).toMatchObject({
       cardinality: "many_to_one",
@@ -141,7 +141,7 @@ describe("Oracle schema model", () => {
     const schema = makeDemoSchema();
     schema.tables[0].schemaId = "missing";
     const normalized = normalizeGroups({ ...schema, groups: [{ id: "group-1", name: "  Library  ", x: -4, y: -2, width: 10, height: 10, color: "invalid" as never }] });
-    expect(normalized.schemaFormatVersion).toBe(3);
+    expect(normalized.schemaFormatVersion).toBe(SCHEMA_FORMAT_VERSION);
     expect(normalized.groups?.[0]).toMatchObject({ name: "Library", x: 0, y: 0, width: 360, height: 260, color: "orange" });
     expect(normalized.tables[0].schemaId).toBeUndefined();
   });

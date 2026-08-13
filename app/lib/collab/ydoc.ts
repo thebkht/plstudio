@@ -114,7 +114,7 @@ const writeGroup = (map: Y.Map<unknown>, group: SchemaGroup) =>
   writeFields(map, { id: group.id, name: group.name, x: group.x, y: group.y, width: group.width, height: group.height, color: group.color });
 
 const writeMemo = (map: Y.Map<unknown>, memo: Memo) =>
-  writeFields(map, { id: memo.id, text: memo.text, x: memo.x, y: memo.y, width: memo.width, height: memo.height, color: memo.color });
+  writeFields(map, { id: memo.id, text: memo.text, x: memo.x, y: memo.y, width: memo.width, height: memo.height, color: memo.color, schemaId: memo.schemaId });
 
 /**
  * Applies a whole next `Schema` to the doc as one transaction. Taking a whole
@@ -146,7 +146,7 @@ const COLUMN_KEYS = ["id", "name", "type", "size", "notNull", "pk", "unique", "d
 const TABLE_KEYS = ["id", "name", "x", "y", "color", "keyStrategy", "schemaId", "comment", "width"] as const;
 const RELATIONSHIP_KEYS = ["id", "startTableId", "startFieldId", "endTableId", "endFieldId", "fields", "name", "cardinality", "manyLabel", "updateConstraint", "deleteConstraint"] as const;
 const GROUP_KEYS = ["id", "name", "x", "y", "width", "height", "color"] as const;
-const MEMO_KEYS = ["id", "text", "x", "y", "width", "height", "color"] as const;
+const MEMO_KEYS = ["id", "text", "x", "y", "width", "height", "color", "schemaId"] as const;
 
 /**
  * Ids are unique by definition in the domain, so a repeated id is always damage —
