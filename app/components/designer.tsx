@@ -127,6 +127,7 @@ import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Input } from "@/components/ui/input";
 import { generateDDL } from "@/app/lib/generators";
 import { appendCreateTable, parseCreateTable } from "@/app/lib/parser";
+import { mergeSchemaJson, parseSchemaJson } from "@/app/lib/schema-json";
 import { typeColorVar } from "@/app/lib/datatype-color";
 import {
   SHORTCUTS,
@@ -2686,6 +2687,38 @@ export default function Designer({
     setSelectedId(result.added[0]?.id ?? null);
     revealTables(result.added);
   };
+  /**
+   * The JSON half of the same two actions. A file carries the id and revision
+   * of the project it was saved from, which address a different row on a
+   * different server; the open project keeps its own.
+   */
+  const importJson = (text: string) => {
+    const result = parseSchemaJson(text);
+    if (!result.schema) {
+      setImportMessage({ ok: false, text: result.errors.join(" ") });
+      return;
+    }
+    setImportMessage({
+      ok: true,
+      text: `${result.schema.tables.length} table(s) imported.${result.warnings.length ? ` ${result.warnings.length} warning(s).` : ""}`,
+    });
+    commit({ ...result.schema, id: schema.id, revision: schema.revision });
+    setSelectedId(result.schema.tables[0]?.id ?? null);
+  };
+  const appendJson = (text: string) => {
+    const result = mergeSchemaJson(schema, text);
+    if (!result.schema) {
+      setImportMessage({ ok: false, text: result.errors.join(" ") });
+      return;
+    }
+    setImportMessage({
+      ok: true,
+      text: `${result.added.length} table(s) added.${result.skipped.length ? ` Already in this project: ${result.skipped.join(", ")}.` : ""}${result.warnings.length ? ` ${result.warnings.length} warning(s).` : ""}`,
+    });
+    commit(result.schema);
+    setSelectedId(result.added[0]?.id ?? null);
+    revealTables(result.added);
+  };
   const clearInvalidForeignKeys = () => {
     const next = {
       ...schema,
@@ -3039,7 +3072,7 @@ export default function Designer({
       },
     },
     { separator: true },
-    { label: "Import DDL…", onSelect: run("import"), hint: hint("import") },
+    { label: "Import…", onSelect: run("import"), hint: hint("import") },
     { label: "Export…", onSelect: run("export"), hint: hint("export") },
     { separator: true },
     { label: "Save to database", onSelect: run("save"), hint: hint("save") },
@@ -4416,7 +4449,7 @@ export default function Designer({
               onClick={() => void save()}
             />
             <DockButton
-              label="Export SQL"
+              label="Export"
               icon={Download04Icon}
               onClick={() => setModal("export")}
             />
@@ -4558,9 +4591,15 @@ export default function Designer({
         isOpen={modal === "import"}
         onOpenChange={(open) => !open && setModal(null)}
         schema={schema}
+        readOnly={readOnly}
         message={importMessage}
-        onReplace={importSchema}
-        onAppend={appendSchema}
+        onMessage={setImportMessage}
+        onReplace={(text, format) =>
+          format === "json" ? importJson(text) : importSchema(text)
+        }
+        onAppend={(text, format) =>
+          format === "json" ? appendJson(text) : appendSchema(text)
+        }
       />
 
       <Dialog
