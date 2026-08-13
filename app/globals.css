@@ -416,6 +416,42 @@ button {
     0 0 0 1.5px rgba(0, 122, 255, 0.5);
   transform: scale(1.02);
 }
+/* Resizable Sidebar */
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: -5px;
+  bottom: 0;
+  width: 10px;
+  z-index: 40;
+  cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  touch-action: none;
+}
+.sidebar-resizer-line {
+  width: 2px;
+  height: 100%;
+  background: transparent;
+  transition: background 0.15s ease, width 0.15s ease, box-shadow 0.15s ease;
+  border-radius: 1px;
+}
+.sidebar-resizer:hover .sidebar-resizer-line,
+.sidebar-resizer.resizing .sidebar-resizer-line {
+  width: 4px;
+  background: #007aff;
+  box-shadow: 0 0 10px rgba(0, 122, 255, 0.5);
+}
+.is-resizing [data-slot="sidebar-gap"],
+.is-resizing [data-slot="sidebar-container"] {
+  transition: none !important;
+}
+.is-resizing {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
 .column-card {
   display: flex;
   flex-direction: column;

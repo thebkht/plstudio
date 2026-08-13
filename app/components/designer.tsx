@@ -509,6 +509,69 @@ export default function Designer({
     new Set(),
   );
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState<number>(417);
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
+  const sidebarResizingRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("drawsql_sidebar_width");
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && parsed >= 280 && parsed <= 800) {
+          setSidebarWidth(parsed);
+        }
+      }
+    } catch {}
+  }, []);
+
+  const updateSidebarWidth = useCallback((width: number) => {
+    const clamped = Math.max(280, Math.min(800, width));
+    setSidebarWidth(clamped);
+    try {
+      localStorage.setItem("drawsql_sidebar_width", clamped.toString());
+    } catch {}
+  }, []);
+
+  const onSidebarResizeStart = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      sidebarResizingRef.current = {
+        startX: event.clientX,
+        startWidth: sidebarWidth,
+      };
+      setIsResizingSidebar(true);
+    },
+    [sidebarWidth],
+  );
+
+  useEffect(() => {
+    if (!isResizingSidebar) return;
+    const move = (event: PointerEvent) => {
+      const ref = sidebarResizingRef.current;
+      if (!ref) return;
+      const deltaX = event.clientX - ref.startX;
+      updateSidebarWidth(ref.startWidth + deltaX);
+    };
+    const release = () => {
+      if (sidebarResizingRef.current) {
+        sidebarResizingRef.current = null;
+        setIsResizingSidebar(false);
+      }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+    };
+  }, [isResizingSidebar, updateSidebarWidth]);
+
   const [panelTab, setPanelTab] = useState<PanelTab>("tables");
   const [panelMode, setPanelMode] = useState<PanelMode>("structure");
   const [relationshipQuery, setRelationshipQuery] = useState("");
@@ -3315,8 +3378,8 @@ export default function Designer({
       </header>
 
       <SidebarProvider
-        className="body min-h-0 flex-1"
-        style={{ "--sidebar-width": "417px" } as React.CSSProperties}
+        className={`body min-h-0 flex-1 ${isResizingSidebar ? "is-resizing" : ""}`}
+        style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
         open={sidebarOpen}
         onOpenChange={setSidebarOpen}
       >
@@ -3325,6 +3388,17 @@ export default function Designer({
           className="top-(--appbar-height) h-[calc(100svh-var(--appbar-height))]"
           aria-label="Diagram structure"
         >
+          <div
+            className={`sidebar-resizer ${isResizingSidebar ? "resizing" : ""}`}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize sidebar width"
+            title="Drag to resize sidebar · Double-click to reset width"
+            onPointerDown={onSidebarResizeStart}
+            onDoubleClick={() => updateSidebarWidth(417)}
+          >
+            <div className="sidebar-resizer-line" aria-hidden="true" />
+          </div>
           <SidebarHeader className="panel-tabs">
             <SidebarTrigger aria-label="Hide side panel">
               <HugeiconsIcon icon={ArrowLeft01Icon} />
