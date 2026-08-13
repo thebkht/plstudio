@@ -4,6 +4,7 @@ import { anonymous } from "better-auth/plugins/anonymous";
 import { organization } from "better-auth/plugins/organization";
 import { adminAc, defaultAc, ownerAc } from "better-auth/plugins/organization/access";
 import { eq } from "drizzle-orm";
+import { rememberResetToken } from "@/app/lib/reset-tokens";
 import { getDb } from "@/db";
 import { reassignProjectOwner } from "@/db/file-store";
 import * as schema from "@/db/schema";
@@ -11,7 +12,13 @@ import { member } from "@/db/schema";
 
 export const auth = betterAuth({
   database: drizzleAdapter(getDb(), { provider: "sqlite", schema }),
-  emailAndPassword: { enabled: true },
+  emailAndPassword: {
+    enabled: true,
+    // No mail transport exists here. The token is parked in memory so the
+    // direct-reset route can consume it in the same request; nothing is sent
+    // and the token never reaches a client. See app/lib/reset-tokens.ts.
+    sendResetPassword: async ({ user, token }) => rememberResetToken(user.email, token),
+  },
   rateLimit: { storage: "database" },
   baseURL: process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL,
   trustedOrigins: (request?: Request) => {

@@ -240,7 +240,20 @@ NEXT_PUBLIC_COLLAB_URL=ws://localhost:1234                 # WebSocket URL for c
 COLLAB_PORT=1234                                           # Collab server port
 COLLAB_TOKEN_SECRET=your-random-32-byte-collab-secret       # Token secret for collab rooms
 DATA_DIR=./data                                            # Data storage path (default: ./data)
+ALLOW_DIRECT_PASSWORD_RESET=false                          # Disable the no-email password reset
 ```
+
+### Password reset without email
+
+There is no mail transport, so `/forgot-password` takes an email plus a new
+password and applies it immediately — no link, no confirmation. It runs Better
+Auth's real token flow server-side (the token never leaves the process), and the
+route is limited to 5 attempts per 15 minutes per address and per IP.
+
+The trade-off is that anyone who knows a registered email address can set that
+account's password. That is usually fine for a self-hosted instance on a trusted
+network; on anything publicly reachable set `ALLOW_DIRECT_PASSWORD_RESET=false`,
+which makes the route return 403.
 
 ---
 

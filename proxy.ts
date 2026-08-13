@@ -5,7 +5,9 @@ import type { NextRequest } from "next/server";
 // Reachable signed out. `/share` is the read-only preview a share link opens —
 // the page itself decides what a session-less viewer may do, so gating it here
 // would make every share link a login wall.
-const PUBLIC_PREFIXES = ["/login", "/signup", "/invite", "/share", "/api/auth"];
+// `/forgot-password` and its route are for people who cannot sign in, so
+// gating them behind a session would make them unreachable by design.
+const PUBLIC_PREFIXES = ["/login", "/signup", "/forgot-password", "/invite", "/share", "/api/auth", "/api/account/reset-password"];
 
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
