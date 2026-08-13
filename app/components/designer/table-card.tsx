@@ -14,12 +14,13 @@
  * the record would defeat the memo it is here to enable.
  */
 
-import { memo, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { memo, useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ColumnInsertIcon,
   Copy01Icon,
   Delete02Icon,
+  DragDropVerticalIcon,
   GitMergeIcon,
   HorizontalResizeIcon,
   Key01Icon,
@@ -36,7 +37,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { HoverCard } from "@/components/ui/hover-card";
-import { tableHeight, type Column, type SchemaGroup, type Table } from "@/app/lib/schema";
+import { TABLE_FIELD_HEIGHT, tableHeight, typeString, type Column, type SchemaGroup, type Table } from "@/app/lib/schema";
 import { typeColorVar } from "@/app/lib/datatype-color";
 import { ColumnCard, ShortcutKeys, TableSummaryCard } from "./primitives";
 
@@ -51,16 +52,24 @@ const ColumnRow = memo(function ColumnRow({
   table,
   column,
   columnIndex,
+  totalColumns,
   hoverDisabled,
+  readOnly,
   foreignKeyTarget,
   onStartLink,
+  onGrabRow,
+  onRowKeyDown,
 }: {
   table: Table;
   column: Column;
   columnIndex: number;
+  totalColumns: number;
   hoverDisabled: boolean;
+  readOnly: boolean;
   foreignKeyTarget: ForeignKeyTarget;
   onStartLink: (event: ReactPointerEvent, tableId: string, columnId: string, columnIndex: number) => void;
+  onGrabRow?: (event: ReactPointerEvent<HTMLButtonElement>, columnId: string, columnIndex: number) => void;
+  onRowKeyDown?: (event: KeyboardEvent<HTMLButtonElement>, columnId: string, columnIndex: number) => void;
 }) {
   return (
     <HoverCard
@@ -96,9 +105,19 @@ const ColumnRow = memo(function ColumnRow({
           </span>
         )}
         <span className="row-type" style={{ color: typeColorVar(column.type) }}>
-          {column.type}
-          {column.size ? `(${column.size})` : ""}
+          {typeString(column)}
         </span>
+        {!readOnly && totalColumns > 1 && onGrabRow && (
+          <button
+            type="button"
+            className="row-reorder-grip"
+            aria-label={`Reorder column ${column.name}, position ${columnIndex + 1} of ${totalColumns}. Press Up or Down arrow keys to move.`}
+            onPointerDown={(event) => onGrabRow(event, column.id, columnIndex)}
+            onKeyDown={(event) => onRowKeyDown?.(event, column.id, columnIndex)}
+          >
+            <HugeiconsIcon icon={DragDropVerticalIcon} size={13} aria-hidden="true" />
+          </button>
+        )}
       </span>
     </HoverCard>
   );
@@ -131,6 +150,7 @@ export const TableCard = memo(function TableCard({
   onAddColumn,
   onMakeJunction,
   onDeleteTable,
+  reorderColumns,
 }: {
   table: Table;
   x: number;
@@ -164,7 +184,121 @@ export const TableCard = memo(function TableCard({
   onAddColumn: (tableId: string) => void;
   onMakeJunction: (tableId: string) => void;
   onDeleteTable: (tableId: string) => void;
+  reorderColumns?: (tableId: string, from: number, to: number) => void;
 }) {
+  const [draggingColumnId, setDraggingColumnId] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  const rowSlotsRef = useRef(new Map<string, HTMLDivElement>());
+  const gestureRef = useRef<{
+    pointerId: number;
+    columnId: string;
+    from: number;
+    to: number;
+    startY: number;
+    offset: number;
+  } | null>(null);
+
+  const setRowSlot = useCallback((id: string, node: HTMLDivElement | null) => {
+    if (node) rowSlotsRef.current.set(id, node);
+    else rowSlotsRef.current.delete(id);
+  }, []);
+
+  const paintRows = useCallback((from: number, to: number, offset: number, columns: Column[]) => {
+    const rowHeight = TABLE_FIELD_HEIGHT;
+    columns.forEach((col, index) => {
+      const node = rowSlotsRef.current.get(col.id);
+      if (!node) return;
+      if (index === from) {
+        node.style.transform = `translate3d(0, ${offset}px, 0)`;
+      } else {
+        let shift = 0;
+        if (to > from && index > from && index <= to) shift = -rowHeight;
+        else if (to < from && index >= to && index < from) shift = rowHeight;
+        node.style.transform = shift ? `translate3d(0, ${shift}px, 0)` : "";
+      }
+    });
+  }, []);
+
+  const clearRowTransforms = useCallback(() => {
+    rowSlotsRef.current.forEach((node) => {
+      node.style.transform = "";
+    });
+  }, []);
+
+  const finishRowDrag = useCallback(() => {
+    const gesture = gestureRef.current;
+    if (!gesture) return;
+    gestureRef.current = null;
+    clearRowTransforms();
+    setDraggingColumnId(null);
+    if (gesture.to !== gesture.from && reorderColumns) {
+      reorderColumns(table.id, gesture.from, gesture.to);
+    }
+  }, [clearRowTransforms, reorderColumns, table.id]);
+
+  const onGrabRow = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>, columnId: string, columnIndex: number) => {
+      if (readOnly || event.button !== 0 || table.columns.length < 2) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      gestureRef.current = {
+        pointerId: event.pointerId,
+        columnId,
+        from: columnIndex,
+        to: columnIndex,
+        startY: event.clientY,
+        offset: 0,
+      };
+      setDraggingColumnId(columnId);
+    },
+    [readOnly, table.columns.length],
+  );
+
+  const onRowKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLButtonElement>, columnId: string, columnIndex: number) => {
+      if (readOnly || !reorderColumns) return;
+      const delta = event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0;
+      if (!delta) return;
+      const to = columnIndex + delta;
+      if (to < 0 || to >= table.columns.length) return;
+      event.preventDefault();
+      event.stopPropagation();
+      reorderColumns(table.id, columnIndex, to);
+      setAnnouncement(
+        `${table.columns[columnIndex].name.toUpperCase()} moved to position ${to + 1} of ${table.columns.length}.`,
+      );
+    },
+    [readOnly, reorderColumns, table.columns, table.id],
+  );
+
+  useEffect(() => {
+    const move = (event: PointerEvent) => {
+      const gesture = gestureRef.current;
+      if (!gesture || event.pointerId !== gesture.pointerId) return;
+      const offset = event.clientY - gesture.startY;
+      const rowHeight = TABLE_FIELD_HEIGHT;
+      const slotShift = Math.round(offset / rowHeight);
+      const to = Math.max(0, Math.min(table.columns.length - 1, gesture.from + slotShift));
+      gesture.offset = offset;
+      gesture.to = to;
+      paintRows(gesture.from, gesture.to, gesture.offset, table.columns);
+    };
+    const release = (event: PointerEvent) => {
+      const gesture = gestureRef.current;
+      if (!gesture || event.pointerId !== gesture.pointerId) return;
+      finishRowDrag();
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+    };
+  }, [finishRowDrag, paintRows, table.columns]);
+
   return (
     <ContextMenuTrigger onOpenChange={(open) => open && onSelect(table.id)}>
       <div
@@ -196,7 +330,7 @@ export const TableCard = memo(function TableCard({
         <div className="table-strip" style={{ background: table.color.a }} aria-hidden="true" />
         <HoverCard
           className="table-head"
-          isDisabled={hoverDisabled}
+          isDisabled={hoverDisabled || draggingColumnId !== null}
           onPointerDown={(event) => onHeaderDown(event, table.id)}
           content={
             <TableSummaryCard
@@ -216,16 +350,30 @@ export const TableCard = memo(function TableCard({
           </span>
         </HoverCard>
         {table.columns.map((column, columnIndex) => (
-          <ColumnRow
+          <div
             key={column.id}
-            table={table}
-            column={column}
-            columnIndex={columnIndex}
-            hoverDisabled={hoverDisabled}
-            foreignKeyTarget={foreignKeyTarget}
-            onStartLink={onStartLink}
-          />
+            ref={(node) => setRowSlot(column.id, node)}
+            className={`table-row-slot ${draggingColumnId === column.id ? "lifted" : ""}`}
+          >
+            <ColumnRow
+              table={table}
+              column={column}
+              columnIndex={columnIndex}
+              totalColumns={table.columns.length}
+              hoverDisabled={hoverDisabled || draggingColumnId !== null}
+              readOnly={readOnly}
+              foreignKeyTarget={foreignKeyTarget}
+              onStartLink={onStartLink}
+              onGrabRow={onGrabRow}
+              onRowKeyDown={onRowKeyDown}
+            />
+          </div>
         ))}
+        {announcement && (
+          <p className="sr-only" role="status" aria-live="polite">
+            {announcement}
+          </p>
+        )}
         {!readOnly && (
           <button
             type="button"

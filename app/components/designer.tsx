@@ -144,8 +144,11 @@ import {
   type ShortcutId,
 } from "@/app/lib/shortcuts";
 import {
+  FLICK_SPRING,
+  SETTLE_SPRING,
   Spring,
   VelocityTracker,
+  prefersReducedMotion,
   project,
   rubberClamp,
   runFrameLoop,
@@ -199,7 +202,7 @@ import {
 } from "@/app/components/designer/primitives";
 import { RelationshipEdge } from "@/app/components/designer/relationship-edge";
 import { ExportModal } from "@/app/components/designer/export-modal";
-import { ColumnEditor } from "@/app/components/designer/column-editor";
+import { ColumnList } from "@/app/components/designer/column-list";
 import { TableCard } from "./designer/table-card";
 
 /** Header offset for row anchors: the colour strip sits above the title bar. */
@@ -346,17 +349,6 @@ function prepareCanvasSchema(schema: Schema): Schema {
   );
   next.memos = normalizeMemos(next.memos);
   return next;
-}
-
-/** Momentum handoff wants a little overshoot; everything else settles flat. */
-const FLICK_SPRING = { damping: 0.82, response: 0.42 };
-const SETTLE_SPRING = { damping: 1, response: 0.34 };
-
-function prefersReducedMotion() {
-  return (
-    typeof window !== "undefined" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  );
 }
 
 const SQL_TOKEN =
@@ -1048,6 +1040,15 @@ export default function Designer({
   );
   const patchColumn = useCallback(
     (tableId: string, columnId: string, patch: Partial<Column>) => {
+      /*
+       * Changing away from a sized type drops the size with it. Leaving the old
+       * VARCHAR2 length on a DATE column would surface as DATE(255) on the card
+       * and as a "does not accept a size" validation error the user never typed.
+       */
+      const applied =
+        patch.type && !typeUsesSize(patch.type)
+          ? { ...patch, size: "" }
+          : patch;
       const next = {
         ...schema,
         tables: schema.tables.map((table) =>
@@ -1055,7 +1056,7 @@ export default function Designer({
             ? {
                 ...table,
                 columns: table.columns.map((column) =>
-                  column.id === columnId ? { ...column, ...patch } : column,
+                  column.id === columnId ? { ...column, ...applied } : column,
                 ),
               }
             : table,
@@ -1173,6 +1174,23 @@ export default function Designer({
         ),
       }),
     );
+  const reorderColumns = useCallback(
+    (tableId: string, from: number, to: number) => {
+      if (from === to) return;
+      commitWith((current) => ({
+        ...current,
+        tables: current.tables.map((table) => {
+          if (table.id !== tableId) return table;
+          const columns = [...table.columns];
+          const [moved] = columns.splice(from, 1);
+          if (!moved) return table;
+          columns.splice(to, 0, moved);
+          return { ...table, columns };
+        }),
+      }));
+    },
+    [commitWith],
+  );
 
   /** Undo walks only this client's own edits — never a collaborator's. */
   const undo = () => {
@@ -3198,16 +3216,14 @@ export default function Designer({
             </p>
           )}
 
-          {table.columns.map((column) => (
-            <ColumnEditor
-              key={column.id}
-              table={table}
-              column={column}
-              patchColumn={patchColumn}
-              deleteColumn={deleteColumn}
-              compatibleForeignKeyTargets={compatibleForeignKeyTargets}
-            />
-          ))}
+          <ColumnList
+            table={table}
+            readOnly={readOnly}
+            patchColumn={patchColumn}
+            deleteColumn={deleteColumn}
+            reorderColumns={reorderColumns}
+            compatibleForeignKeyTargets={compatibleForeignKeyTargets}
+          />
 
           <ButtonGroup>
             <Button variant="outline" onClick={() => addColumn(table.id)}>
@@ -4260,6 +4276,7 @@ export default function Designer({
                   onAddColumn={addColumn}
                   onMakeJunction={makeJunction}
                   onDeleteTable={deleteTable}
+                  reorderColumns={reorderColumns}
                 />
               );
             })}
