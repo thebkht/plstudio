@@ -217,6 +217,24 @@ const CANVAS_MIN_HEIGHT = 3600;
 const CANVAS_MARGIN = 2400;
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 1.8;
+/**
+ * Wheel deltas arrive in three units (pixels, lines, pages) and at wildly
+ * different magnitudes: a trackpad pinch reports a few pixels per event, one
+ * mouse notch reports 100 at once. Both are normalised to pixels, then a single
+ * event's contribution is capped at `ZOOM_STEP_LIMIT` so a notch scales by a
+ * smooth ~13% instead of jumping by `exp(1)`.
+ */
+const WHEEL_LINE_HEIGHT = 16;
+const WHEEL_PAGE_HEIGHT = 400;
+const ZOOM_SENSITIVITY = 0.005;
+const ZOOM_STEP_LIMIT = 24;
+/** Pixels per unit of a wheel event's delta, whichever unit the device reports. */
+const wheelScale = (event: WheelEvent) =>
+  event.deltaMode === 1
+    ? WHEEL_LINE_HEIGHT
+    : event.deltaMode === 2
+      ? WHEEL_PAGE_HEIGHT
+      : 1;
 /** Movement before a press is treated as a drag rather than a tap. */
 const DRAG_THRESHOLD = 4;
 /** Arrow-key nudge for keyboard positioning. */
@@ -1921,17 +1939,54 @@ export default function Designer({
     const element = canvasRef.current;
     if (!element) return;
     let wheelFrame: number | null = null;
-    let pendingWheelAction: (() => void) | null = null;
+    /**
+     * Deltas accumulate rather than overwrite: a frame usually swallows several
+     * wheel events, and keeping only the last one both loses distance and makes
+     * the gesture stutter. One flush per frame applies their sum.
+     */
+    let zoomDelta = 0;
+    let panDelta = { x: 0, y: 0 };
+    let pointer = { x: 0, y: 0 };
+
+    const applyWheel = () => {
+      let nextZoom = zoomRef.current;
+      let nextPan = panRef.current;
+      if (zoomDelta !== 0) {
+        const scaled = Math.min(
+          MAX_ZOOM,
+          Math.max(MIN_ZOOM, nextZoom * Math.exp(-zoomDelta * ZOOM_SENSITIVITY)),
+        );
+        zoomDelta = 0;
+        if (scaled !== nextZoom) {
+          // Keep the point under the cursor pinned while the scale changes.
+          const world = {
+            x: (pointer.x - nextPan.x) / nextZoom,
+            y: (pointer.y - nextPan.y) / nextZoom,
+          };
+          nextPan = {
+            x: pointer.x - world.x * scaled,
+            y: pointer.y - world.y * scaled,
+          };
+          nextZoom = scaled;
+        }
+      }
+      if (panDelta.x !== 0 || panDelta.y !== 0) {
+        const bounds = panBounds(nextZoom);
+        nextPan = {
+          x: Math.max(bounds.minX, Math.min(bounds.maxX, nextPan.x - panDelta.x)),
+          y: Math.max(bounds.minY, Math.min(bounds.maxY, nextPan.y - panDelta.y)),
+        };
+        panDelta = { x: 0, y: 0 };
+      }
+      if (nextZoom !== zoomRef.current) setZoom(nextZoom);
+      if (nextPan !== panRef.current) setPan(nextPan);
+    };
 
     const flushWheel = () => {
       if (wheelFrame !== null) {
         cancelAnimationFrame(wheelFrame);
         wheelFrame = null;
-      }
-      if (pendingWheelAction) {
-        const action = pendingWheelAction;
-        pendingWheelAction = null;
-        action();
+        applyWheel();
       }
     };
 
@@ -1940,54 +1995,26 @@ export default function Designer({
       stopAnimation();
       const rect = canvasRect();
       if (!rect) return;
+      const scale = wheelScale(event);
 
       if (event.ctrlKey || event.metaKey) {
-        const currentZoom = zoomRef.current;
-        const next = Math.min(
-          MAX_ZOOM,
-          Math.max(MIN_ZOOM, currentZoom * Math.exp(-event.deltaY * 0.01)),
-        );
-        if (next === currentZoom) return;
-        // Keep the point under the cursor pinned while the scale changes.
-        const pointer = {
-          x: event.clientX - rect.left,
-          y: event.clientY - rect.top,
-        };
-        const world = {
-          x: (pointer.x - panRef.current.x) / currentZoom,
-          y: (pointer.y - panRef.current.y) / currentZoom,
-        };
-        pendingWheelAction = () => {
-          setZoom(next);
-          setPan({
-            x: pointer.x - world.x * next,
-            y: pointer.y - world.y * next,
-          });
-        };
+        // Capping the per-event step is what separates a trackpad pinch (a few
+        // pixels at a time) from a mouse notch (100 at once) without needing to
+        // tell the two devices apart.
+        const step = event.deltaY * scale;
+        zoomDelta += Math.max(-ZOOM_STEP_LIMIT, Math.min(ZOOM_STEP_LIMIT, step));
+        pointer = { x: event.clientX - rect.left, y: event.clientY - rect.top };
       } else {
-        const bounds = panBounds(zoomRef.current);
-        pendingWheelAction = () => {
-          setPan((current) => ({
-            x: Math.max(
-              bounds.minX,
-              Math.min(bounds.maxX, current.x - event.deltaX),
-            ),
-            y: Math.max(
-              bounds.minY,
-              Math.min(bounds.maxY, current.y - event.deltaY),
-            ),
-          }));
+        panDelta = {
+          x: panDelta.x + event.deltaX * scale,
+          y: panDelta.y + event.deltaY * scale,
         };
       }
 
       if (wheelFrame === null) {
         wheelFrame = requestAnimationFrame(() => {
           wheelFrame = null;
-          if (pendingWheelAction) {
-            const act = pendingWheelAction;
-            pendingWheelAction = null;
-            act();
-          }
+          applyWheel();
         });
       }
     };
