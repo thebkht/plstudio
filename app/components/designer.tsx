@@ -3301,7 +3301,9 @@ export default function Designer({
                                 column={column}
                                 patchColumn={patchColumn}
                                 deleteColumn={deleteColumn}
-                                compatibleForeignKeyTargets={compatibleForeignKeyTargets}
+                                compatibleForeignKeyTargets={
+                                  compatibleForeignKeyTargets
+                                }
                               />
                             ))}
 
