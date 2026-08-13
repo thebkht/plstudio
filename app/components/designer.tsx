@@ -1978,17 +1978,24 @@ export default function Designer({
       if (gesture.mode === "memo" && memo) {
         const live = dragMemoPositionRef.current;
         if (gesture.moved && live?.id === memo.id) {
+          // Membership is read off where the memo lands, not where it was let
+          // go, so a drop clamped by the world edge cannot join the wrong group.
+          const bounds = memoBounds(memo);
+          const landing = {
+            x: Math.max(bounds.minX, Math.min(bounds.maxX, live.x)),
+            y: Math.max(bounds.minY, Math.min(bounds.maxY, live.y)),
+          };
           const targetGroup = (schemaRef.current.groups ?? []).find((group) =>
             enclosedBy(
               liveGroupRef.current(group),
-              live.x + memo.width / 2,
-              live.y + memo.height / 2,
+              landing.x + memo.width / 2,
+              landing.y + memo.height / 2,
             ),
           );
           commitMemoPosition(
             memo.id,
-            live.x,
-            live.y,
+            landing.x,
+            landing.y,
             targetGroup?.id ?? null,
           );
         } else {
