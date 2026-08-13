@@ -215,7 +215,7 @@ const CANVAS_MIN_WIDTH = 4800;
 const CANVAS_MIN_HEIGHT = 3600;
 /** Room kept beyond the furthest content, so dragging outward never hits a wall. */
 const CANVAS_MARGIN = 2400;
-const MIN_ZOOM = 0.15;
+const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 1.8;
 /** Movement before a press is treated as a drag rather than a tap. */
 const DRAG_THRESHOLD = 4;
