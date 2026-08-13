@@ -7,7 +7,6 @@ import {
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
-  type ReactNode,
 } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -203,6 +202,7 @@ import {
 import { RelationshipEdge } from "@/app/components/designer/relationship-edge";
 import { ExportModal } from "@/app/components/designer/export-modal";
 import { ColumnList } from "@/app/components/designer/column-list";
+import { highlightSql } from "@/app/components/designer/highlight";
 import { TableCard } from "./designer/table-card";
 
 /** Header offset for row anchors: the colour strip sits above the title bar. */
@@ -349,35 +349,6 @@ function prepareCanvasSchema(schema: Schema): Schema {
   );
   next.memos = normalizeMemos(next.memos);
   return next;
-}
-
-const SQL_TOKEN =
-  /(--[^\n]*|'(?:''|[^'])*'|\b\d+(?:\.\d+)?\b|\b(?:SELECT|FROM|WHERE|INSERT|INTO|VALUES|UPDATE|SET|DELETE|CREATE|TABLE|SEQUENCE|TRIGGER|OR|REPLACE|BEFORE|AFTER|INSERTING|UPDATING|DELETING|ON|FOR|EACH|ROW|BEGIN|END|IF|THEN|ELSE|NULL|NOT|PRIMARY|KEY|FOREIGN|REFERENCES|CONSTRAINT|UNIQUE|CHECK|DEFAULT|AS|IS|AND|OR|NUMBER|VARCHAR2|CHAR|DATE|TIMESTAMP|CLOB|BLOB|RAW|IDENTITY|GENERATED|ALWAYS|BY|COMMIT|RETURNING|PACKAGE|BODY|FUNCTION|PROCEDURE|OPEN|CURSOR|VALUES)\b)/gi;
-
-function highlightSql(source: string): ReactNode[] {
-  const pieces: ReactNode[] = [];
-  let cursor = 0;
-  let match: RegExpExecArray | null;
-  SQL_TOKEN.lastIndex = 0;
-  while ((match = SQL_TOKEN.exec(source))) {
-    if (match.index > cursor) pieces.push(source.slice(cursor, match.index));
-    const token = match[0];
-    const kind = token.startsWith("--")
-      ? "comment"
-      : token.startsWith("'")
-        ? "string"
-        : /^\d/.test(token)
-          ? "number"
-          : "keyword";
-    pieces.push(
-      <span className={`sql-token ${kind}`} key={`${match.index}-${token}`}>
-        {token}
-      </span>,
-    );
-    cursor = match.index + token.length;
-  }
-  if (cursor < source.length) pieces.push(source.slice(cursor));
-  return pieces;
 }
 
 type PanelTab = "tables" | "relationships";

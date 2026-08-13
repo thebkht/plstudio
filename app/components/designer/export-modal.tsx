@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Cancel01Icon,
@@ -15,6 +15,7 @@ import { Alert, AlertAction, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { highlightSql } from "./highlight";
 
 type ExportTab = "ddl" | "dml";
 
@@ -22,34 +23,6 @@ const exportTabs = [
   ["ddl", "DDL"],
   ["dml", "DML"],
 ] as const satisfies ReadonlyArray<readonly [ExportTab, string]>;
-
-const SQL_TOKEN = /(--[^\n]*|'(?:''|[^'])*'|\b\d+(?:\.\d+)?\b|\b(?:CREATE|ALTER|DROP|TABLE|COLUMN|CONSTRAINT|PRIMARY|KEY|FOREIGN|REFERENCES|UNIQUE|CHECK|NOT|NULL|DEFAULT|AS|BEGIN|END|PACKAGE|BODY|PROCEDURE|FUNCTION|INSERT|INTO|VALUES|UPDATE|SET|DELETE|FROM|WHERE|RETURNING|INTO|COMMIT)\b)/gi;
-
-function highlightSql(source: string): ReactNode[] {
-  const pieces: ReactNode[] = [];
-  let cursor = 0;
-  let match: RegExpExecArray | null;
-  SQL_TOKEN.lastIndex = 0;
-  while ((match = SQL_TOKEN.exec(source))) {
-    if (match.index > cursor) pieces.push(source.slice(cursor, match.index));
-    const token = match[0];
-    const kind = token.startsWith("--")
-      ? "comment"
-      : token.startsWith("'")
-        ? "string"
-        : /^\d/.test(token)
-          ? "number"
-          : "keyword";
-    pieces.push(
-      <span className={`sql-token ${kind}`} key={`${match.index}-${token}`}>
-        {token}
-      </span>,
-    );
-    cursor = match.index + token.length;
-  }
-  if (cursor < source.length) pieces.push(source.slice(cursor));
-  return pieces;
-}
 
 export const ExportModal = ({
   isOpen,
