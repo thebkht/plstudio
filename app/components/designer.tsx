@@ -138,7 +138,7 @@ import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { generateDDL } from "@/app/lib/generators";
-import { parseCreateTable } from "@/app/lib/parser";
+import { appendCreateTable, parseCreateTable } from "@/app/lib/parser";
 import { typeColorVar } from "@/app/lib/datatype-color";
 import {
   SHORTCUTS,
@@ -1161,6 +1161,41 @@ export default function Designer({
     );
     setZoom(next);
     // Centre the diagram's bounding box rather than resetting to a fixed corner.
+    setPan({
+      x: (rect.width - (maxX - minX) * next) / 2 - minX * next,
+      y: (rect.height - (maxY - minY) * next) / 2 - minY * next,
+    });
+  };
+
+  /**
+   * Centre the viewport on a subset of tables — what an import lands with, so
+   * the tables it just added are the thing on screen. Zoom only ever comes
+   * down, and only far enough to fit them: an import of two tables into a
+   * forty-table diagram should not reframe the diagram.
+   */
+  const revealTables = (tables: Table[]) => {
+    if (!canvasRef.current || !tables.length) return;
+    stopAnimationRef.current?.();
+    stopAnimationRef.current = null;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const padding = 64;
+    const minX = Math.min(...tables.map((table) => table.x));
+    const minY = Math.min(...tables.map((table) => table.y));
+    const maxX = Math.max(
+      ...tables.map((table) => table.x + tableWidth(table)),
+    );
+    const maxY = Math.max(
+      ...tables.map((table) => table.y + tableHeight(table)),
+    );
+    const next = Math.max(
+      MIN_ZOOM,
+      Math.min(
+        zoom,
+        (rect.width - padding * 2) / Math.max(1, maxX - minX),
+        (rect.height - padding * 2) / Math.max(1, maxY - minY),
+      ),
+    );
+    setZoom(next);
     setPan({
       x: (rect.width - (maxX - minX) * next) / 2 - minX * next,
       y: (rect.height - (maxY - minY) * next) / 2 - minY * next,
@@ -2502,6 +2537,25 @@ export default function Designer({
     });
     commit(result.schema);
     setSelectedId(result.schema.tables[0]?.id ?? null);
+  };
+  /**
+   * The other half of import: keep the diagram and land the script's tables
+   * under it. Nothing already on the canvas is edited, so the only new thing
+   * to say is what was added and what was already there.
+   */
+  const appendSchema = () => {
+    const result = appendCreateTable(schema, importText);
+    if (!result.schema) {
+      setImportMessage({ ok: false, text: result.errors.join(" ") });
+      return;
+    }
+    setImportMessage({
+      ok: true,
+      text: `${result.added.length} table(s) added.${result.skipped.length ? ` Already in this project: ${result.skipped.join(", ")}.` : ""}${result.warnings.length ? ` ${result.warnings.length} warning(s).` : ""}`,
+    });
+    commit(result.schema);
+    setSelectedId(result.added[0]?.id ?? null);
+    revealTables(result.added);
   };
   const clearInvalidForeignKeys = () => {
     const next = {
@@ -4370,7 +4424,8 @@ export default function Designer({
         <DialogHeader>
           <DialogTitle>Import Oracle DDL</DialogTitle>
           <DialogDescription>
-            Supported CREATE TABLE subset · all-or-nothing
+            Supported CREATE TABLE subset · all-or-nothing · add to this project
+            or replace it
           </DialogDescription>
         </DialogHeader>
         <div className="sql-editor">
@@ -4409,9 +4464,13 @@ export default function Designer({
           >
             Use current export
           </Button>
-          <Button onClick={importSchema}>
+          <Button variant="outline" onClick={importSchema}>
             <HugeiconsIcon icon={FileUploadIcon} data-icon="inline-start" />
-            Parse and replace
+            Replace project
+          </Button>
+          <Button onClick={appendSchema}>
+            <HugeiconsIcon icon={ColumnInsertIcon} data-icon="inline-start" />
+            Add tables to project
           </Button>
         </DialogFooter>
       </Dialog>

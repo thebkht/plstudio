@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateDDL, generateDML } from "@/app/lib/generators";
-import { parseCreateTable } from "@/app/lib/parser";
-import { makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, normalizeMemos, normalizeGroups, normalizeRelationships, normalizeTables, tableWidth } from "@/app/lib/schema";
+import { appendCreateTable, parseCreateTable } from "@/app/lib/parser";
+import { makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, normalizeMemos, normalizeGroups, normalizeRelationships, normalizeTables, tableHeight, tableWidth } from "@/app/lib/schema";
 import { validateCheckExpression, validateSchema, validateTypeSpec } from "@/app/lib/validation";
 
 describe("Oracle schema model", () => {
@@ -192,6 +192,68 @@ describe("Oracle schema model", () => {
     expect(result.schema?.relationships).toHaveLength(1);
     expect(result.schema?.relationships?.[0]).toMatchObject({ name: "FK_CHILD_PARENT", deleteConstraint: "Cascade" });
     expect(result.schema?.relationships?.[0].fields).toHaveLength(2);
+  });
+
+  it("appends imported tables below the diagram, keeping the project's own relationships", () => {
+    const base = makeDemoSchema();
+    const result = appendCreateTable(
+      base,
+      `CREATE TABLE COURSE ( ID NUMBER NOT NULL, TITLE VARCHAR2(120), CONSTRAINT PK_COURSE PRIMARY KEY (ID) );`,
+    );
+    expect(result.errors).toEqual([]);
+    expect(result.skipped).toEqual([]);
+    expect(result.added.map((table) => table.name)).toEqual(["COURSE"]);
+    expect(result.schema?.tables).toHaveLength(3);
+    // The two originals keep their identity and their place on the canvas.
+    expect(result.schema?.tables.slice(0, 2)).toMatchObject(
+      base.tables.map((table) => ({ id: table.id, name: table.name, x: table.x, y: table.y })),
+    );
+    // A demo schema carries no materialised relationships, so the existing FK
+    // has to be derived rather than dropped by the merge.
+    expect(result.schema?.tables[1].columns[0].fk).toMatchObject({ tableId: base.tables[0].id });
+    const bottom = Math.max(...base.tables.map((table) => table.y + tableHeight(table)));
+    expect(result.added[0].y).toBeGreaterThan(bottom);
+  });
+
+  it("resolves an imported foreign key against a table only the project has", () => {
+    const base = makeDemoSchema();
+    const student = base.tables[0];
+    const result = appendCreateTable(
+      base,
+      `CREATE TABLE GRADE ( ID NUMBER NOT NULL, STUDENT_ID NUMBER NOT NULL REFERENCES STUDENT(ID), CONSTRAINT PK_GRADE PRIMARY KEY (ID) );`,
+    );
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toEqual([]);
+    expect(result.schema?.tables[2].columns[1].fk).toMatchObject({
+      tableId: student.id,
+      columnId: student.columns[0].id,
+    });
+    expect(result.schema?.relationships).toHaveLength(2);
+  });
+
+  it("leaves a redeclared table alone and re-points the new table's reference at it", () => {
+    const base = makeDemoSchema();
+    const student = base.tables[0];
+    const result = appendCreateTable(
+      base,
+      `${generateDDL(base)}\nCREATE TABLE GRADE ( ID NUMBER NOT NULL, STUDENT_ID NUMBER NOT NULL REFERENCES STUDENT(ID) );`,
+    );
+    expect(result.errors).toEqual([]);
+    expect(result.skipped).toEqual(["STUDENT", "ENROLLMENT"]);
+    expect(result.added.map((table) => table.name)).toEqual(["GRADE"]);
+    expect(result.schema?.tables).toHaveLength(3);
+    expect(result.schema?.tables[2].columns[1].fk).toMatchObject({
+      tableId: student.id,
+      columnId: student.columns[0].id,
+    });
+  });
+
+  it("refuses an import that adds nothing", () => {
+    const base = makeDemoSchema();
+    const result = appendCreateTable(base, generateDDL(base));
+    expect(result.schema).toBeNull();
+    expect(result.added).toEqual([]);
+    expect(result.errors[0]).toContain("STUDENT, ENROLLMENT");
   });
 
   it("does not create a generated key strategy for composite keys", () => {

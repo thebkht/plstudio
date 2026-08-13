@@ -1,6 +1,17 @@
-import { makeColumn, makeTable, normalizeIdentifier, normalizeRelationships, SCHEMA_FORMAT_VERSION, type Column, type OracleType, type Schema, type Table } from "./schema";
+import { makeColumn, makeTable, nextId, normalizeIdentifier, normalizeRelationships, PALETTE, SCHEMA_FORMAT_VERSION, tableHeight, type Column, type ForeignKeyRef, type OracleType, type Schema, type Table } from "./schema";
 
 export type ParseResult = { schema: Schema | null; warnings: string[]; errors: string[] };
+
+/**
+ * `knownTables` lets a foreign key resolve against a table that is already in
+ * the project but absent from the script being parsed -- the case whenever new
+ * tables are appended to an existing diagram rather than replacing it. A
+ * relationship that crosses into one of those cannot survive
+ * `normalizeRelationships` run over the imported tables alone, so supplying
+ * `knownTables` also defers normalization to the caller. `appendCreateTable`
+ * is that caller; nobody else should need this.
+ */
+export type ParseOptions = { knownTables?: Table[] };
 
 /**
  * Identifiers arrive either bare (`PF_R_CATEGORIES`, what `generateDDL` emits)
@@ -204,7 +215,8 @@ function checkTarget(table: Table, expression: string) {
   return referenced.size === 1 ? [...referenced][0] : null;
 }
 
-export function parseCreateTable(sql: string): ParseResult {
+export function parseCreateTable(sql: string, options: ParseOptions = {}): ParseResult {
+  const knownTables = options.knownTables ?? [];
   const warnings: string[] = [];
   const errors: string[] = [];
   const tables: Table[] = [];
@@ -297,7 +309,9 @@ export function parseCreateTable(sql: string): ParseResult {
   const importedRelationships: Array<Record<string, unknown>> = [];
   foreignKeys.forEach((foreignKey) => {
     const table = findTable(tables, foreignKey.tableName);
-    const target = findTable(tables, foreignKey.targetName);
+    // A table in the script shadows a project table of the same name: the
+    // script is the more specific statement about what that name means here.
+    const target = findTable(tables, foreignKey.targetName) ?? findTable(knownTables, foreignKey.targetName);
     const pairs = foreignKey.columns.map((columnName, index) => ({
       column: table && findColumn(table, columnName),
       targetColumn: target && findColumn(target, foreignKey.targetColumns[index] ?? ""),
@@ -339,6 +353,123 @@ export function parseCreateTable(sql: string): ParseResult {
 
   if (!tables.length) errors.push("No supported CREATE TABLE statements found.");
   if (errors.length) return { schema: null, warnings, errors };
-  const imported = normalizeRelationships({ id: `schema_import_${Date.now()}`, name: "Imported Oracle Schema", revision: 1, schemaFormatVersion: SCHEMA_FORMAT_VERSION, tables, relationships: importedRelationships as never[] });
-  return { schema: imported, warnings, errors };
+  const imported = { id: `schema_import_${Date.now()}`, name: "Imported Oracle Schema", revision: 1, schemaFormatVersion: SCHEMA_FORMAT_VERSION, tables, relationships: importedRelationships as never[] };
+  return { schema: options.knownTables ? imported : normalizeRelationships(imported), warnings, errors };
+}
+
+export type AppendResult = {
+  schema: Schema | null;
+  /** The tables as they were placed, for selecting and revealing them. */
+  added: Table[];
+  /** Names the script declares that the project already has, left untouched. */
+  skipped: string[];
+  warnings: string[];
+  errors: string[];
+};
+
+/** Clear of everything already on the canvas, so an import never lands on top of it. */
+const APPEND_GAP = 120;
+
+function contentEdges(schema: Schema) {
+  const boxes = [
+    ...schema.tables.map((table) => ({ x: table.x, y: table.y + tableHeight(table) })),
+    ...(schema.groups ?? []).map((group) => ({ x: group.x, y: group.y + group.height })),
+    ...(schema.memos ?? []).map((memo) => ({ x: memo.x, y: memo.y + memo.height })),
+  ];
+  return boxes.length ? { left: Math.min(...boxes.map((box) => box.x)), bottom: Math.max(...boxes.map((box) => box.y)) } : null;
+}
+
+/**
+ * Parse `sql` and append its tables to `base` instead of replacing it.
+ *
+ * A name the project already carries is *not* overwritten -- the existing table
+ * wins and the script's version is reported as skipped, because the alternative
+ * (silently merging two definitions of one table) is unpredictable and the user
+ * can always delete the old one first. Foreign keys still resolve across the
+ * seam in both directions: a script that references a table it does not declare
+ * finds the project's, and a reference to a skipped table is re-pointed at the
+ * project's table and column of that name.
+ */
+export function appendCreateTable(base: Schema, sql: string): AppendResult {
+  const parsed = parseCreateTable(sql, { knownTables: base.tables });
+  if (!parsed.schema) return { schema: null, added: [], skipped: [], warnings: parsed.warnings, errors: parsed.errors };
+
+  /** Imported table id -> the project table of the same name it defers to. */
+  const deferred = new Map<string, Table>();
+  /** Column id inside a deferred table -> the project column of the same name. */
+  const deferredColumns = new Map<string, string>();
+  const skipped: string[] = [];
+  const fresh: Table[] = [];
+  parsed.schema.tables.forEach((table) => {
+    const match = findTable(base.tables, table.name);
+    if (!match) { fresh.push(table); return; }
+    // The project's spelling, not the script's: the project's table is the one
+    // that survives, and `generateDDL` round-trips names in a different case.
+    skipped.push(match.name);
+    deferred.set(table.id, match);
+    table.columns.forEach((column) => {
+      const twin = findColumn(match, column.name);
+      if (twin) deferredColumns.set(column.id, twin.id);
+    });
+  });
+
+  if (!fresh.length)
+    return {
+      schema: null,
+      added: [],
+      skipped,
+      warnings: parsed.warnings,
+      errors: [`Already in this project: ${skipped.join(", ")}. Nothing new to add.`],
+    };
+
+  const rewire = (ref: ForeignKeyRef | null): ForeignKeyRef | null => {
+    if (!ref) return null;
+    const target = deferred.get(ref.tableId);
+    if (!target) return ref;
+    const columnId = deferredColumns.get(ref.columnId);
+    return columnId ? { tableId: target.id, columnId } : null;
+  };
+
+  const edges = contentEdges(base);
+  const originX = Math.min(...fresh.map((table) => table.x));
+  const originY = Math.min(...fresh.map((table) => table.y));
+  const dx = edges ? edges.left - originX : 0;
+  const dy = edges ? edges.bottom + APPEND_GAP - originY : 0;
+  const added = fresh.map((table, index) => ({
+    ...table,
+    x: table.x + dx,
+    y: table.y + dy,
+    // Carry on round the palette rather than restarting it under the diagram.
+    color: PALETTE[(base.tables.length + index) % PALETTE.length],
+    columns: table.columns.map((column) => ({ ...column, fk: rewire(column.fk) })),
+  }));
+
+  const addedIds = new Set(added.map((table) => table.id));
+  const relationships = (parsed.schema.relationships ?? [])
+    // A relationship owned by a skipped table describes the project's table, not the script's.
+    .filter((relationship) => addedIds.has(relationship.startTableId))
+    .map((relationship) => ({
+      ...relationship,
+      // The parser numbers from rel_1, which the project has already used.
+      id: nextId("rel"),
+      endTableId: deferred.get(relationship.endTableId)?.id ?? relationship.endTableId,
+      endFieldId: deferredColumns.get(relationship.endFieldId) ?? relationship.endFieldId,
+      fields: relationship.fields.map((pair) => ({
+        startFieldId: pair.startFieldId,
+        endFieldId: deferredColumns.get(pair.endFieldId) ?? pair.endFieldId,
+      })),
+    }));
+
+  /*
+   * `normalizeRelationships` drops every `column.fk` no relationship accounts
+   * for. On a schema whose relationships were never materialised that would
+   * quietly cut the project's own foreign keys, so derive them first.
+   */
+  const ground = base.relationships?.length ? base : normalizeRelationships(base);
+  const schema = normalizeRelationships({
+    ...ground,
+    tables: [...ground.tables, ...added],
+    relationships: [...(ground.relationships ?? []), ...relationships],
+  });
+  return { schema, added, skipped, warnings: parsed.warnings, errors: [] };
 }
