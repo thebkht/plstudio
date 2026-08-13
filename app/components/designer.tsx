@@ -152,6 +152,7 @@ import {
 } from "@/app/lib/motion";
 import {
   cloneSchema,
+  groupDragBounds,
   GROUP_PALETTE,
   makeColumn,
   makeMemo,
@@ -265,6 +266,21 @@ const MEMO_COLORS: {
   { id: "green", label: "Green", background: "#e8f7d7", border: "#72b92d" },
   { id: "pink", label: "Pink", background: "#ffe4e9", border: "#d85d78" },
 ];
+
+/**
+ * Whether a dropped card's centre lands inside a group. The header strip is
+ * excluded: that band is how the group itself is grabbed, so a card resting
+ * over it belongs to the canvas, not to the group.
+ */
+const enclosedBy = (
+  rect: { x: number; y: number; width: number; height: number },
+  x: number,
+  y: number,
+) =>
+  x >= rect.x &&
+  x <= rect.x + rect.width &&
+  y >= rect.y + GROUP_HEADER_HEIGHT &&
+  y <= rect.y + rect.height;
 
 /** Extent of the drawable world: everything on it, plus a margin to grow into. */
 function canvasExtent(schema: Schema) {
@@ -436,10 +452,17 @@ export default function Designer({
     width: number;
     height: number;
   } | null>(null);
+  /**
+   * `dx`/`dy` are the offset from the group's committed origin. Members ride
+   * along on that delta, so a group drag stays one state write per frame no
+   * matter how many tables and memos sit inside it.
+   */
   const [dragGroupPosition, setDragGroupPosition] = useState<{
     id: string;
     x: number;
     y: number;
+    dx: number;
+    dy: number;
   } | null>(null);
   const [resizeGroup, setResizeGroup] = useState<{
     id: string;
@@ -675,13 +698,22 @@ export default function Designer({
     [peers],
   );
 
-  /** A table's on-screen position: the in-flight one while it moves, else its committed one. */
+  /**
+   * A table's on-screen position: the in-flight one while it moves, else its
+   * committed one shifted by the drag of the group it belongs to.
+   */
   const livePosition = useCallback(
-    (table: Table) =>
-      dragPosition && dragPosition.id === table.id
-        ? { x: dragPosition.x, y: dragPosition.y }
-        : { x: table.x, y: table.y },
-    [dragPosition],
+    (table: Table) => {
+      if (dragPosition && dragPosition.id === table.id)
+        return { x: dragPosition.x, y: dragPosition.y };
+      if (dragGroupPosition && table.schemaId === dragGroupPosition.id)
+        return {
+          x: table.x + dragGroupPosition.dx,
+          y: table.y + dragGroupPosition.dy,
+        };
+      return { x: table.x, y: table.y };
+    },
+    [dragGroupPosition, dragPosition],
   );
   const livePositionRef = useRef(livePosition);
   livePositionRef.current = livePosition;
@@ -704,14 +736,18 @@ export default function Designer({
       const position =
         dragMemoPosition?.id === memo.id ? dragMemoPosition : memo;
       const size = resizeMemo?.id === memo.id ? resizeMemo : memo;
+      const rides =
+        dragMemoPosition?.id !== memo.id &&
+        dragGroupPosition &&
+        memo.schemaId === dragGroupPosition.id;
       return {
-        x: position.x,
-        y: position.y,
+        x: position.x + (rides ? dragGroupPosition.dx : 0),
+        y: position.y + (rides ? dragGroupPosition.dy : 0),
         width: size.width,
         height: size.height,
       };
     },
-    [dragMemoPosition, resizeMemo],
+    [dragGroupPosition, dragMemoPosition, resizeMemo],
   );
   const liveGroup = useCallback(
     (group: SchemaGroup) => {
@@ -1540,40 +1576,56 @@ export default function Designer({
     };
   }, []);
 
-  const groupBounds = useCallback((group: SchemaGroup) => {
-    const world = worldRef.current;
-    return {
-      minX: 0,
-      maxX: world.width - group.width,
-      minY: 0,
-      maxY: world.height - group.height,
-    };
-  }, []);
+  const groupBounds = useCallback(
+    (group: SchemaGroup) =>
+      groupDragBounds(schemaRef.current, group, worldRef.current),
+    [],
+  );
 
   const commitGroupPosition = useCallback(
     (id: string, x: number, y: number) => {
       if (readOnly) return;
-      const world = worldRef.current;
-      const current = schemaRef.current;
-      if (!current.groups?.some((item) => item.id === id)) return;
-      commitWith((next) => ({
-        ...next,
-        groups: (next.groups ?? []).map((item) =>
-          item.id === id
-            ? {
-                ...item,
-                x: Math.max(
-                  0,
-                  Math.min(world.width - item.width, Math.round(x)),
-                ),
-                y: Math.max(
-                  0,
-                  Math.min(world.height - item.height, Math.round(y)),
-                ),
-              }
-            : item,
-        ),
-      }));
+      /*
+       * Clamp inside the updater, against the schema being committed: a remote
+       * edit can land between pointerup and here, and the delta the members
+       * move by has to be measured from the same origin the group lands on.
+       */
+      commitWith((next) => {
+        const group = (next.groups ?? []).find((item) => item.id === id);
+        if (!group) return next;
+        const bounds = groupDragBounds(next, group, worldRef.current);
+        const nextX = Math.max(
+          bounds.minX,
+          Math.min(bounds.maxX, Math.round(x)),
+        );
+        const nextY = Math.max(
+          bounds.minY,
+          Math.min(bounds.maxY, Math.round(y)),
+        );
+        const dx = nextX - group.x;
+        const dy = nextY - group.y;
+        return {
+          ...next,
+          groups: (next.groups ?? []).map((item) =>
+            item.id === id ? { ...item, x: nextX, y: nextY } : item,
+          ),
+          /*
+           * No `resolveTablePosition` pass over the members: its overlap
+           * push-out would rearrange the layout the user built inside the
+           * schema, which is the one thing relocating it must preserve.
+           */
+          tables: next.tables.map((table) =>
+            table.schemaId === id
+              ? { ...table, x: table.x + dx, y: table.y + dy }
+              : table,
+          ),
+          memos: next.memos?.map((memo) =>
+            memo.schemaId === id
+              ? { ...memo, x: memo.x + dx, y: memo.y + dy }
+              : memo,
+          ),
+        };
+      });
       setDragGroupPosition(null);
     },
     [commitWith, readOnly],
@@ -1609,14 +1661,21 @@ export default function Designer({
         tables: next.tables.map((table) => {
           if (table.schemaId !== undefined && table.schemaId !== id)
             return table;
-          const centerX = table.x + tableWidth(table) / 2;
-          const centerY = table.y + tableHeight(table) / 2;
-          const inside =
-            centerX >= group.x &&
-            centerX <= group.x + nextWidth &&
-            centerY >= group.y + GROUP_HEADER_HEIGHT &&
-            centerY <= group.y + nextHeight;
+          const inside = enclosedBy(
+            { x: group.x, y: group.y, width: nextWidth, height: nextHeight },
+            table.x + tableWidth(table) / 2,
+            table.y + tableHeight(table) / 2,
+          );
           return { ...table, schemaId: inside ? id : undefined };
+        }),
+        memos: next.memos?.map((memo) => {
+          if (memo.schemaId !== undefined && memo.schemaId !== id) return memo;
+          const inside = enclosedBy(
+            { x: group.x, y: group.y, width: nextWidth, height: nextHeight },
+            memo.x + memo.width / 2,
+            memo.y + memo.height / 2,
+          );
+          return { ...memo, schemaId: inside ? id : undefined };
         }),
       }));
       setResizeGroup(null);
@@ -1625,7 +1684,7 @@ export default function Designer({
   );
 
   const commitMemoPosition = useCallback(
-    (id: string, x: number, y: number) => {
+    (id: string, x: number, y: number, schemaId?: string | null) => {
       if (readOnly) return;
       const current = schemaRef.current;
       const memo = current.memos?.find((item) => item.id === id);
@@ -1639,6 +1698,10 @@ export default function Designer({
                 ...item,
                 x: Math.max(bounds.minX, Math.min(bounds.maxX, Math.round(x))),
                 y: Math.max(bounds.minY, Math.min(bounds.maxY, Math.round(y))),
+                schemaId:
+                  schemaId === undefined
+                    ? item.schemaId
+                    : schemaId || undefined,
               }
             : item,
         ),
@@ -1746,16 +1809,20 @@ export default function Designer({
         };
         if (gesture.mode === "group") {
           const bounds = groupBounds(group);
+          const x = Math.max(
+            bounds.minX,
+            Math.min(bounds.maxX, point.x - gesture.grabX),
+          );
+          const y = Math.max(
+            bounds.minY,
+            Math.min(bounds.maxY, point.y - gesture.grabY),
+          );
           const nextGroup = {
             id: group.id,
-            x: Math.max(
-              bounds.minX,
-              Math.min(bounds.maxX, point.x - gesture.grabX),
-            ),
-            y: Math.max(
-              bounds.minY,
-              Math.min(bounds.maxY, point.y - gesture.grabY),
-            ),
+            x,
+            y,
+            dx: x - group.x,
+            dy: y - group.y,
           };
           scheduleMove(() => setDragGroupPosition(nextGroup));
         } else {
@@ -1911,7 +1978,19 @@ export default function Designer({
       if (gesture.mode === "memo" && memo) {
         const live = dragMemoPositionRef.current;
         if (gesture.moved && live?.id === memo.id) {
-          commitMemoPosition(memo.id, live.x, live.y);
+          const targetGroup = (schemaRef.current.groups ?? []).find((group) =>
+            enclosedBy(
+              liveGroupRef.current(group),
+              live.x + memo.width / 2,
+              live.y + memo.height / 2,
+            ),
+          );
+          commitMemoPosition(
+            memo.id,
+            live.x,
+            live.y,
+            targetGroup?.id ?? null,
+          );
         } else {
           setDragMemoPosition(null);
         }
@@ -1971,15 +2050,9 @@ export default function Designer({
         x: target.x + tableWidth(table) / 2,
         y: target.y + tableHeight(table) / 2,
       };
-      const targetGroup = (schemaRef.current.groups ?? []).find((group) => {
-        const position = liveGroupRef.current(group);
-        return (
-          tableCenter.x >= position.x &&
-          tableCenter.x <= position.x + position.width &&
-          tableCenter.y >= position.y + GROUP_HEADER_HEIGHT &&
-          tableCenter.y <= position.y + position.height
-        );
-      });
+      const targetGroup = (schemaRef.current.groups ?? []).find((group) =>
+        enclosedBy(liveGroupRef.current(group), tableCenter.x, tableCenter.y),
+      );
       const flicked = Math.hypot(velocity.x, velocity.y) > 60;
       /**
        * Commit on release, not on settle. Every gesture entry point calls
