@@ -28,6 +28,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
           { href: `/${workspace}/settings`, label: "Settings" },
         ]}
         account={{ href: `/${workspace}/settings`, label: `${organization.name} · workspace` }}
+        user={{ name: session.user.name, email: session.user.email, image: session.user.image }}
       />
       <header className="dashboard-header">
         <div>

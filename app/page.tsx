@@ -33,6 +33,7 @@ export default async function Page() {
           { href: "/templates", label: "Templates" },
         ]}
         account={{ href: "/onboarding", label: "New workspace" }}
+        user={{ name: session.user.name, email: session.user.email, image: session.user.image }}
       />
       <header className="dashboard-header">
         <div>

@@ -38,7 +38,6 @@ import {
   SourceCodeIcon,
   StickyNote01Icon,
   Table01Icon,
-  UserCircleIcon,
   ZoomInAreaIcon,
   ZoomOutAreaIcon,
 } from "@hugeicons/core-free-icons";
@@ -49,6 +48,7 @@ import {
   type CollabUser,
 } from "@/app/lib/collab/useCollaborativeSchema";
 import { PeerAvatars, PeerCursors } from "@/app/components/collab-presence";
+import NavUser from "@/app/components/nav-user";
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -59,7 +59,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -128,12 +127,6 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  DropdownMenu,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -399,9 +392,16 @@ export default function Designer({
   workspaceId?: string;
   shareToken?: string;
   readOnly?: boolean;
-  user?: CollabUser | null;
+  // The email is for the account menu only — never for presence, see below.
+  user?: (CollabUser & { email?: string | null }) | null;
 }) {
   const router = useRouter();
+  // Awareness broadcasts this object to every peer, so hand the hook only the
+  // presence fields; the email stays local to `NavUser`.
+  const collabUser = useMemo(
+    () => (user ? { id: user.id, name: user.name, image: user.image } : user),
+    [user],
+  );
   const {
     schema,
     commit: commitShared,
@@ -421,7 +421,7 @@ export default function Designer({
       [initialSchema],
     ),
     readOnly,
-    user,
+    user: collabUser,
     shareToken,
     workspaceSlug,
   });
@@ -3066,30 +3066,11 @@ export default function Designer({
           <Button className="share-btn" onClick={() => setModal("share")}>
             <HugeiconsIcon icon={Share08Icon} size={15} /> Share
           </Button>
-          <DropdownMenuTrigger
+          <NavUser
+            user={user}
             isOpen={userMenuOpen}
             onOpenChange={setUserMenuOpen}
-          >
-            <Button variant="ghost" size="icon" aria-label="Account menu">
-              <Avatar size="sm">
-                <AvatarFallback>
-                  <HugeiconsIcon icon={UserCircleIcon} />
-                </AvatarFallback>
-              </Avatar>
-            </Button>
-            <DropdownMenu placement="bottom end" className="w-auto min-w-40">
-              <DropdownMenuGroup>
-                <DropdownMenuItem
-                  onAction={() =>
-                    void authClient.signOut().then(() => router.push("/login"))
-                  }
-                >
-                  <HugeiconsIcon icon={UserCircleIcon} />
-                  Sign out
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-            </DropdownMenu>
-          </DropdownMenuTrigger>
+          />
         </div>
       </header>
 

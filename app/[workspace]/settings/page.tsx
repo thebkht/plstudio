@@ -17,6 +17,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ works
           { href: "/templates", label: "Templates" },
         ]}
         account={{ href: `/${workspace}`, label: "Back to workspace" }}
+        user={{ name: session.user.name, email: session.user.email, image: session.user.image }}
       />
       <div className="dashboard-header settings-page-heading">
         <div>
