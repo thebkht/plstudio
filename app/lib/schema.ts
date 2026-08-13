@@ -331,10 +331,18 @@ export function normalizeTables(schema: Schema): Schema {
   const next = cloneSchema(schema);
   next.tables = next.tables.map((table) => {
     const width = (table as Partial<Table>).width;
-    if (width === undefined) return table;
+    /*
+     * A size left over from an earlier type is not just noise: DATE(255) is a
+     * validation error and reads as a real limit on the card. The editor drops
+     * it on the way in, but schemas written before it did still carry one.
+     */
+    const columns = table.columns.map((column) =>
+      column.size && !typeUsesSize(column.type) ? { ...column, size: "" } : column,
+    );
+    if (width === undefined) return { ...table, columns };
     return typeof width === "number" && Number.isFinite(width)
-      ? { ...table, width: clampTableWidth(width) }
-      : { ...table, width: undefined };
+      ? { ...table, columns, width: clampTableWidth(width) }
+      : { ...table, columns, width: undefined };
   });
   return next;
 }

@@ -10,6 +10,21 @@
 
 export type Vec = { x: number; y: number };
 
+/** Momentum handoff wants a little overshoot; everything else settles flat. */
+export const FLICK_SPRING = { damping: 0.82, response: 0.42 };
+export const SETTLE_SPRING = { damping: 1, response: 0.34 };
+
+/**
+ * Reduced motion removes travel, not feedback: a gesture still tracks the
+ * pointer 1:1, it just lands without the spring.
+ */
+export function prefersReducedMotion() {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
 /**
  * Where a flick would come to rest, using exponential scroll deceleration.
  * `decelerationRate` 0.998 matches normal scroll feel; 0.99 is snappier.

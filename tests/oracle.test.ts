@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateDDL, generateDML } from "@/app/lib/generators";
 import { appendCreateTable, parseCreateTable } from "@/app/lib/parser";
-import { makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, normalizeMemos, normalizeGroups, normalizeRelationships, normalizeTables, tableHeight, tableWidth } from "@/app/lib/schema";
+import { makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, normalizeMemos, normalizeGroups, normalizeRelationships, normalizeTables, tableHeight, tableWidth, typeString } from "@/app/lib/schema";
 import { validateCheckExpression, validateSchema, validateTypeSpec } from "@/app/lib/validation";
 
 describe("Oracle schema model", () => {
@@ -26,6 +26,18 @@ describe("Oracle schema model", () => {
     expect(first.width).toBeUndefined();
     expect(second.width).toBe(640);
     expect(tableWidth(first)).toBe(tableWidth({ name: first.name }));
+  });
+
+  it("drops a size the column's type cannot carry", () => {
+    const schema = makeDemoSchema();
+    const enrolledOn = schema.tables[1].columns[3];
+    expect(enrolledOn.type).toBe("DATE");
+    enrolledOn.size = "255"; // left behind by the VARCHAR2 the column started as
+    const normalized = normalizeTables(schema).tables[1].columns[3];
+    expect(normalized.size).toBe("");
+    expect(typeString(normalized)).toBe("DATE");
+    expect(validateTypeSpec("DATE", "255")).toMatch(/does not accept a size/);
+    expect(generateDDL(normalizeTables(schema))).not.toContain("date(255)");
   });
 
   it("generates identity without sequence or trigger artifacts", () => {

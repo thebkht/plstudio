@@ -27,6 +27,7 @@ import { Toggle } from "@/components/ui/toggle";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   primaryKeyColumns,
+  typeString,
   type Column,
   type KeyStrategy,
   type SchemaGroup,
@@ -120,8 +121,7 @@ export const ColumnCard = memo(function ColumnCard({
           className="shrink-0 font-mono text-xs"
           style={{ color: typeColorVar(column.type) }}
         >
-          {column.type}
-          {column.size ? `(${column.size})` : ""}
+          {typeString(column)}
         </span>
       </div>
       {(column.pk || column.unique || column.notNull || column.fk) && (
