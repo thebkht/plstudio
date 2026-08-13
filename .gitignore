@@ -17,3 +17,5 @@ data
 graphify-out/
 # Data backups written by scripts/data-backup.sh — these contain auth.db and every project.
 
+# macOS Finder metadata.
+.DS_Store
