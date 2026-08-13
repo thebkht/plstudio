@@ -1,4 +1,4 @@
-import { makeColumn, makeTable, nextId, normalizeIdentifier, normalizeRelationships, PALETTE, SCHEMA_FORMAT_VERSION, tableHeight, type Column, type ForeignKeyRef, type OracleType, type Schema, type Table } from "./schema";
+import { APPEND_GAP, contentEdges, makeColumn, makeTable, nextId, normalizeIdentifier, normalizeRelationships, PALETTE, SCHEMA_FORMAT_VERSION, type Column, type ForeignKeyRef, type OracleType, type Schema, type Table } from "./schema";
 
 export type ParseResult = { schema: Schema | null; warnings: string[]; errors: string[] };
 
@@ -196,11 +196,11 @@ function unescapeComment(value: string) {
   return value.replaceAll("''", "'");
 }
 
-function findTable(tables: Table[], name: string) {
+export function findTable(tables: Table[], name: string) {
   return tables.find((table) => normalizeIdentifier(table.name) === normalizeIdentifier(name));
 }
 
-function findColumn(table: Table, name: string) {
+export function findColumn(table: Table, name: string) {
   return table.columns.find((column) => normalizeIdentifier(column.name) === normalizeIdentifier(name));
 }
 
@@ -366,18 +366,6 @@ export type AppendResult = {
   warnings: string[];
   errors: string[];
 };
-
-/** Clear of everything already on the canvas, so an import never lands on top of it. */
-const APPEND_GAP = 120;
-
-function contentEdges(schema: Schema) {
-  const boxes = [
-    ...schema.tables.map((table) => ({ x: table.x, y: table.y + tableHeight(table) })),
-    ...(schema.groups ?? []).map((group) => ({ x: group.x, y: group.y + group.height })),
-    ...(schema.memos ?? []).map((memo) => ({ x: memo.x, y: memo.y + memo.height })),
-  ];
-  return boxes.length ? { left: Math.min(...boxes.map((box) => box.x)), bottom: Math.max(...boxes.map((box) => box.y)) } : null;
-}
 
 /**
  * Parse `sql` and append its tables to `base` instead of replacing it.

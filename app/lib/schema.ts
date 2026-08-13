@@ -131,6 +131,8 @@ export const GROUP_PALETTE: Record<GroupColor, { background: string; border: str
 };
 export const GROUP_COLORS = Object.keys(GROUP_PALETTE) as GroupColor[];
 
+export const KEY_STRATEGIES: KeyStrategy[] = ["none", "sequence-trigger", "identity"];
+
 /**
  * Ids must be unique across *clients*, not just across a session: two browsers
  * editing one schema would otherwise both mint `tbl_1` and their concurrent
@@ -320,6 +322,19 @@ export function tableHeight(table: Table) {
     TABLE_HEADER_HEIGHT +
     table.columns.length * TABLE_FIELD_HEIGHT
   );
+}
+
+/** Clear of everything already on the canvas, so an import never lands on top of it. */
+export const APPEND_GAP = 120;
+
+/** Left and bottom of everything drawn, or `null` for an empty canvas. */
+export function contentEdges(schema: Schema) {
+  const boxes = [
+    ...schema.tables.map((table) => ({ x: table.x, y: table.y + tableHeight(table) })),
+    ...(schema.groups ?? []).map((group) => ({ x: group.x, y: group.y + group.height })),
+    ...(schema.memos ?? []).map((memo) => ({ x: memo.x, y: memo.y + memo.height })),
+  ];
+  return boxes.length ? { left: Math.min(...boxes.map((box) => box.x)), bottom: Math.max(...boxes.map((box) => box.y)) } : null;
 }
 
 /**
