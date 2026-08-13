@@ -70,6 +70,8 @@ export type Table = {
   keyStrategy: KeyStrategy;
   schemaId?: string;
   comment?: string;
+  /** Manual width override. Absent means the width is derived from the name. */
+  width?: number;
   columns: Column[];
 };
 
@@ -290,15 +292,26 @@ export function primaryKeyColumns(table: Table) {
  * anchor routing depends on the two agreeing, so change them together.
  */
 export const TABLE_WIDTH = 220;
-export const TABLE_MAX_WIDTH = 420;
+/** Ceiling for the name-derived width; a manual resize may go wider. */
+export const TABLE_AUTO_MAX_WIDTH = 420;
+export const TABLE_MIN_WIDTH = 180;
+export const TABLE_MAX_WIDTH = 640;
 export const TABLE_COLOR_STRIP_HEIGHT = 7;
 export const TABLE_HEADER_HEIGHT = 50;
 export const TABLE_FIELD_HEIGHT = 36;
 
-/** Keep short names compact while giving long names room before ellipsis. */
-export function tableWidth(table: Pick<Table, "name">) {
+export function clampTableWidth(width: number) {
+  return Math.max(TABLE_MIN_WIDTH, Math.min(TABLE_MAX_WIDTH, Math.round(width)));
+}
+
+/**
+ * A manual width wins; otherwise keep short names compact while giving long
+ * names room before ellipsis.
+ */
+export function tableWidth(table: Pick<Table, "name"> & Partial<Pick<Table, "width">>) {
+  if (typeof table.width === "number" && Number.isFinite(table.width)) return clampTableWidth(table.width);
   const nameWidth = 130 + table.name.trim().length * 9;
-  return Math.max(TABLE_WIDTH, Math.min(TABLE_MAX_WIDTH, nameWidth));
+  return Math.max(TABLE_WIDTH, Math.min(TABLE_AUTO_MAX_WIDTH, nameWidth));
 }
 
 export function tableHeight(table: Table) {
@@ -307,6 +320,23 @@ export function tableHeight(table: Table) {
     TABLE_HEADER_HEIGHT +
     table.columns.length * TABLE_FIELD_HEIGHT
   );
+}
+
+/**
+ * Drop garbage manual widths (nulls, NaN, values from a future version) and
+ * clamp the survivors, so a bad `width` degrades to auto rather than to a
+ * zero-width card.
+ */
+export function normalizeTables(schema: Schema): Schema {
+  const next = cloneSchema(schema);
+  next.tables = next.tables.map((table) => {
+    const width = (table as Partial<Table>).width;
+    if (width === undefined) return table;
+    return typeof width === "number" && Number.isFinite(width)
+      ? { ...table, width: clampTableWidth(width) }
+      : { ...table, width: undefined };
+  });
+  return next;
 }
 
 export function cloneSchema(schema: Schema): Schema {

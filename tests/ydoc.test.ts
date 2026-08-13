@@ -41,6 +41,15 @@ describe("schemaFromYDoc / applySchemaToYDoc", () => {
     expect(read(ydoc, schema).tables[0].comment).toBeUndefined();
   });
 
+  it("round-trips a manual table width and clears it on reset", () => {
+    const schema = makeDemoSchema();
+    const sized = { ...schema, tables: schema.tables.map((table) => ({ ...table, width: 480 })) };
+    const ydoc = seed(sized);
+    expect(read(ydoc, schema).tables[0].width).toBe(480);
+    applySchemaToYDoc(ydoc, schema);
+    expect(read(ydoc, schema).tables[0].width).toBeUndefined();
+  });
+
   it("treats an unchanged schema as a no-op", () => {
     const schema = makeDemoSchema();
     const ydoc = seed(schema);

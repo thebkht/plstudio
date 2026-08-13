@@ -785,15 +785,20 @@ button {
 }
 /*
  * Width grip. The card clips its overflow, so the handle sits just inside the
- * right edge rather than straddling it; the hit area is wider than the 2px
- * line it paints, which is all the user needs to see.
+ * right edge rather than straddling it; the hit area is wider than anything it
+ * paints. It paints two things: a full-height rail along the edge being moved,
+ * and a capsule grip centred on it -- the rail says where the edge is, the
+ * grip says where to put the pointer.
  */
 .table-resize {
   position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
-  width: 9px;
+  width: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
   padding: 0;
   border: 0;
   background: transparent;
@@ -811,11 +816,44 @@ button {
   width: 2px;
   border-radius: 2px;
   background: var(--table-accent);
+  /* Dimmed so the grip, not the rail, is what the eye lands on. */
+  opacity: 0.4;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+.table-resize-grip {
+  position: relative;
+  margin-right: 1px;
+  width: 4px;
+  /* Never taller than the rail it rides, so single-column cards still fit. */
+  height: clamp(12px, 38%, 26px);
+  border-radius: 999px;
+  background: var(--table-accent);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+  /* Grows out of the rail rather than fading in on top of it. */
+  transform: scaleY(0.35);
+  transition:
+    transform var(--duration-base) var(--ease-out),
+    width var(--duration-fast) var(--ease-out);
 }
 .table-card:hover .table-resize,
 .table-card.selected .table-resize,
-.table-resize:focus-visible { opacity: 1; }
-@media (prefers-reduced-motion: reduce) { .table-resize { transition: none; } }
+.table-resize:focus-visible,
+.table-resize.resizing { opacity: 1; }
+.table-card:hover .table-resize-grip,
+.table-card.selected .table-resize-grip,
+.table-resize:focus-visible .table-resize-grip,
+.table-resize.resizing .table-resize-grip { transform: scaleY(1); }
+/* Answer the press, not the release -- and hold that answer for the drag. */
+.table-resize:active::after,
+.table-resize.resizing::after { opacity: 1; }
+.table-resize:active .table-resize-grip,
+.table-resize.resizing .table-resize-grip { width: 6px; }
+@media (prefers-reduced-motion: reduce) {
+  .table-resize,
+  .table-resize::after,
+  .table-resize-grip { transition: none; }
+  .table-resize-grip { transform: none; }
+}
 .table-strip {
   height: 7px;
   width: 100%;

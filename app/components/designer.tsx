@@ -168,6 +168,8 @@ import {
   normalizeMemos,
   normalizeGroups,
   normalizeRelationships,
+  normalizeTables,
+  clampTableWidth,
   nextId,
   RELATIONSHIP_CONSTRAINTS,
   ORACLE_TYPES,
@@ -329,7 +331,7 @@ function repairInitialLayout(schema: Schema): Schema {
 
 function prepareCanvasSchema(schema: Schema): Schema {
   const next = repairInitialLayout(
-    normalizeGroups(normalizeRelationships(schema)),
+    normalizeTables(normalizeGroups(normalizeRelationships(schema))),
   );
   next.memos = normalizeMemos(next.memos);
   return next;
@@ -437,6 +439,11 @@ export default function Designer({
     x: number;
     y: number;
   } | null>(null);
+  /** Live width of the table being resized; committed once on release. */
+  const [resizeTable, setResizeTable] = useState<{
+    id: string;
+    width: number;
+  } | null>(null);
   const [dragMemoPosition, setDragMemoPosition] = useState<{
     id: string;
     x: number;
@@ -533,7 +540,14 @@ export default function Designer({
    * must not schedule a React render per frame.
    */
   const gestureRef = useRef<{
-    mode: "table" | "memo" | "memo-resize" | "group" | "group-resize" | "pan";
+    mode:
+      | "table"
+      | "table-resize"
+      | "memo"
+      | "memo-resize"
+      | "group"
+      | "group-resize"
+      | "pan";
     pointerId: number;
     tableId?: string;
     groupId?: string;
@@ -571,6 +585,7 @@ export default function Designer({
   const resizeGroupRef = useRef(resizeGroup);
   const dragMemoPositionRef = useRef(dragMemoPosition);
   const resizeMemoRef = useRef(resizeMemo);
+  const resizeTableRef = useRef(resizeTable);
   panRef.current = pan;
   zoomRef.current = zoom;
   schemaRef.current = schema;
@@ -579,10 +594,13 @@ export default function Designer({
   resizeGroupRef.current = resizeGroup;
   dragMemoPositionRef.current = dragMemoPosition;
   resizeMemoRef.current = resizeMemo;
+  resizeTableRef.current = resizeTable;
 
   useEffect(() => {
     try {
-      const saved = window.localStorage.getItem("plstudio-settings") || window.localStorage.getItem("drawsql-settings");
+      const saved =
+        window.localStorage.getItem("plstudio-settings") ||
+        window.localStorage.getItem("drawsql-settings");
       if (saved)
         setRelationSettings((current) => ({
           ...current,
@@ -624,6 +642,20 @@ export default function Designer({
   );
   const livePositionRef = useRef(livePosition);
   livePositionRef.current = livePosition;
+  /**
+   * A table's on-screen width: the in-flight one while it is being resized,
+   * else the stored override, else the name-derived default. Relationship
+   * anchors read this so the right-hand edge stays attached during a resize.
+   */
+  const liveWidth = useCallback(
+    (table: Table) =>
+      resizeTable && resizeTable.id === table.id
+        ? resizeTable.width
+        : tableWidth(table),
+    [resizeTable],
+  );
+  const liveWidthRef = useRef(liveWidth);
+  liveWidthRef.current = liveWidth;
   const liveMemo = useCallback(
     (memo: Memo) => {
       const position =
@@ -1243,6 +1275,43 @@ export default function Designer({
     [commitWith, readOnly],
   );
 
+  const commitTableWidth = useCallback(
+    (id: string, width: number) => {
+      if (readOnly) {
+        setResizeTable(null);
+        return;
+      }
+      commitWith((current) => ({
+        ...current,
+        tables: current.tables.map((table) =>
+          table.id === id ? { ...table, width: clampTableWidth(width) } : table,
+        ),
+      }));
+      setResizeTable(null);
+    },
+    [commitWith, readOnly],
+  );
+
+  /** Drops the manual override so the card goes back to its name-derived width. */
+  const resetTableWidth = useCallback(
+    (id: string) => {
+      if (readOnly) return;
+      if (
+        schemaRef.current.tables.find((table) => table.id === id)?.width ===
+        undefined
+      )
+        return;
+      commitWith((current) => ({
+        ...current,
+        tables: current.tables.map((table) =>
+          table.id === id ? { ...table, width: undefined } : table,
+        ),
+      }));
+      setResizeTable(null);
+    },
+    [commitWith, readOnly],
+  );
+
   const commitPosition = useCallback(
     (id: string, x: number, y: number, schemaId?: string | null) => {
       if (readOnly) return;
@@ -1605,6 +1674,17 @@ export default function Designer({
         (item) => item.id === gesture.tableId,
       );
       if (!rect || !table) return;
+
+      if (gesture.mode === "table-resize") {
+        const pointX =
+          (event.clientX - rect.left - panRef.current.x) / zoomRef.current;
+        const width = clampTableWidth(
+          gesture.originWidth! + pointX - gesture.grabX,
+        );
+        scheduleMove(() => setResizeTable({ id: table.id, width }));
+        return;
+      }
+
       const bounds = tableBounds(table);
       const rawX =
         (event.clientX - rect.left - panRef.current.x) / zoomRef.current -
@@ -1695,6 +1775,17 @@ export default function Designer({
         (item) => item.id === gesture.tableId,
       );
       if (!table) return;
+
+      if (gesture.mode === "table-resize") {
+        const live = resizeTableRef.current;
+        if (gesture.moved && live?.id === table.id) {
+          commitTableWidth(table.id, live.width);
+        } else {
+          setResizeTable(null);
+        }
+        return;
+      }
+
       if (!gesture.moved) {
         setDragPosition(null);
         return; // a tap, not a drag — selection already happened on pointerdown
@@ -1775,6 +1866,7 @@ export default function Designer({
     commitGroupSize,
     commitMemoPosition,
     commitMemoSize,
+    commitTableWidth,
     writeTablePosition,
     groupBounds,
     memoBounds,
@@ -1983,6 +2075,46 @@ export default function Designer({
       };
     },
     [canvasRect, stopAnimation],
+  );
+
+  /**
+   * Width-only resize from the card's right edge — a card's height is derived
+   * from its column count, so there is nothing vertical to drag.
+   */
+  const onTableResizeDown = useCallback(
+    (event: React.PointerEvent<HTMLButtonElement>, tableId: string) => {
+      if (event.button !== 0 || readOnly) return;
+      const table = schemaRef.current.tables.find(
+        (item) => item.id === tableId,
+      );
+      if (!table) return;
+      event.preventDefault();
+      event.stopPropagation();
+      stopAnimation();
+      const rect = canvasRect();
+      if (!rect) return;
+      event.currentTarget.setPointerCapture(event.pointerId);
+      setSelectedId(tableId);
+      setSelectedGroupId(null);
+      setSelectedMemoId(null);
+      setEditingMemoId(null);
+      setGrabbing(true);
+      gestureRef.current = {
+        mode: "table-resize",
+        pointerId: event.pointerId,
+        tableId,
+        grabX: (event.clientX - rect.left - panRef.current.x) / zoomRef.current,
+        grabY: (event.clientY - rect.top - panRef.current.y) / zoomRef.current,
+        originX: table.x,
+        originY: table.y,
+        originWidth: liveWidthRef.current(table),
+        startX: event.clientX,
+        startY: event.clientY,
+        moved: false,
+        tracker: new VelocityTracker(),
+      };
+    },
+    [canvasRect, readOnly, stopAnimation],
   );
 
   const onMemoDown = (event: React.PointerEvent<HTMLElement>, memo: Memo) => {
@@ -2587,8 +2719,9 @@ export default function Designer({
     const origin = livePosition(table);
     const otherOrigin = livePosition(other);
 
-    const right = origin.x + tableWidth(table);
-    const otherRight = otherOrigin.x + tableWidth(other);
+    const width = liveWidth(table);
+    const right = origin.x + width;
+    const otherRight = otherOrigin.x + liveWidth(other);
 
     // Comparing card extents ensures that when cards are clear of each other,
     // they leave facing each other (right edge to left edge, or vice versa).
@@ -2613,15 +2746,17 @@ export default function Designer({
       const keepsPrevious =
         previous === 1
           ? otherOrigin.x >= origin.x &&
-            right - otherRight <= Math.abs(origin.x - otherOrigin.x) + HYSTERESIS
+            right - otherRight <=
+              Math.abs(origin.x - otherOrigin.x) + HYSTERESIS
           : otherRight <= right &&
-            origin.x - otherOrigin.x <= Math.abs(right - otherRight) + HYSTERESIS;
+            origin.x - otherOrigin.x <=
+              Math.abs(right - otherRight) + HYSTERESIS;
       if (keepsPrevious) direction = previous;
     }
     edgeSideRef.current.set(anchorKey, direction);
 
     return {
-      x: origin.x + (direction === 1 ? tableWidth(table) : 0),
+      x: origin.x + (direction === 1 ? width : 0),
       y: origin.y + HEADER_HEIGHT + index * ROW_HEIGHT + ROW_HEIGHT / 2,
       direction,
     };
@@ -3965,8 +4100,10 @@ export default function Designer({
                   table={table}
                   x={position.x}
                   y={position.y}
+                  width={liveWidth(table)}
                   moving={moving}
                   selected={selectedId === table.id}
+                  resizing={resizeTable?.id === table.id}
                   hoverDisabled={moving || grabbing || linking !== null}
                   heldByName={heldBy?.user.name}
                   heldByColor={heldBy?.color}
@@ -3979,6 +4116,8 @@ export default function Designer({
                   isMac={isMac}
                   onSelect={setSelectedId}
                   onHeaderDown={onHeaderDown}
+                  onResizeDown={onTableResizeDown}
+                  onResetWidth={resetTableWidth}
                   onKeyDown={onCardKeyDown}
                   onStartLink={startLinking}
                   onEditInPanel={editTableInPanel}

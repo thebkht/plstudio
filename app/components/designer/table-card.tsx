@@ -21,6 +21,7 @@ import {
   Copy01Icon,
   Delete02Icon,
   GitMergeIcon,
+  HorizontalResizeIcon,
   Key01Icon,
   Link01Icon,
   PanelLeftOpenIcon,
@@ -35,7 +36,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { HoverCard } from "@/components/ui/hover-card";
-import { tableHeight, tableWidth, type Column, type SchemaGroup, type Table } from "@/app/lib/schema";
+import { tableHeight, type Column, type SchemaGroup, type Table } from "@/app/lib/schema";
 import { typeColorVar } from "@/app/lib/datatype-color";
 import { ColumnCard, ShortcutKeys, TableSummaryCard } from "./primitives";
 
@@ -107,8 +108,10 @@ export const TableCard = memo(function TableCard({
   table,
   x,
   y,
+  width,
   moving,
   selected,
+  resizing,
   hoverDisabled,
   heldByName,
   heldByColor,
@@ -119,6 +122,8 @@ export const TableCard = memo(function TableCard({
   isMac,
   onSelect,
   onHeaderDown,
+  onResizeDown,
+  onResetWidth,
   onKeyDown,
   onStartLink,
   onEditInPanel,
@@ -130,8 +135,15 @@ export const TableCard = memo(function TableCard({
   table: Table;
   x: number;
   y: number;
+  /** Live during a resize, so it arrives as a number rather than off `table`. */
+  width: number;
   moving: boolean;
   selected: boolean;
+  /**
+   * True for the card whose width grip is in flight. Pointer capture takes the
+   * pointer off the card, so hover cannot be what keeps the grip lit.
+   */
+  resizing: boolean;
   /** Hover cards stay shut during gestures — a popover mid-drag is noise. */
   hoverDisabled: boolean;
   heldByName?: string;
@@ -143,6 +155,8 @@ export const TableCard = memo(function TableCard({
   isMac: boolean;
   onSelect: (tableId: string) => void;
   onHeaderDown: (event: ReactPointerEvent<HTMLDivElement>, tableId: string) => void;
+  onResizeDown: (event: ReactPointerEvent<HTMLButtonElement>, tableId: string) => void;
+  onResetWidth: (tableId: string) => void;
   onKeyDown: (event: KeyboardEvent<HTMLDivElement>, tableId: string) => void;
   onStartLink: (event: ReactPointerEvent, tableId: string, columnId: string, columnIndex: number) => void;
   onEditInPanel: (tableId: string) => void;
@@ -161,7 +175,7 @@ export const TableCard = memo(function TableCard({
         aria-label={`Table ${table.name}, ${table.columns.length} columns.${heldByName ? ` Selected by ${heldByName}.` : ""} Arrow keys move it.`}
         style={{
           transform: `translate3d(${x}px, ${y}px, 0)`,
-          width: tableWidth(table),
+          width,
           /*
            * Paired with `content-visibility: auto` in globals.css. Width is
            * already explicit above, so only the height is a guess -- and it is
@@ -212,6 +226,18 @@ export const TableCard = memo(function TableCard({
             onStartLink={onStartLink}
           />
         ))}
+        {!readOnly && (
+          <button
+            type="button"
+            className={`table-resize ${resizing ? "resizing" : ""}`}
+            aria-label={`Resize ${table.name}. Double-click to fit the name.`}
+            title="Drag to resize · double-click to reset"
+            onPointerDown={(event) => onResizeDown(event, table.id)}
+            onDoubleClick={() => onResetWidth(table.id)}
+          >
+            <span className="table-resize-grip" aria-hidden="true" />
+          </button>
+        )}
       </div>
       <ContextMenu className="w-auto">
         <ContextMenuLabel>{table.name.toUpperCase()}</ContextMenuLabel>
@@ -233,6 +259,13 @@ export const TableCard = memo(function TableCard({
             <ContextMenuShortcut>
               <ShortcutKeys id="addColumn" isMac={isMac} />
             </ContextMenuShortcut>
+          </ContextMenuItem>
+          <ContextMenuItem
+            isDisabled={readOnly || table.width === undefined}
+            onAction={() => onResetWidth(table.id)}
+          >
+            <HugeiconsIcon icon={HorizontalResizeIcon} />
+            Reset width
           </ContextMenuItem>
           <ContextMenuItem isDisabled={readOnly} onAction={() => onMakeJunction(table.id)}>
             <HugeiconsIcon icon={GitMergeIcon} />

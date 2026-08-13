@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateDDL, generateDML } from "@/app/lib/generators";
 import { parseCreateTable } from "@/app/lib/parser";
-import { makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, normalizeMemos, normalizeGroups, normalizeRelationships, tableWidth } from "@/app/lib/schema";
+import { makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, normalizeMemos, normalizeGroups, normalizeRelationships, normalizeTables, tableWidth } from "@/app/lib/schema";
 import { validateCheckExpression, validateSchema, validateTypeSpec } from "@/app/lib/validation";
 
 describe("Oracle schema model", () => {
@@ -9,6 +9,23 @@ describe("Oracle schema model", () => {
     expect(tableWidth({ name: "ID" })).toBe(220);
     expect(tableWidth({ name: "A_VERY_LONG_TABLE_NAME_FOR_REPORTING" })).toBe(420);
     expect(tableWidth({ name: "  CUSTOMER_ORDERS  " })).toBeGreaterThan(220);
+  });
+
+  it("prefers a manual width over the name-derived one, within bounds", () => {
+    expect(tableWidth({ name: "ID", width: 500 })).toBe(500);
+    expect(tableWidth({ name: "ID", width: 20 })).toBe(180);
+    expect(tableWidth({ name: "ID", width: 5000 })).toBe(640);
+    expect(tableWidth({ name: "ID", width: undefined })).toBe(220);
+  });
+
+  it("drops an unusable manual width instead of collapsing the card", () => {
+    const schema = makeDemoSchema();
+    schema.tables[0].width = Number.NaN;
+    schema.tables[1].width = 9000;
+    const [first, second] = normalizeTables(schema).tables;
+    expect(first.width).toBeUndefined();
+    expect(second.width).toBe(640);
+    expect(tableWidth(first)).toBe(tableWidth({ name: first.name }));
   });
 
   it("generates identity without sequence or trigger artifacts", () => {
