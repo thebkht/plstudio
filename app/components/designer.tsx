@@ -2667,6 +2667,7 @@ export default function Designer({
     zoomOut: () => zoomBy(-0.1),
     zoomReset: () => setZoom(1),
     fitView,
+    toggleHand: () => setHandMode((on) => !on),
     tidyLayout: autoLayout,
     toggleSidebar: () => setSidebarOpen((open) => !open),
     shortcutsHelp: () => setModal("shortcuts"),
@@ -4215,8 +4216,8 @@ export default function Designer({
             <DockButton
               label={
                 panMode
-                  ? "Hand tool — on (or hold Space)"
-                  : "Hand tool — pan canvas (hold Space)"
+                  ? "Hand tool — on (H, or hold Space)"
+                  : "Hand tool — pan canvas (H, or hold Space)"
               }
               icon={HandGrabIcon}
               isActive={panMode}

@@ -24,6 +24,7 @@ export type ShortcutId =
   | "zoomReset"
   | "fitView"
   | "panCanvas"
+  | "toggleHand"
   | "tidyLayout"
   | "toggleSidebar"
   | "shortcutsHelp";
@@ -67,6 +68,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { id: "zoomReset", group: "View", label: "Reset zoom", chords: [{ key: "0", mod: true }], allowWhileEditing: true },
   { id: "fitView", group: "View", label: "Fit to screen", chords: [{ key: "1", shift: true }, { key: "!", shift: true }] },
   { id: "panCanvas", group: "View", label: "Hand tool — hold to pan", chords: [{ key: " " }] },
+  { id: "toggleHand", group: "View", label: "Hand tool — turn on or off", chords: [{ key: "h" }] },
   { id: "tidyLayout", group: "View", label: "Tidy up layout", chords: [{ key: "l", shift: true }], mutating: true },
   { id: "toggleSidebar", group: "View", label: "Show or hide side panel", chords: [{ key: ".", mod: true }] },
   { id: "shortcutsHelp", group: "View", label: "Keyboard shortcuts", chords: [{ key: "?", shift: "any" }, { key: "/", mod: true }] },
