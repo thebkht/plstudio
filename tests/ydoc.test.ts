@@ -17,7 +17,8 @@ describe("schemaFromYDoc / applySchemaToYDoc", () => {
   });
 
   it("round-trips groups, memos and relationships", () => {
-    const schema = { ...makeDemoSchema(), groups: [makeSchemaGroup("Billing")], memos: [makeMemo("check this")] };
+    const group = makeSchemaGroup("Billing");
+    const schema = { ...makeDemoSchema(), groups: [group], memos: [{ ...makeMemo("check this"), schemaId: group.id }] };
     schema.relationships = [{
       id: "rel_1", startTableId: schema.tables[0].id, startFieldId: schema.tables[0].columns[0].id,
       endTableId: schema.tables[1].id, endFieldId: schema.tables[1].columns[0].id,

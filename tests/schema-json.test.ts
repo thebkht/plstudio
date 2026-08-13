@@ -11,7 +11,7 @@ describe("Schema JSON export", () => {
   it("round-trips a diagram through JSON with its canvas intact", () => {
     const base = demo();
     base.groups = [makeSchemaGroup("Core", 40, 40)];
-    base.memos = [makeMemo("remember me", 500, 600)];
+    base.memos = [makeMemo("remember me", 500, 600), { ...makeMemo("inside the schema", 80, 200), schemaId: base.groups[0].id }];
     base.tables[0].schemaId = base.groups[0].id;
     const result = parseSchemaJson(exportSchemaJson(base));
     expect(result.errors).toEqual([]);
