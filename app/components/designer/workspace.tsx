@@ -42,10 +42,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import {
-  useCollaborativeSchema,
-  type CollabUser,
-} from "@/app/lib/collab/useCollaborativeSchema";
+import type { CollabUser } from "@/app/lib/collab/useCollaborativeSchema";
 import { PeerAvatars, PeerCursors } from "@/app/components/collab-presence";
 import NavUser from "@/app/components/nav-user";
 import { Alert, AlertTitle } from "@/components/ui/alert";
@@ -198,7 +195,6 @@ import {
   tableHeight,
   tableWidth,
   typeSizePlaceholder,
-  typeUsesSize,
   type Schema,
   type Table,
   type Column,
@@ -209,7 +205,6 @@ import {
   type Relationship,
   type Cardinality,
 } from "@/app/lib/schema";
-import { validateSchema } from "@/app/lib/validation";
 import { authClient } from "@/app/lib/auth-client";
 import BrandMark from "@/app/components/brand-mark";
 import {
@@ -236,6 +231,7 @@ import {
   useDesignerSettings,
   useLayout,
   useSaveState,
+  useSchema,
   useSelect,
   useTransform,
 } from "@/app/hooks";
@@ -296,35 +292,32 @@ export default function Workspace({
   user,
 }: DesignerProps) {
   const router = useRouter();
-  // Awareness broadcasts this object to every peer, so hand the hook only the
-  // presence fields; the email stays local to `NavUser`.
-  const collabUser = useMemo(
-    () => (user ? { id: user.id, name: user.name, image: user.image } : user),
-    [user],
-  );
   const {
     schema,
-    commit: commitShared,
-    undo: undoShared,
-    redo: redoShared,
+    schemaRef,
+    commit,
+    commitWith,
+    undo,
+    redo,
     canUndo,
     canRedo,
     setRevision,
-    status: collabStatus,
+    collabStatus,
     peers,
     setCursor,
-    setSelection: broadcastSelection,
-  } = useCollaborativeSchema({
-    projectId,
-    initialSchema: useMemo(
-      () => prepareCanvasSchema(initialSchema),
-      [initialSchema],
-    ),
-    readOnly,
-    user: collabUser,
-    shareToken,
-    workspaceSlug,
-  });
+    broadcastSelection,
+    patchTable,
+    patchColumn,
+    deleteTable,
+    deleteColumn,
+    addColumn,
+    reorderColumns,
+    tablesById,
+    groupsById,
+    issues,
+    errors,
+    ddl,
+  } = useSchema();
   const {
     selection,
     setSelection,
@@ -516,7 +509,6 @@ export default function Workspace({
     moved: boolean;
     tracker: VelocityTracker;
   } | null>(null);
-  const schemaRef = useRef(schema);
   const dragPositionRef = useRef(dragPosition);
   /**
    * The release handler needs the live gesture values, but reading them from
@@ -531,7 +523,6 @@ export default function Workspace({
   const resizeTableRef = useRef(resizeTable);
   const dragSelectionRef = useRef(dragSelection);
   dragSelectionRef.current = dragSelection;
-  schemaRef.current = schema;
   dragGroupPositionRef.current = dragGroupPosition;
   resizeGroupRef.current = resizeGroup;
   dragMemoPositionRef.current = dragMemoPosition;
@@ -883,14 +874,6 @@ export default function Workspace({
    * inside those loops makes the render quadratic in table count. Build the
    * lookups once per schema instead.
    */
-  const tablesById = useMemo(
-    () => new Map(schema.tables.map((table) => [table.id, table])),
-    [schema.tables],
-  );
-  const groupsById = useMemo(
-    () => new Map((schema.groups ?? []).map((group) => [group.id, group])),
-    [schema.groups],
-  );
   /**
    * The tables panel mirrors the canvas' schema groups: one accordion section
    * per group, plus an ungrouped bucket. Empty groups stay visible so a group
@@ -1001,139 +984,6 @@ export default function Workspace({
     },
     [foreignKeyCandidates],
   );
-  const issues = useMemo(() => validateSchema(schema), [schema]);
-  const errors = issues.filter((issue) => issue.severity === "error");
-  /**
-   * Generating SQL is the most expensive thing a schema change can trigger, and
-   * almost every schema change discards the result: the code panel and the
-   * export dialog are the only readers. Gate each generator on a visible reader
-   * so typing doesn't rebuild DDL nobody is looking at, and build `combined`
-   * from the two strings rather than calling `exportSchema`, which regenerates
-   * both.
-   */
-  const ddl = useMemo(
-    () => (panelMode === "code" ? generateDDL(schema) : ""),
-    [panelMode, schema],
-  );
-
-  /**
-   * Every edit lands in the shared document; undo history is the CRDT's, scoped
-   * to this client. `dirty` only tracks whether an explicit save is pending —
-   * saving to the project file is manual.
-   */
-  const commit = useCallback(
-    (next: Schema) => {
-      if (readOnly) return;
-      commitShared(next);
-      setDirty(true);
-    },
-    [commitShared, readOnly],
-  );
-
-  /** Functional form of `commit`, for gesture handlers that only hold a ref to current state. */
-  const commitWith = useCallback(
-    (mutate: (current: Schema) => Schema) => commit(mutate(schemaRef.current)),
-    [commit],
-  );
-
-  const patchTable = useCallback(
-    (id: string, patch: Partial<Table>) =>
-      commit({
-        ...schema,
-        tables: schema.tables.map((table) =>
-          table.id === id ? { ...table, ...patch } : table,
-        ),
-      }),
-    [commit, schema],
-  );
-  const patchColumn = useCallback(
-    (tableId: string, columnId: string, patch: Partial<Column>) => {
-      /*
-       * Changing away from a sized type drops the size with it. Leaving the old
-       * VARCHAR2 length on a DATE column would surface as DATE(255) on the card
-       * and as a "does not accept a size" validation error the user never typed.
-       */
-      const applied =
-        patch.type && !typeUsesSize(patch.type)
-          ? { ...patch, size: "" }
-          : patch;
-      const next = {
-        ...schema,
-        tables: schema.tables.map((table) =>
-          table.id === tableId
-            ? {
-                ...table,
-                columns: table.columns.map((column) =>
-                  column.id === columnId ? { ...column, ...applied } : column,
-                ),
-              }
-            : table,
-        ),
-      };
-      if ("fk" in patch) {
-        const relationships = (schema.relationships ?? []).filter(
-          (relationship) =>
-            !relationship.fields.some(
-              (pair) =>
-                relationship.startTableId === tableId &&
-                pair.startFieldId === columnId,
-            ),
-        );
-        const fk = patch.fk;
-        if (fk) {
-          const table = schema.tables.find((item) => item.id === tableId);
-          const column = table?.columns.find((item) => item.id === columnId);
-          const target = schema.tables.find((item) => item.id === fk.tableId);
-          const targetColumn = target?.columns.find(
-            (item) => item.id === fk.columnId,
-          );
-          if (table && column && target && targetColumn)
-            relationships.push({
-              id: nextId("rel"),
-              startTableId: table.id,
-              startFieldId: column.id,
-              endTableId: target.id,
-              endFieldId: targetColumn.id,
-              fields: [
-                { startFieldId: column.id, endFieldId: targetColumn.id },
-              ],
-              name: `fk_${table.name}_${column.name}_${target.name}`,
-              cardinality: "many_to_one",
-              manyLabel: "n",
-              updateConstraint: "No action",
-              deleteConstraint: "No action",
-            });
-        }
-        commit(normalizeRelationships({ ...next, relationships }));
-      } else commit(next);
-    },
-    [commit, schema],
-  );
-
-  const deleteTable = useCallback(
-    (id: string) => {
-      commitWith((current) =>
-        normalizeRelationships({
-          ...current,
-          tables: current.tables
-            .filter((table) => table.id !== id)
-            .map((table) => ({
-              ...table,
-              columns: table.columns.map((column) =>
-                column.fk?.tableId === id ? { ...column, fk: null } : column,
-              ),
-            })),
-        }),
-      );
-    },
-    [commitWith],
-  );
-  /**
-   * A new table joins the schema group in context — the selected group, or the
-   * group of the selected table — and is born carrying that group's keyword.
-   * This is the only automatic prefixing there is: once the table exists its
-   * name is the user's, prefix or not, in the group or out of it.
-   */
   const addTable = (groupId?: string) => {
     const target = (schema.groups ?? []).find(
       (group) =>
@@ -1162,78 +1012,6 @@ export default function Workspace({
       : base;
     commit({ ...schema, tables: [...schema.tables, table] });
     selectTable(table.id);
-  };
-  const addColumn = useCallback(
-    (tableId: string) => {
-      if (!schemaRef.current.tables.some((item) => item.id === tableId)) return;
-      commitWith((current) => ({
-        ...current,
-        tables: current.tables.map((item) =>
-          item.id === tableId
-            ? {
-                ...item,
-                columns: [
-                  ...item.columns,
-                  makeColumn({ name: `COLUMN_${item.columns.length + 1}` }),
-                ],
-              }
-            : item,
-        ),
-      }));
-    },
-    [commitWith],
-  );
-  const deleteColumn = (tableId: string, columnId: string) =>
-    commit(
-      normalizeRelationships({
-        ...schema,
-        tables: schema.tables.map((table) =>
-          table.id === tableId
-            ? {
-                ...table,
-                columns: table.columns.filter(
-                  (column) => column.id !== columnId,
-                ),
-              }
-            : {
-                ...table,
-                columns: table.columns.map((column) =>
-                  column.fk?.columnId === columnId
-                    ? { ...column, fk: null }
-                    : column,
-                ),
-              },
-        ),
-      }),
-    );
-  const reorderColumns = useCallback(
-    (tableId: string, from: number, to: number) => {
-      if (from === to) return;
-      commitWith((current) => ({
-        ...current,
-        tables: current.tables.map((table) => {
-          if (table.id !== tableId) return table;
-          const columns = [...table.columns];
-          const [moved] = columns.splice(from, 1);
-          if (!moved) return table;
-          columns.splice(to, 0, moved);
-          return { ...table, columns };
-        }),
-      }));
-    },
-    [commitWith],
-  );
-
-  /** Undo walks only this client's own edits — never a collaborator's. */
-  const undo = () => {
-    if (readOnly) return;
-    undoShared();
-    setDirty(true);
-  };
-  const redo = () => {
-    if (readOnly) return;
-    redoShared();
-    setDirty(true);
   };
   const autoLayout = () => {
     const next = {
