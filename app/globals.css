@@ -126,8 +126,17 @@
   --type-binary: #10b981;
   --type-other: #71717a;
 
-  /* Canvas grid. */
+  /*
+   * Canvas surface and grid. `--grid-size`, `--grid-dot-radius`, `--grid-x/y`
+   * and `--grid-opacity` are all overwritten inline from `pan` and `zoom` every
+   * frame; the values here are only what a canvas at rest looks like.
+   */
+  --canvas-surface: #ffffff;
   --grid-size: 24px;
+  --grid-dot-radius: 0.85px;
+  --grid-x: 0px;
+  --grid-y: 0px;
+  --grid-opacity: 1;
   --grid-dot: rgb(99, 152, 191);
   --background: oklch(1 0 0);
   --foreground: oklch(0.147 0.004 49.25);
@@ -934,9 +943,31 @@ button {
    * to the tool that actually pans, which is what `.pan-mode` below says.
    */
   cursor: default;
-  background-color: #ffffff;
-  background-image: radial-gradient(var(--grid-dot) 0.85px, transparent 0.85px);
+  background: var(--canvas-surface);
+}
+/*
+ * The grid is scenery, not wallpaper. `background-position` tracks the pan and
+ * `background-size` tracks the zoom, which is the CSS equivalent of an SVG
+ * pattern with `patternUnits="userSpaceOnUse"`: the lattice is anchored to
+ * canvas coordinates, so a dot stays on the same point of the diagram as the
+ * camera moves, and it tiles forever with no element to size.
+ *
+ * On its own layer rather than on `.canvas-wrap` itself so it can be faded out
+ * at low zoom without taking the cards with it. `::before` paints under
+ * `.canvas`, so no z-index is needed.
+ */
+.canvas-wrap::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: var(--grid-opacity);
+  background-image: radial-gradient(
+    var(--grid-dot) var(--grid-dot-radius),
+    transparent var(--grid-dot-radius)
+  );
   background-size: var(--grid-size) var(--grid-size);
+  background-position: var(--grid-x) var(--grid-y);
 }
 .canvas-wrap.grabbing {
   cursor: grabbing;
@@ -2054,6 +2085,11 @@ button {
 }
 
 .dark {
+  /*
+   * `--grid-dot` deliberately carries over from light: the same blue reads
+   * correctly on both surfaces, and drawDB uses one dot colour for both too.
+   */
+  --canvas-surface: #16161a;
   --background: oklch(0.147 0.004 49.25);
   --foreground: oklch(0.985 0.001 106.423);
   --card: oklch(0.216 0.006 56.043);

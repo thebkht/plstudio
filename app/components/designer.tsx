@@ -816,6 +816,31 @@ export default function Designer({
   resizeMemoRef.current = resizeMemo;
   resizeTableRef.current = resizeTable;
 
+  /**
+   * Puts the dot lattice into canvas space. `.canvas` has `transform-origin: 0
+   * 0`, so canvas point (0, 0) sits at screen (`pan.x`, `pan.y`) — anchoring
+   * the tiling there is what makes a dot stay on the same point of the diagram
+   * while the camera moves. The half-tile shift centres each dot on a lattice
+   * point rather than in the middle of its tile, matching drawDB's pattern
+   * offset of `-gridCircleRadius`.
+   */
+  const gridStyle = useMemo(() => {
+    const size = GRID_SIZE * zoom;
+    return {
+      "--grid-size": `${size}px`,
+      "--grid-dot-radius": `${GRID_DOT_RADIUS * zoom}px`,
+      "--grid-x": `${pan.x - size / 2}px`,
+      "--grid-y": `${pan.y - size / 2}px`,
+      "--grid-opacity": Math.max(
+        0,
+        Math.min(
+          1,
+          (zoom - GRID_FADE_END) / (GRID_FADE_START - GRID_FADE_END),
+        ),
+      ),
+    } as React.CSSProperties;
+  }, [pan.x, pan.y, zoom]);
+
   useEffect(() => {
     try {
       const saved =
@@ -4766,6 +4791,7 @@ export default function Designer({
           onPointerCancel={(event) => {
             if (linking?.pointerId === event.pointerId) setLinking(null);
           }}
+          style={gridStyle}
         >
           <div
             className="canvas"
