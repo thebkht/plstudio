@@ -25,8 +25,6 @@ import {
   PlusSignIcon,
   Search01Icon,
   SourceCodeIcon,
-  Table01Icon,
-  Tag01Icon,
 } from "@hugeicons/core-free-icons";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -40,15 +38,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import {
-  ContextMenu,
-  ContextMenuGroup,
-  ContextMenuItem,
-  ContextMenuLabel,
-  ContextMenuSeparator,
-  ContextMenuShortcut,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
 import { HoverCard } from "@/components/ui/hover-card";
 import {
   Empty,
@@ -90,7 +79,6 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { generateDDL } from "@/app/lib/generators";
 import {
@@ -196,6 +184,7 @@ import { Modals } from "./editor-header/modal/modal";
 import { Dock } from "./editor-canvas/dock";
 import { SelectionToolbar } from "./editor-canvas/selection-toolbar";
 import { MemoCard } from "./editor-canvas/memo-card";
+import { SchemaGroupCard } from "./editor-canvas/schema-group";
 import {
   DRAG_THRESHOLD,
   GRID_DOT_RADIUS,
@@ -225,7 +214,6 @@ import {
 import {
   enclosedBy,
   insideGroup,
-  keywordHint,
   prepareCanvasSchema,
   resizeDelta,
   wheelScale,
@@ -4041,174 +4029,34 @@ export default function Workspace({
               willChange: grabbing || dragPosition ? "transform" : undefined,
             }}
           >
-            {(schema.groups ?? []).map((group) => {
-              const position = liveGroup(group);
-              const palette = GROUP_PALETTE[group.color];
-              const selectedGroup = selectedGroupId === group.id;
-              const inSet = !single && isSelected(selection, "group", group.id);
-              const moving = dragGroupPosition?.id === group.id;
-              const prefix = groupPrefix(group);
-              const pendingPrefix = unprefixedTables(group.id).length;
-              return (
-                <section
-                  className={`schema-group ${selectedGroup ? "selected" : ""} ${inSet ? "multi-selected" : ""} ${moving ? "moving" : ""}`}
-                  key={group.id}
-                  role="group"
-                  aria-label={`Schema group ${group.name}`}
-                  style={{
-                    transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
-                    width: position.width,
-                    height: position.height,
-                    background: palette.background,
-                    borderColor: palette.border,
-                    zIndex: 0,
-                  }}
-                  onPointerDown={(event) => {
-                    event.stopPropagation();
-                    pressSelection(event, "group", group.id);
-                  }}
-                >
-                  <ContextMenuTrigger
-                    onOpenChange={(open) =>
-                      open && setSelection(selectOnly("group", group.id))
-                    }
-                  >
-                    <div
-                      className="schema-group-head"
-                      style={{
-                        background: palette.header,
-                        color: palette.text,
-                        borderColor: palette.border,
-                      }}
-                      onPointerDown={(event) => onGroupDown(event, group)}
-                    >
-                      <HugeiconsIcon
-                        icon={DatabaseIcon}
-                        size={15}
-                        aria-hidden="true"
-                      />
-                      {/* Ahead of the name, in the order it reads on the cards below. */}
-                      <input
-                        className="schema-group-keyword"
-                        aria-label={`Table name prefix for schema group ${group.name}`}
-                        value={group.keyword ?? ""}
-                        placeholder={keywordHint(group.name)}
-                        maxLength={12}
-                        size={1}
-                        spellCheck={false}
-                        disabled={readOnly}
-                        onPointerDown={(event) => event.stopPropagation()}
-                        onChange={(event) =>
-                          patchGroup(group.id, { keyword: event.target.value })
-                        }
-                      />
-                      <input
-                        className="schema-group-name"
-                        aria-label={`Name of schema group ${group.name}`}
-                        value={group.name}
-                        disabled={readOnly}
-                        onPointerDown={(event) => event.stopPropagation()}
-                        onChange={(event) =>
-                          patchGroup(group.id, { name: event.target.value })
-                        }
-                      />
-                      <div
-                        className="schema-group-actions"
-                        onPointerDown={(event) => event.stopPropagation()}
-                      >
-                        <ToggleGroup
-                          aria-label="Group color"
-                          selectionMode="single"
-                          disallowEmptySelection
-                          isDisabled={readOnly}
-                          selectedKeys={[group.color]}
-                          onSelectionChange={(keys) => {
-                            const [key] = [...keys];
-                            if (key)
-                              patchGroup(group.id, {
-                                color: key as SchemaGroup["color"],
-                              });
-                          }}
-                        >
-                          {Object.entries(GROUP_PALETTE).map(
-                            ([color, option]) => (
-                              <ToggleGroupItem
-                                key={color}
-                                id={color}
-                                className="schema-group-color"
-                                aria-label={`Use ${color} group color`}
-                                style={{ background: option.border }}
-                              />
-                            ),
-                          )}
-                        </ToggleGroup>
-                        <TooltipTrigger>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={`Delete schema group ${group.name}`}
-                            isDisabled={readOnly}
-                            onClick={() => deleteGroup(group.id)}
-                          >
-                            <HugeiconsIcon icon={Delete02Icon} />
-                          </Button>
-                          <Tooltip>Delete group</Tooltip>
-                        </TooltipTrigger>
-                      </div>
-                    </div>
-                    <ContextMenu className="w-auto">
-                      <ContextMenuLabel>{group.name}</ContextMenuLabel>
-                      <ContextMenuGroup>
-                        <ContextMenuItem
-                          isDisabled={readOnly}
-                          onAction={() => addTable(group.id)}
-                        >
-                          <HugeiconsIcon icon={Table01Icon} />
-                          Add table to this schema
-                        </ContextMenuItem>
-                        <ContextMenuItem
-                          isDisabled={readOnly || !pendingPrefix}
-                          onAction={() => applyGroupKeyword(group.id)}
-                        >
-                          <HugeiconsIcon icon={Tag01Icon} />
-                          {prefix
-                            ? `Prefix ${pendingPrefix || "no"} ${pendingPrefix === 1 ? "table" : "tables"} with ${prefix}`
-                            : "Set a keyword to prefix tables"}
-                        </ContextMenuItem>
-                      </ContextMenuGroup>
-                      <ContextMenuSeparator />
-                      <ContextMenuGroup>
-                        <ContextMenuItem
-                          isDisabled={readOnly}
-                          onAction={() => deleteGroup(group.id)}
-                        >
-                          <HugeiconsIcon icon={Delete02Icon} />
-                          Delete schema group
-                        </ContextMenuItem>
-                      </ContextMenuGroup>
-                    </ContextMenu>
-                  </ContextMenuTrigger>
-                  <button
-                    type="button"
-                    className="schema-group-resize"
-                    aria-label={`Resize schema group ${group.name}. Arrow keys resize, Shift for larger steps.`}
-                    disabled={readOnly}
-                    onPointerDown={(event) => onGroupResizeDown(event, group)}
-                    onKeyDown={(event) => {
-                      const delta = resizeDelta(event);
-                      if (!delta) return;
-                      event.preventDefault();
-                      event.stopPropagation();
-                      commitGroupSize(
-                        group.id,
-                        position.width + delta[0],
-                        position.height + delta[1],
-                      );
-                    }}
-                  />
-                </section>
-              );
-            })}
+            {(schema.groups ?? []).map((group) => (
+              <SchemaGroupCard
+                key={group.id}
+                group={group}
+                position={liveGroup(group)}
+                isSelected={selectedGroupId === group.id}
+                inMultiSelection={
+                  !single && isSelected(selection, "group", group.id)
+                }
+                isMoving={dragGroupPosition?.id === group.id}
+                pendingPrefix={unprefixedTables(group.id).length}
+                readOnly={readOnly}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                  pressSelection(event, "group", group.id);
+                }}
+                onHeadPointerDown={onGroupDown}
+                onResizePointerDown={onGroupResizeDown}
+                onContextOpen={() =>
+                  setSelection(selectOnly("group", group.id))
+                }
+                onPatch={patchGroup}
+                onDelete={deleteGroup}
+                onAddTable={addTable}
+                onApplyKeyword={applyGroupKeyword}
+                onResizeCommit={commitGroupSize}
+              />
+            ))}
             {(schema.memos ?? []).map((memo) => {
               const position = liveMemo(memo);
               return (
