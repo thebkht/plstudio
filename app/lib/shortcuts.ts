@@ -8,6 +8,7 @@
 
 export type ShortcutId =
   | "save"
+  | "forceSave"
   | "export"
   | "import"
   | "share"
@@ -62,9 +63,16 @@ export type ShortcutDef = {
 
 export const SHORTCUTS: ShortcutDef[] = [
   { id: "save", group: "File", label: "Save to database", chords: [{ key: "s", mod: true }], mutating: true },
+  /*
+   * Save, prepared to overwrite. It only differs from ⌘S once the server has
+   * already reported a conflict and the toast has said so — then this is the
+   * keyboard equivalent of pressing Overwrite. With nothing in contention it is
+   * an ordinary save, so it can never discard a peer's edit unannounced.
+   */
+  { id: "forceSave", group: "File", label: "Force save (overwrite conflicts)", chords: [{ key: "s", mod: true, shift: true }], mutating: true },
   { id: "export", group: "File", label: "Export", chords: [{ key: "e", mod: true }] },
   { id: "import", group: "File", label: "Import", chords: [{ key: "i", mod: true }], mutating: true },
-  { id: "share", group: "File", label: "Share project", chords: [{ key: "s", mod: true, shift: true }], mutating: true },
+  { id: "share", group: "File", label: "Share project", chords: [{ key: "k", mod: true, shift: true }], mutating: true },
   { id: "undo", group: "Edit", label: "Undo", chords: [{ key: "z", mod: true }], mutating: true },
   { id: "redo", group: "Edit", label: "Redo", chords: [{ key: "z", mod: true, shift: true }, { key: "y", mod: true }], mutating: true },
   { id: "addColumn", group: "Edit", label: "Add column to selected table", chords: [{ key: "enter", mod: true }], mutating: true, allowWhileEditing: true },

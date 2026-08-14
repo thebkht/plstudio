@@ -40,7 +40,15 @@ describe("modifier resolution", () => {
   it("separates Shift variants of the same key", () => {
     expect(matchShortcut(press("z", { meta: true }), true)).toBe("undo");
     expect(matchShortcut(press("z", { meta: true, shift: true }), true)).toBe("redo");
-    expect(matchShortcut(press("s", { meta: true, shift: true }), true)).toBe("share");
+    expect(matchShortcut(press("s", { meta: true, shift: true }), true)).toBe("forceSave");
+  });
+
+  it("keeps save and its overwriting variant on separate chords", () => {
+    expect(matchShortcut(press("s", { meta: true }), true)).toBe("save");
+    expect(matchShortcut(press("s", { meta: true, shift: true }), true)).toBe("forceSave");
+    // Share gave up ⌘⇧S to force save and moved rather than sharing the chord;
+    // the uniqueness test below is what makes a silent double-binding fail.
+    expect(matchShortcut(press("k", { meta: true, shift: true }), true)).toBe("share");
   });
 
   it("matches keys case-insensitively, since Shift uppercases them", () => {
