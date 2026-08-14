@@ -32,7 +32,6 @@ import {
   PanelLeftOpenIcon,
   PlusSignIcon,
   Search01Icon,
-  Share08Icon,
   SourceCodeIcon,
   StickyNote01Icon,
   Table01Icon,
@@ -43,8 +42,7 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { CollabUser } from "@/app/lib/collab/useCollaborativeSchema";
-import { PeerAvatars, PeerCursors } from "@/app/components/collab-presence";
-import NavUser from "@/app/components/nav-user";
+import { PeerCursors } from "@/app/components/collab-presence";
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -206,14 +204,11 @@ import {
   type Cardinality,
 } from "@/app/lib/schema";
 import { authClient } from "@/app/lib/auth-client";
-import BrandMark from "@/app/components/brand-mark";
 import {
   ColumnCard,
   ColumnFlag,
   DockButton,
   KEY_STRATEGY_LABEL,
-  Menu,
-  Menubar,
   ShortcutKeys,
   TableSummaryCard,
   type MenuItem,
@@ -235,6 +230,7 @@ import {
   useSelect,
   useTransform,
 } from "@/app/hooks";
+import { ControlPanel } from "./editor-header/control-panel";
 import {
   DRAG_THRESHOLD,
   GRID_DOT_RADIUS,
@@ -3449,97 +3445,13 @@ export default function Workspace({
 
   return (
     <div className={`app ${readOnly ? "share-read-only" : ""}`}>
-      <header className="appbar items-center">
-        <a className="appbar-brand" aria-label="PLStudio home" href="/">
-          <BrandMark compact />
-        </a>
-        <div className="flex flex-col">
-          <div className="appbar-title">
-            <a
-              className="appbar-crumb"
-              href={workspaceSlug ? `/${workspaceSlug}` : "/"}
-            >
-              {workspaceSlug ? "Diagrams" : "My diagrams"}
-            </a>
-            <span className="appbar-slash">/</span>
-            <Input
-              className="appbar-name"
-              aria-label="Diagram name"
-              value={schema.name}
-              onChange={(event) => {
-                if (readOnly) return;
-                commitWith((current) => ({
-                  ...current,
-                  name: event.target.value,
-                }));
-              }}
-            />
-          </div>
-          <Menubar
-            label="Diagram menus"
-            count={menus.length}
-            isOpen={openMenu !== null}
-            onStepOpen={(direction) => {
-              const current = menus.findIndex((menu) => menu.name === openMenu);
-              setOpenMenu(
-                menus[(current + direction + menus.length) % menus.length].name,
-              );
-            }}
-          >
-            {menus.map((menu, index) => (
-              <Menu
-                key={menu.name}
-                name={menu.name}
-                index={index}
-                items={menu.items}
-                open={openMenu === menu.name}
-                anyOpen={openMenu !== null}
-                onOpenChange={setOpenMenu}
-              />
-            ))}
-          </Menubar>
-        </div>
-        <div className="appbar-actions">
-          {/*
-           * Feedback for save state: displays whether changes are saved,
-           * unsaved, saving, or encountered a conflict/error. Clicking when
-           * dirty saves the project.
-           */}
-          <Badge
-            variant={
-              saveState === "conflict" || saveState === "failed"
-                ? "destructive"
-                : dirty
-                  ? "secondary"
-                  : "ghost"
-            }
-            className={dirty && !readOnly ? "cursor-pointer select-none" : ""}
-            onClick={dirty && !readOnly ? () => void save() : undefined}
-            title={
-              dirty && !readOnly ? "Click to save changes (⌘S)" : undefined
-            }
-          >
-            {saveState === "saving"
-              ? "Saving…"
-              : saveState === "conflict"
-                ? "Conflict"
-                : saveState === "failed"
-                  ? "Not saved"
-                  : dirty
-                    ? "Unsaved changes"
-                    : "Saved"}
-          </Badge>
-          <PeerAvatars peers={peers} status={collabStatus} />
-          <Button className="share-btn" onClick={() => setModal("share")}>
-            <HugeiconsIcon icon={Share08Icon} size={15} /> Share
-          </Button>
-          <NavUser
-            user={user}
-            isOpen={userMenuOpen}
-            onOpenChange={setUserMenuOpen}
-          />
-        </div>
-      </header>
+      <ControlPanel
+        menus={menus}
+        save={save}
+        workspaceSlug={workspaceSlug}
+        readOnly={readOnly}
+        user={user}
+      />
 
       <SidebarProvider
         className={`body min-h-0 flex-1 ${isResizingSidebar ? "is-resizing" : ""}`}
