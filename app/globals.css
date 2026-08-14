@@ -829,6 +829,37 @@ button {
   touch-action: none;
   pointer-events: auto;
 }
+/* The prefix stamped on tables created here. Sized to its own content so a
+   three-letter code takes three letters of header, and monospaced because it
+   is a name fragment, not prose -- it should look like what it produces. */
+.schema-group-keyword {
+  flex: 0 1 auto;
+  /* `field-sizing` shrink-wraps the code where it is supported; the min-width
+     is what keeps a three-letter one legible where it is not. Box-sizing is
+     border-box here, so these bounds include the padding and border. */
+  width: auto;
+  field-sizing: content;
+  min-width: 6ch;
+  max-width: 12ch;
+  padding: 2px 5px;
+  border: 1px solid color-mix(in oklch, currentcolor 22%, transparent);
+  border-radius: 6px;
+  outline: 0;
+  background: color-mix(in oklch, currentcolor 7%, transparent);
+  color: inherit;
+  font: 600 12px/1.2 var(--font-mono), ui-monospace, monospace;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition:
+    border-color var(--duration-base) var(--ease-out),
+    background var(--duration-base) var(--ease-out);
+}
+.schema-group-keyword::placeholder { color: currentcolor; opacity: 0.4; }
+.schema-group-keyword:hover { background: color-mix(in oklch, currentcolor 12%, transparent); }
+.schema-group-keyword:focus-visible {
+  border-color: color-mix(in oklch, currentcolor 55%, transparent);
+  background: color-mix(in oklch, currentcolor 14%, transparent);
+}
 .schema-group-name {
   min-width: 0;
   flex: 1;

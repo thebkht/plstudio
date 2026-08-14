@@ -35,6 +35,7 @@ import {
   SourceCodeIcon,
   StickyNote01Icon,
   Table01Icon,
+  Tag01Icon,
   ZoomInAreaIcon,
   ZoomOutAreaIcon,
 } from "@hugeicons/core-free-icons";
@@ -314,6 +315,17 @@ const enclosedBy = (
   x <= rect.x + rect.width &&
   y >= rect.y + GROUP_HEADER_HEIGHT &&
   y <= rect.y + rect.height;
+
+/**
+ * `MLL` out of `MLL -- MULTI LANGUAGE TOOLS`. Only a short leading token that
+ * is actually set off by a separator counts, so `Schema 1` suggests nothing
+ * rather than suggesting `SCHEMA`. A placeholder only — never written.
+ */
+const keywordHint = (name: string) =>
+  name
+    .trim()
+    .match(/^([A-Za-z0-9]{1,8})\s*(?:--|[-–—:_])/)?.[1]
+    .toUpperCase() ?? "KEY";
 
 /**
  * Where the `index`-th card of a group lands: stacked down from the corner
@@ -827,7 +839,11 @@ export default function Designer({
     () =>
       dragSelection
         ? movingEntities(schema, selection)
-        : { tables: new Set<string>(), memos: new Set<string>(), groups: new Set<string>() },
+        : {
+            tables: new Set<string>(),
+            memos: new Set<string>(),
+            groups: new Set<string>(),
+          },
     [dragSelection, schema, selection],
   );
 
@@ -2237,7 +2253,10 @@ export default function Designer({
           // The schema already holds the move, so the spring animates the
           // *residual* — how far the cards still are from where they landed.
           (value) =>
-            setDragSelection({ dx: value.x - target.x, dy: value.y - target.y }),
+            setDragSelection({
+              dx: value.x - target.x,
+              dy: value.y - target.y,
+            }),
           () => setDragSelection(null),
         );
         /*
@@ -2440,7 +2459,10 @@ export default function Designer({
       if (zoomDelta !== 0) {
         const scaled = Math.min(
           MAX_ZOOM,
-          Math.max(MIN_ZOOM, nextZoom * Math.exp(-zoomDelta * ZOOM_SENSITIVITY)),
+          Math.max(
+            MIN_ZOOM,
+            nextZoom * Math.exp(-zoomDelta * ZOOM_SENSITIVITY),
+          ),
         );
         zoomDelta = 0;
         if (scaled !== nextZoom) {
@@ -2459,8 +2481,14 @@ export default function Designer({
       if (panDelta.x !== 0 || panDelta.y !== 0) {
         const bounds = panBounds(nextZoom);
         nextPan = {
-          x: Math.max(bounds.minX, Math.min(bounds.maxX, nextPan.x - panDelta.x)),
-          y: Math.max(bounds.minY, Math.min(bounds.maxY, nextPan.y - panDelta.y)),
+          x: Math.max(
+            bounds.minX,
+            Math.min(bounds.maxX, nextPan.x - panDelta.x),
+          ),
+          y: Math.max(
+            bounds.minY,
+            Math.min(bounds.maxY, nextPan.y - panDelta.y),
+          ),
         };
         panDelta = { x: 0, y: 0 };
       }
@@ -2488,7 +2516,10 @@ export default function Designer({
         // pixels at a time) from a mouse notch (100 at once) without needing to
         // tell the two devices apart.
         const step = event.deltaY * scale;
-        zoomDelta += Math.max(-ZOOM_STEP_LIMIT, Math.min(ZOOM_STEP_LIMIT, step));
+        zoomDelta += Math.max(
+          -ZOOM_STEP_LIMIT,
+          Math.min(ZOOM_STEP_LIMIT, step),
+        );
         pointer = { x: event.clientX - rect.left, y: event.clientY - rect.top };
       } else {
         panDelta = {
@@ -3098,9 +3129,7 @@ export default function Designer({
       );
       // Relationships to tables outside this subset are dropped by normalization.
       if (table)
-        void copyText(
-          generateDDL({ ...schemaRef.current, tables: [table] }),
-        );
+        void copyText(generateDDL({ ...schemaRef.current, tables: [table] }));
     },
     [copyText],
   );
@@ -3838,9 +3867,7 @@ export default function Designer({
       className={`entity ${selectedId === table.id ? "open" : ""}`}
       key={table.id}
       isExpanded={selectedId === table.id}
-      onExpandedChange={(expanded) =>
-        selectTable(expanded ? table.id : null)
-      }
+      onExpandedChange={(expanded) => selectTable(expanded ? table.id : null)}
     >
       <CollapsibleTrigger className="entity-head">
         <span
@@ -4061,7 +4088,9 @@ export default function Designer({
 
       <SidebarProvider
         className={`body min-h-0 flex-1 ${isResizingSidebar ? "is-resizing" : ""}`}
-        style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
+        style={
+          { "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties
+        }
         open={sidebarOpen}
         onOpenChange={setSidebarOpen}
       >
@@ -4207,7 +4236,9 @@ export default function Designer({
                           <CollapsibleContent>
                             <div className="entity-group-body">
                               {section.tables.length ? (
-                                section.tables.map((table) => tableEntity(table))
+                                section.tables.map((table) =>
+                                  tableEntity(table),
+                                )
                               ) : (
                                 <p className="entity-group-empty">
                                   No tables yet — assign one under Schema group.
@@ -4742,6 +4773,8 @@ export default function Designer({
               const selectedGroup = selectedGroupId === group.id;
               const inSet = !single && isSelected(selection, "group", group.id);
               const moving = dragGroupPosition?.id === group.id;
+              const prefix = groupPrefix(group);
+              const pendingPrefix = unprefixedTables(group.id).length;
               return (
                 <section
                   className={`schema-group ${selectedGroup ? "selected" : ""} ${inSet ? "multi-selected" : ""} ${moving ? "moving" : ""}`}
@@ -4761,74 +4794,126 @@ export default function Designer({
                     pressSelection(event, "group", group.id);
                   }}
                 >
-                  <div
-                    className="schema-group-head"
-                    style={{
-                      background: palette.header,
-                      color: palette.text,
-                      borderColor: palette.border,
-                    }}
-                    onPointerDown={(event) => onGroupDown(event, group)}
+                  <ContextMenuTrigger
+                    onOpenChange={(open) =>
+                      open && setSelection(selectOnly("group", group.id))
+                    }
                   >
-                    <HugeiconsIcon
-                      icon={DatabaseIcon}
-                      size={15}
-                      aria-hidden="true"
-                    />
-                    <input
-                      className="schema-group-name"
-                      aria-label={`Name of schema group ${group.name}`}
-                      value={group.name}
-                      disabled={readOnly}
-                      onPointerDown={(event) => event.stopPropagation()}
-                      onChange={(event) =>
-                        patchGroup(group.id, { name: event.target.value })
-                      }
-                    />
                     <div
-                      className="schema-group-actions"
-                      onPointerDown={(event) => event.stopPropagation()}
+                      className="schema-group-head"
+                      style={{
+                        background: palette.header,
+                        color: palette.text,
+                        borderColor: palette.border,
+                      }}
+                      onPointerDown={(event) => onGroupDown(event, group)}
                     >
-                      <ToggleGroup
-                        aria-label="Group color"
-                        selectionMode="single"
-                        disallowEmptySelection
-                        isDisabled={readOnly}
-                        selectedKeys={[group.color]}
-                        onSelectionChange={(keys) => {
-                          const [key] = [...keys];
-                          if (key)
-                            patchGroup(group.id, {
-                              color: key as SchemaGroup["color"],
-                            });
-                        }}
+                      <HugeiconsIcon
+                        icon={DatabaseIcon}
+                        size={15}
+                        aria-hidden="true"
+                      />
+                      {/* Ahead of the name, in the order it reads on the cards below. */}
+                      <input
+                        className="schema-group-keyword"
+                        aria-label={`Table name prefix for schema group ${group.name}`}
+                        value={group.keyword ?? ""}
+                        placeholder={keywordHint(group.name)}
+                        maxLength={12}
+                        size={1}
+                        spellCheck={false}
+                        disabled={readOnly}
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onChange={(event) =>
+                          patchGroup(group.id, { keyword: event.target.value })
+                        }
+                      />
+                      <input
+                        className="schema-group-name"
+                        aria-label={`Name of schema group ${group.name}`}
+                        value={group.name}
+                        disabled={readOnly}
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onChange={(event) =>
+                          patchGroup(group.id, { name: event.target.value })
+                        }
+                      />
+                      <div
+                        className="schema-group-actions"
+                        onPointerDown={(event) => event.stopPropagation()}
                       >
-                        {Object.entries(GROUP_PALETTE).map(
-                          ([color, option]) => (
-                            <ToggleGroupItem
-                              key={color}
-                              id={color}
-                              className="schema-group-color"
-                              aria-label={`Use ${color} group color`}
-                              style={{ background: option.border }}
-                            />
-                          ),
-                        )}
-                      </ToggleGroup>
-                      <TooltipTrigger>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={`Delete schema group ${group.name}`}
+                        <ToggleGroup
+                          aria-label="Group color"
+                          selectionMode="single"
+                          disallowEmptySelection
                           isDisabled={readOnly}
-                          onClick={() => deleteGroup(group.id)}
+                          selectedKeys={[group.color]}
+                          onSelectionChange={(keys) => {
+                            const [key] = [...keys];
+                            if (key)
+                              patchGroup(group.id, {
+                                color: key as SchemaGroup["color"],
+                              });
+                          }}
+                        >
+                          {Object.entries(GROUP_PALETTE).map(
+                            ([color, option]) => (
+                              <ToggleGroupItem
+                                key={color}
+                                id={color}
+                                className="schema-group-color"
+                                aria-label={`Use ${color} group color`}
+                                style={{ background: option.border }}
+                              />
+                            ),
+                          )}
+                        </ToggleGroup>
+                        <TooltipTrigger>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Delete schema group ${group.name}`}
+                            isDisabled={readOnly}
+                            onClick={() => deleteGroup(group.id)}
+                          >
+                            <HugeiconsIcon icon={Delete02Icon} />
+                          </Button>
+                          <Tooltip>Delete group</Tooltip>
+                        </TooltipTrigger>
+                      </div>
+                    </div>
+                    <ContextMenu className="w-auto">
+                      <ContextMenuLabel>{group.name}</ContextMenuLabel>
+                      <ContextMenuGroup>
+                        <ContextMenuItem
+                          isDisabled={readOnly}
+                          onAction={() => addTable(group.id)}
+                        >
+                          <HugeiconsIcon icon={Table01Icon} />
+                          Add table to this schema
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          isDisabled={readOnly || !pendingPrefix}
+                          onAction={() => applyGroupKeyword(group.id)}
+                        >
+                          <HugeiconsIcon icon={Tag01Icon} />
+                          {prefix
+                            ? `Prefix ${pendingPrefix || "no"} ${pendingPrefix === 1 ? "table" : "tables"} with ${prefix}`
+                            : "Set a keyword to prefix tables"}
+                        </ContextMenuItem>
+                      </ContextMenuGroup>
+                      <ContextMenuSeparator />
+                      <ContextMenuGroup>
+                        <ContextMenuItem
+                          isDisabled={readOnly}
+                          onAction={() => deleteGroup(group.id)}
                         >
                           <HugeiconsIcon icon={Delete02Icon} />
-                        </Button>
-                        <Tooltip>Delete group</Tooltip>
-                      </TooltipTrigger>
-                    </div>
-                  </div>
+                          Delete schema group
+                        </ContextMenuItem>
+                      </ContextMenuGroup>
+                    </ContextMenu>
+                  </ContextMenuTrigger>
                   <button
                     type="button"
                     className="schema-group-resize"
@@ -4866,7 +4951,8 @@ export default function Designer({
                     event.stopPropagation();
                     // The pointerdown already decided this; re-running it here
                     // would undo a Shift-click toggle a moment after it landed.
-                    if (event.shiftKey || event.metaKey || event.ctrlKey) return;
+                    if (event.shiftKey || event.metaKey || event.ctrlKey)
+                      return;
                     if (isSelected(selectionRef.current, "memo", memo.id))
                       return;
                     setSelection(selectOnly("memo", memo.id));
