@@ -1,5 +1,5 @@
 export const ORACLE_VERSION = "12.2+" as const;
-export const SCHEMA_FORMAT_VERSION = 4 as const;
+export const SCHEMA_FORMAT_VERSION = 5 as const;
 
 export const ORACLE_TYPES = [
   "VARCHAR2",
@@ -89,6 +89,13 @@ export type Memo = {
 export type SchemaGroup = {
   id: string;
   name: string;
+  /**
+   * Module short code stamped onto the names of tables *created* in this group
+   * (`MLL` -> `MLL_LABEL_CODES`). Advisory: it is applied at creation and by the
+   * explicit apply action, never enforced afterwards, so a table keeps whatever
+   * name the user gives it -- prefixed or not, inside the group or out of it.
+   */
+  keyword?: string;
   x: number;
   y: number;
   width: number;
@@ -267,6 +274,43 @@ export function normalizeIdentifier(value: string) {
   return value.trim().toUpperCase().replace(/[^A-Z0-9_$#]/g, "_").replace(/^([0-9])/, "T_$1");
 }
 
+/**
+ * The `MLL_` a group stamps onto its tables, or `""` when it has no usable
+ * keyword. Normalized here rather than at edit time, per the convention that
+ * users type freely and Oracle's rules apply on the way out -- so `mll` and
+ * `MLL` agree, and a keyword of nothing but punctuation degrades to no prefix
+ * rather than to a bare `_`.
+ */
+export function groupPrefix(group?: Pick<SchemaGroup, "keyword">) {
+  const keyword = normalizeIdentifier(group?.keyword ?? "").replace(/_+$/, "");
+  return keyword ? `${keyword}_` : "";
+}
+
+/**
+ * Whether `name` already opens with `prefix`, compared case- and
+ * separator-insensitively. Deliberately not `normalizeIdentifier`: its
+ * digit-leading `T_` rule grows the string, and a prefix of `T_` would then
+ * match `1ABC` and slice two characters out of the middle of it.
+ */
+function carriesPrefix(name: string, prefix: string) {
+  return name.trim().toUpperCase().replace(/[^A-Z0-9_$#]/g, "_").startsWith(prefix);
+}
+
+/**
+ * Idempotent: a name already carrying the prefix comes back untouched, so the
+ * apply action can be re-run and a name built from prefixed parts never doubles
+ * up. `mll_x` already carries `MLL_`.
+ */
+export function prefixTableName(name: string, prefix: string) {
+  if (!prefix) return name;
+  return carriesPrefix(name, prefix) ? name.trim() : `${prefix}${name.trim()}`;
+}
+
+/** Inverse of `prefixTableName`; a no-op on a name that does not carry the prefix. */
+export function stripTablePrefix(name: string, prefix: string) {
+  return prefix && carriesPrefix(name, prefix) ? name.trim().slice(prefix.length) : name;
+}
+
 export function typeString(column: Column) {
   if (typeUsesSize(column.type) && column.size) return `${column.type}(${column.size})`;
   return column.type;
@@ -380,6 +424,7 @@ export function normalizeGroups(schema: Schema): Schema {
     return [{
       id: group.id,
       name: typeof group.name === "string" && group.name.trim() ? group.name.trim() : `Schema ${index + 1}`,
+      keyword: typeof group.keyword === "string" && group.keyword.trim() ? group.keyword.trim() : undefined,
       x: typeof group.x === "number" && Number.isFinite(group.x) ? Math.max(0, group.x) : 80,
       y: typeof group.y === "number" && Number.isFinite(group.y) ? Math.max(0, group.y) : 80,
       width: typeof group.width === "number" && Number.isFinite(group.width) ? Math.max(360, group.width) : 760,
