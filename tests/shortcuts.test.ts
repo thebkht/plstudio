@@ -72,6 +72,20 @@ describe("typing suppression", () => {
   it("keeps ⌘↵ alive while typing, since it acts on the selected table", () => {
     expect(matchShortcut(press("Enter", { meta: true }, input), true)).toBe("addColumn");
   });
+
+  it("yields ⌘A, ⌘C and ⌘V back to the field they were pressed in", () => {
+    expect(matchShortcut(press("a", { meta: true }), true)).toBe("selectAll");
+    expect(matchShortcut(press("c", { meta: true }), true)).toBe("copySelectionSql");
+    expect(matchShortcut(press("c", { meta: true, shift: true }), true)).toBe("copySelectionJson");
+    expect(matchShortcut(press("v", { meta: true }), true)).toBe("pasteSelection");
+    // Selecting and copying text inside an input has to keep working.
+    expect(matchShortcut(press("a", { meta: true }, input), true)).toBeNull();
+    expect(matchShortcut(press("c", { meta: true }, input), true)).toBeNull();
+    expect(matchShortcut(press("c", { meta: true, shift: true }, editable), true)).toBeNull();
+    expect(matchShortcut(press("v", { meta: true }, input), true)).toBeNull();
+    // Everything else modified still fires there.
+    expect(matchShortcut(press("s", { meta: true }, input), true)).toBe("save");
+  });
 });
 
 describe("layout-dependent chords", () => {

@@ -18,6 +18,10 @@ export type ShortcutId =
   | "addGroup"
   | "addMemo"
   | "junction"
+  | "selectAll"
+  | "copySelectionSql"
+  | "copySelectionJson"
+  | "pasteSelection"
   | "deleteSelection"
   | "zoomIn"
   | "zoomOut"
@@ -48,6 +52,12 @@ export type ShortcutDef = {
   mutating?: boolean;
   /** Fires even while a text field has focus. Modified chords always do. */
   allowWhileEditing?: boolean;
+  /**
+   * Never fires while a text field has focus, modifier or not. For the chords
+   * the browser already means something by -- ⌘A, ⌘C, ⌘V -- so that selecting
+   * and copying *text* inside an input keeps working.
+   */
+  blockWhileEditing?: boolean;
 };
 
 export const SHORTCUTS: ShortcutDef[] = [
@@ -62,6 +72,16 @@ export const SHORTCUTS: ShortcutDef[] = [
   { id: "addGroup", group: "Canvas", label: "Add schema group", chords: [{ key: "g" }], mutating: true },
   { id: "addMemo", group: "Canvas", label: "Add memo", chords: [{ key: "m" }], mutating: true },
   { id: "junction", group: "Canvas", label: "Add junction table", chords: [{ key: "j" }], mutating: true },
+  { id: "selectAll", group: "Canvas", label: "Select everything", chords: [{ key: "a", mod: true }], blockWhileEditing: true },
+  { id: "copySelectionSql", group: "Canvas", label: "Copy selection as SQL", chords: [{ key: "c", mod: true }], blockWhileEditing: true },
+  { id: "copySelectionJson", group: "Canvas", label: "Copy selection as JSON", chords: [{ key: "c", mod: true, shift: true }], blockWhileEditing: true },
+  /*
+   * Advertised here, but fired by the window `paste` listener rather than by a
+   * chord: the browser hands that listener the clipboard text outright, where
+   * reading it ourselves needs a permission prompt in Chrome and is refused in
+   * Firefox. `shortcutActions` deliberately has no entry, so the chord is inert.
+   */
+  { id: "pasteSelection", group: "Canvas", label: "Paste tables from the clipboard", chords: [{ key: "v", mod: true }], mutating: true, blockWhileEditing: true },
   { id: "deleteSelection", group: "Canvas", label: "Delete selection", chords: [{ key: "delete" }, { key: "backspace" }], mutating: true },
   { id: "zoomIn", group: "View", label: "Zoom in", chords: [{ key: "+", mod: true, shift: "any" }, { key: "=", mod: true, shift: "any" }], allowWhileEditing: true },
   { id: "zoomOut", group: "View", label: "Zoom out", chords: [{ key: "-", mod: true, shift: "any" }, { key: "_", mod: true, shift: "any" }], allowWhileEditing: true },
@@ -111,7 +131,9 @@ export const matchShortcut = (event: KeyboardEvent, isMac: boolean): ShortcutId 
     shortcut.chords.some(
       (chord) =>
         chordMatches(chord, event, isMac) &&
-        (!editing || !!chord.mod || !!shortcut.allowWhileEditing),
+        (!editing ||
+          (!shortcut.blockWhileEditing &&
+            (!!chord.mod || !!shortcut.allowWhileEditing))),
     ),
   );
   return hit?.id ?? null;
