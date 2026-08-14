@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Delete02Icon, MoreVerticalIcon } from "@hugeicons/core-free-icons";
 import Link from "next/link";
@@ -36,7 +36,7 @@ import {
 const HUES = [28, 78, 148, 228, 288, 348];
 const hueOf = (id: string) => HUES[[...id].reduce((hash, character) => (hash * 31 + character.charCodeAt(0)) >>> 0, 7) % HUES.length];
 
-export default function ProjectCard({ projectId, href, name, tableCount, updatedAt, updatedLabel, author, workspace, canDelete = true }: { projectId: string; href: string; name: string; tableCount: number; updatedAt: string; updatedLabel: string; author?: string; workspace?: string; canDelete?: boolean }) {
+export default function ProjectCard({ projectId, href, name, tableCount, updatedAt, updatedLabel, author, workspace, canDelete = true, preview }: { projectId: string; href: string; name: string; tableCount: number; updatedAt: string; updatedLabel: string; author?: string; workspace?: string; canDelete?: boolean; preview?: ReactNode }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const remove = async () => {
@@ -47,8 +47,11 @@ export default function ProjectCard({ projectId, href, name, tableCount, updated
     else toast.error("This project could not be deleted.");
   };
   return (
-    <Card size="sm" className="project-card">
-      <span className="project-card-strip" style={{ color: `oklch(0.62 0.11 ${hueOf(projectId)})` }} aria-hidden="true" />
+    <Card size="sm" className="project-card" style={{ "--project-hue": hueOf(projectId) } as CSSProperties}>
+      {/* Rendered upstream and passed in, so the schema it draws from never
+          leaves the server. Full-bleed, above the header. */}
+      {preview && <div className="project-card-preview">{preview}</div>}
+      <span className="project-card-strip" aria-hidden="true" />
       <CardHeader>
         <CardTitle>
           <Link href={href} className="project-card-link">

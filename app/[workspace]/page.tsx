@@ -3,6 +3,7 @@ import { listProjects } from "@/db/file-store";
 import { listUserWorkspaces, lookupUserNames, requireWorkspace } from "@/app/lib/session";
 import NewProjectButton from "@/app/components/new-project-button";
 import ProjectCard from "@/app/components/project-card";
+import SchemaPreview from "@/app/components/schema-preview";
 import WorkspaceTopbar from "@/app/components/workspace-topbar";
 import { formatRelative, formatTimestamp } from "@/app/lib/format";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -46,8 +47,8 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
       {rows.length ? (
         <section className="project-grid">
           {rows.map((project) => {
-            const schema = project.schemaJson as { tables?: unknown[] };
-            return <ProjectCard key={project.id} projectId={project.id} href={`/${workspace}/${project.id}`} name={project.name} tableCount={schema.tables?.length || 0} updatedAt={formatTimestamp(project.updatedAt)} updatedLabel={formatRelative(project.updatedAt)} author={project.createdBy ? authors.get(project.createdBy) : undefined} workspace={workspace} />;
+            const schema = project.schemaJson;
+            return <ProjectCard key={project.id} projectId={project.id} href={`/${workspace}/${project.id}`} name={project.name} tableCount={schema.tables?.length || 0} updatedAt={formatTimestamp(project.updatedAt)} updatedLabel={formatRelative(project.updatedAt)} author={project.createdBy ? authors.get(project.createdBy) : undefined} workspace={workspace} preview={<SchemaPreview schema={schema} />} />;
           })}
         </section>
       ) : (

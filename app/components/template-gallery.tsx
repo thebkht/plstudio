@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { makeDemoSchema, type Schema } from "@/app/lib/schema";
 import BrandMark from "@/app/components/brand-mark";
+import SchemaPreview from "@/app/components/schema-preview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -29,7 +30,11 @@ const templates = [
   { name: "Team workspace", description: "A foundation for users, teams, projects, and collaboration.", accent: "#e8617d", kind: "Product" },
 ];
 
-function Preview({ accent }: { accent: string }) { return <div className="template-preview"><div className="preview-grid" /><div className="preview-table preview-table-one" style={{ borderTopColor: accent }}><b>USERS</b><span>ID <em>NUMBER</em></span><span>EMAIL <em>VARCHAR2</em></span><span>STATUS <em>CHAR</em></span></div><div className="preview-table preview-table-two" style={{ borderTopColor: accent }}><b>ORDERS</b><span>ID <em>NUMBER</em></span><span>USER_ID <em>NUMBER</em></span></div><div className="preview-connection" style={{ background: accent }} /></div>; }
+/* Drawn from the schema the template actually creates, rather than a fixed
+   USERS/ORDERS sketch unrelated to any of them. All three currently share
+   makeDemoSchema(), so all three previews match — the templates differ only by
+   name and accent today. */
+function Preview() { return <div className="template-preview"><SchemaPreview schema={makeDemoSchema()} /></div>; }
 
 export default function TemplateGallery({ workspace }: { workspace?: string }) {
   const router = useRouter();
@@ -64,7 +69,7 @@ export default function TemplateGallery({ workspace }: { workspace?: string }) {
           <section className="template-grid">
             {templates.map((template) => (
               <Card className="template-card" key={template.name}>
-                <Preview accent={template.accent} />
+                <Preview />
                 <CardHeader>
                   <CardDescription>{template.kind}</CardDescription>
                   <CardTitle>{template.name}</CardTitle>

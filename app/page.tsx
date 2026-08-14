@@ -6,6 +6,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import PendingInvitations from "@/app/components/pending-invitations";
 import ProjectCard from "@/app/components/project-card";
+import SchemaPreview from "@/app/components/schema-preview";
 import WorkspaceTopbar from "@/app/components/workspace-topbar";
 import { formatRelative, formatTimestamp } from "@/app/lib/format";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -65,10 +66,10 @@ export default async function Page() {
       {personalProjects.length ? (
         <section className="project-grid">
           {personalProjects.map((project) => {
-            const schema = project.schemaJson as { tables?: unknown[] };
+            const schema = project.schemaJson;
             /* No author here: every project in the personal space is yours, so
                the name would be the same string on every card. */
-            return <ProjectCard key={project.id} projectId={project.id} href={`/project/${project.id}`} name={project.name} tableCount={schema.tables?.length || 0} updatedAt={formatTimestamp(project.updatedAt)} updatedLabel={formatRelative(project.updatedAt)} />;
+            return <ProjectCard key={project.id} projectId={project.id} href={`/project/${project.id}`} name={project.name} tableCount={schema.tables?.length || 0} updatedAt={formatTimestamp(project.updatedAt)} updatedLabel={formatRelative(project.updatedAt)} preview={<SchemaPreview schema={schema} />} />;
           })}
         </section>
       ) : (
