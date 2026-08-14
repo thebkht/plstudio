@@ -317,6 +317,18 @@ button {
   white-space: nowrap;
   font-weight: 600;
 }
+/* The prefix this schema stamps on the tables created in it, shown as the
+   fragment it actually is -- monospaced, so `MLL_` reads as a name part. */
+.entity-group-keyword {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: var(--text-2xs);
+  letter-spacing: 0;
+}
 .entity-group-count {
   margin-left: auto;
   color: var(--ink-3);

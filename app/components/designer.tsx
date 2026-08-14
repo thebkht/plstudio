@@ -183,6 +183,7 @@ import {
 import {
   cloneSchema,
   groupDragBounds,
+  groupPrefix,
   GROUP_PALETTE,
   makeColumn,
   makeMemo,
@@ -194,9 +195,11 @@ import {
   normalizeTables,
   clampTableWidth,
   nextId,
+  prefixTableName,
   RELATIONSHIP_CONSTRAINTS,
   ORACLE_TYPES,
   primaryKeyColumns,
+  stripTablePrefix,
   tableHeight,
   tableWidth,
   typeSizePlaceholder,
@@ -311,6 +314,38 @@ const enclosedBy = (
   x <= rect.x + rect.width &&
   y >= rect.y + GROUP_HEADER_HEIGHT &&
   y <= rect.y + rect.height;
+
+/**
+ * Where the `index`-th card of a group lands: stacked down from the corner
+ * below the header, kept clear of the borders, and centred instead when the
+ * card is too wide or tall to sit inside with margins. Centring is the part
+ * that matters — `enclosedBy` tests the card's *centre*, so a card placed
+ * anywhere else would be evicted from the group by the next resize.
+ */
+const insideGroup = (
+  rect: { x: number; y: number; width: number; height: number },
+  table: Table,
+  index: number,
+) => {
+  const place = (start: number, span: number, size: number, offset: number) => {
+    const low = start + 12;
+    const high = start + span - size - 12;
+    return Math.round(
+      high < low
+        ? start + (span - size) / 2
+        : Math.max(low, Math.min(high, low + offset)),
+    );
+  };
+  return {
+    x: place(rect.x, rect.width, tableWidth(table), 12 + (index % 3) * 40),
+    y: place(
+      rect.y + GROUP_HEADER_HEIGHT,
+      rect.height - GROUP_HEADER_HEIGHT,
+      tableHeight(table),
+      6 + (index % 4) * 40,
+    ),
+  };
+};
 
 /** Extent of the drawable world: everything on it, plus a margin to grow into. */
 function canvasExtent(schema: Schema) {
@@ -1099,12 +1134,14 @@ export default function Designer({
       ...(schema.groups ?? []).map((group) => ({
         id: group.id,
         name: group.name,
+        prefix: groupPrefix(group),
         accent: GROUP_PALETTE[group.color].border,
         tables: byGroup.get(group.id) ?? [],
       })),
       {
         id: NO_GROUP,
         name: "Ungrouped",
+        prefix: "",
         accent: "var(--ink-4)",
         tables: byGroup.get(NO_GROUP) ?? [],
       },
@@ -1313,13 +1350,38 @@ export default function Designer({
     },
     [commitWith],
   );
-  const addTable = () => {
-    const table = makeTable(
-      `TABLE_${schema.tables.length + 1}`,
-      90 + (schema.tables.length % 4) * 70,
-      100 + (schema.tables.length % 3) * 75,
-      schema.tables.length,
+  /**
+   * A new table joins the schema group in context — the selected group, or the
+   * group of the selected table — and is born carrying that group's keyword.
+   * This is the only automatic prefixing there is: once the table exists its
+   * name is the user's, prefix or not, in the group or out of it.
+   */
+  const addTable = (groupId?: string) => {
+    const target = (schema.groups ?? []).find(
+      (group) =>
+        group.id ===
+        (groupId ??
+          selectedGroupId ??
+          schema.tables.find((table) => table.id === selectedId)?.schemaId),
     );
+    const index = schema.tables.length;
+    const base = makeTable(
+      prefixTableName(`TABLE_${index + 1}`, groupPrefix(target)),
+      90 + (index % 4) * 70,
+      100 + (index % 3) * 75,
+      index,
+    );
+    const table = target
+      ? {
+          ...base,
+          schemaId: target.id,
+          ...insideGroup(
+            target,
+            base,
+            schema.tables.filter((item) => item.schemaId === target.id).length,
+          ),
+        }
+      : base;
     commit({ ...schema, tables: [...schema.tables, table] });
     selectTable(table.id);
   };
@@ -2851,6 +2913,45 @@ export default function Designer({
     });
   };
 
+  /** Tables in `id` whose name does not already open with the group's keyword. */
+  const unprefixedTables = (id: string) => {
+    const prefix = groupPrefix(
+      (schema.groups ?? []).find((group) => group.id === id),
+    );
+    return prefix
+      ? schema.tables.filter(
+          (table) =>
+            table.schemaId === id &&
+            prefixTableName(table.name, prefix) !== table.name,
+        )
+      : [];
+  };
+
+  /**
+   * The one bulk rename, and it is always asked for — a keyword never rewrites
+   * a name the user already typed as a side effect of being edited. One commit,
+   * so a single undo puts every name back.
+   */
+  const applyGroupKeyword = (id: string) => {
+    if (readOnly) return;
+    const prefix = groupPrefix(
+      (schema.groups ?? []).find((group) => group.id === id),
+    );
+    const renamed = unprefixedTables(id).length;
+    if (!renamed) return;
+    commit({
+      ...schema,
+      tables: schema.tables.map((table) =>
+        table.schemaId === id
+          ? { ...table, name: prefixTableName(table.name, prefix) }
+          : table,
+      ),
+    });
+    toast.success(
+      `Prefixed ${renamed} ${renamed === 1 ? "table" : "tables"} with ${prefix}`,
+    );
+  };
+
   const assignTableToGroup = (tableId: string, schemaId: string) => {
     if (readOnly) return;
     commit({
@@ -2919,12 +3020,25 @@ export default function Designer({
       const leftPk = primaryKeyColumns(left)[0];
       const rightPk = primaryKeyColumns(right)[0];
       if (!leftPk || !rightPk) return;
+      /*
+       * The junction belongs to whichever schema the table it was raised from
+       * belongs to, and takes that schema's keyword once — built from the
+       * stripped halves, so two prefixed parents give `MLL_LANGUAGES_CODES`
+       * rather than `MLL_LANGUAGES_MLL_CODES`.
+       */
+      const prefix = groupPrefix(
+        (schema.groups ?? []).find((group) => group.id === left.schemaId),
+      );
       const junction = makeTable(
-        `${left.name}_${right.name}`,
+        prefixTableName(
+          `${stripTablePrefix(left.name, prefix)}_${stripTablePrefix(right.name, prefix)}`,
+          prefix,
+        ),
         left.x + 330,
         left.y + 150,
         schema.tables.length,
       );
+      junction.schemaId = left.schemaId;
       junction.keyStrategy = "none";
       junction.columns = [
         makeColumn({
@@ -4007,7 +4121,7 @@ export default function Designer({
                       onChange={(event) => setTableQuery(event.target.value)}
                     />
                   </InputGroup>
-                  <Button variant="ghost" size="sm" onClick={addTable}>
+                  <Button variant="ghost" size="sm" onClick={() => addTable()}>
                     <HugeiconsIcon
                       icon={PlusSignIcon}
                       data-icon="inline-start"
@@ -4028,7 +4142,7 @@ export default function Designer({
                         </EmptyDescription>
                       </EmptyHeader>
                       <EmptyContent>
-                        <Button onClick={addTable}>
+                        <Button onClick={() => addTable()}>
                           <HugeiconsIcon
                             icon={PlusSignIcon}
                             data-icon="inline-start"
@@ -4076,6 +4190,11 @@ export default function Designer({
                             <span className="entity-group-name">
                               {section.name}
                             </span>
+                            {section.prefix && (
+                              <span className="entity-group-keyword">
+                                {section.prefix}
+                              </span>
+                            )}
                             <span className="entity-group-count">
                               {section.tables.length}
                             </span>
@@ -5059,7 +5178,7 @@ export default function Designer({
             <DockButton
               label="Add table"
               icon={Table01Icon}
-              onClick={addTable}
+              onClick={() => addTable()}
             />
             <DockButton
               label="Add schema group"
