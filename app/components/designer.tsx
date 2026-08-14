@@ -4066,45 +4066,46 @@ export default function Designer({
         <a className="appbar-brand" aria-label="PLStudio home" href="/">
           <BrandMark compact />
         </a>
-        <div className="appbar-main">
-          <div className="appbar-title">
-            <HugeiconsIcon
-              icon={DatabaseIcon}
-              size={17}
-              className="appbar-title-icon"
+        <div className="appbar-title">
+          <HugeiconsIcon
+            icon={DatabaseIcon}
+            size={17}
+            className="appbar-title-icon"
+          />
+          <a
+            className="appbar-crumb"
+            href={workspaceSlug ? `/${workspaceSlug}` : "/"}
+          >
+            {workspaceSlug ? "Diagrams" : "My diagrams"}
+          </a>
+          <span className="appbar-slash">/</span>
+          <Input
+            className="appbar-name"
+            aria-label="Diagram name"
+            value={schema.name}
+            onChange={(event) => {
+              if (readOnly) return;
+              commitWith((current) => ({
+                ...current,
+                name: event.target.value,
+              }));
+            }}
+          />
+        </div>
+        {/* Marks where the document's identity ends and the verbs begin: on one
+            row the name and "File" would otherwise read as one strip of words. */}
+        <Separator orientation="vertical" className="h-5" />
+        <div className="menubar">
+          {menus.map((menu) => (
+            <Menu
+              key={menu.name}
+              name={menu.name}
+              items={menu.items}
+              open={openMenu === menu.name}
+              anyOpen={openMenu !== null}
+              onOpenChange={setOpenMenu}
             />
-            <a
-              className="appbar-crumb"
-              href={workspaceSlug ? `/${workspaceSlug}` : "/"}
-            >
-              {workspaceSlug ? "Diagrams" : "My diagrams"}
-            </a>
-            <span className="appbar-slash">/</span>
-            <Input
-              className="appbar-name"
-              aria-label="Diagram name"
-              value={schema.name}
-              onChange={(event) => {
-                if (readOnly) return;
-                commitWith((current) => ({
-                  ...current,
-                  name: event.target.value,
-                }));
-              }}
-            />
-          </div>
-          <div className="menubar">
-            {menus.map((menu) => (
-              <Menu
-                key={menu.name}
-                name={menu.name}
-                items={menu.items}
-                open={openMenu === menu.name}
-                anyOpen={openMenu !== null}
-                onOpenChange={setOpenMenu}
-              />
-            ))}
-          </div>
+          ))}
         </div>
         <div className="appbar-actions">
           {/*
