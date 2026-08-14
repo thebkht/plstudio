@@ -227,6 +227,7 @@ import {
   DockButton,
   KEY_STRATEGY_LABEL,
   Menu,
+  Menubar,
   ShortcutKeys,
   TableSummaryCard,
   type MenuItem,
@@ -4095,18 +4096,27 @@ export default function Designer({
         {/* Marks where the document's identity ends and the verbs begin: on one
             row the name and "File" would otherwise read as one strip of words. */}
         <Separator orientation="vertical" className="h-5" />
-        <div className="menubar">
-          {menus.map((menu) => (
+        <Menubar
+          label="Diagram menus"
+          count={menus.length}
+          isOpen={openMenu !== null}
+          onStepOpen={(direction) => {
+            const current = menus.findIndex((menu) => menu.name === openMenu);
+            setOpenMenu(menus[(current + direction + menus.length) % menus.length].name);
+          }}
+        >
+          {menus.map((menu, index) => (
             <Menu
               key={menu.name}
               name={menu.name}
+              index={index}
               items={menu.items}
               open={openMenu === menu.name}
               anyOpen={openMenu !== null}
               onOpenChange={setOpenMenu}
             />
           ))}
-        </div>
+        </Menubar>
         <div className="appbar-actions">
           {/*
            * Feedback for save state: displays whether changes are saved,

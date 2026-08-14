@@ -9,7 +9,7 @@
  * Nothing here holds state or reads the schema — props in, markup out.
  */
 
-import { Fragment, memo } from "react";
+import { createContext, Fragment, memo, useCallback, useContext, useRef, useState } from "react";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -254,20 +254,91 @@ const groupBySeparator = (items: MenuItem[]) =>
     .filter((group) => group.length > 0);
 
 /** A menubar menu. Opens on click, closes on select, Escape, or outside press. */
+/**
+ * The row of menus. react-aria-components ships no Menubar and shadcn's is
+ * Radix-only, so the pattern is assembled here rather than dragging a second
+ * menu stack in beside the React Aria dropdowns this app already uses.
+ *
+ * Typed as a toolbar rather than a menubar: `role="menubar"` obliges its
+ * children to be `menuitem`, and React Aria's Button does not accept a `role`.
+ * A toolbar of menu buttons is the honest description — each trigger already
+ * carries aria-haspopup/aria-expanded from MenuTrigger — and it expects exactly
+ * the keyboard this implements: one tab stop for the whole bar via a roving
+ * tabindex, arrows to move along it.
+ *
+ * One handler covers both open and closed because React events propagate along
+ * the React tree, not the DOM one — so keys pressed inside a portalled popover
+ * still arrive here.
+ */
+export function Menubar({
+  label,
+  count,
+  isOpen,
+  onStepOpen,
+  children,
+}: {
+  label: string;
+  count: number;
+  /** Arrows walk between menus when one is open, and between triggers when not. */
+  isOpen: boolean;
+  onStepOpen: (direction: number) => void;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState(0);
+  const focusItem = useCallback(
+    (index: number) => {
+      const wrapped = (index + count) % count;
+      setActive(wrapped);
+      ref.current?.querySelectorAll<HTMLElement>("[data-menubar-item]")[wrapped]?.focus();
+    },
+    [count],
+  );
+  return (
+    <MenubarContext.Provider value={{ active, setActive }}>
+      <div
+        ref={ref}
+        className="menubar"
+        role="toolbar"
+        aria-orientation="horizontal"
+        aria-label={label}
+        onKeyDown={(event) => {
+          const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+          /* Up/down belong to the open menu's own items; only the horizontal
+             axis is the bar's to claim. */
+          if (step) isOpen ? onStepOpen(step) : focusItem(active + step);
+          else if (!isOpen && event.key === "Home") focusItem(0);
+          else if (!isOpen && event.key === "End") focusItem(count - 1);
+          else return;
+          event.preventDefault();
+        }}
+      >
+        {children}
+      </div>
+    </MenubarContext.Provider>
+  );
+}
+
+const MenubarContext = createContext<{ active: number; setActive: (index: number) => void } | null>(null);
+
 export const Menu = memo(function Menu({
   name,
+  index,
   items,
   open,
   anyOpen,
   onOpenChange,
 }: {
   name: string;
+  /** Position in the bar, for the roving tabindex. */
+  index: number;
   items: MenuItem[];
   open: boolean;
   /** Once one menu is open, hovering the others switches between them. */
   anyOpen: boolean;
   onOpenChange: (name: string | null) => void;
 }) {
+  const menubar = useContext(MenubarContext);
   return (
     <DropdownMenuTrigger
       isOpen={open}
@@ -276,6 +347,11 @@ export const Menu = memo(function Menu({
       <Button
         variant="ghost"
         size="sm"
+        data-menubar-item=""
+        /* React Aria owns the tab index, so the roving one is expressed its
+           way: every trigger but the active one steps out of the tab order. */
+        excludeFromTabOrder={menubar ? menubar.active !== index : false}
+        onFocus={() => menubar?.setActive(index)}
         onPointerEnter={() => anyOpen && onOpenChange(name)}
       >
         {name}
