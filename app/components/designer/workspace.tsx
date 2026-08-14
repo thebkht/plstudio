@@ -10,27 +10,21 @@ import {
 } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  Alert02Icon,
   ArrowDown01Icon,
-  ArrowLeft01Icon,
   ArrowRight01Icon,
   DatabaseIcon,
   Delete02Icon,
   FingerPrintIcon,
   GitMergeIcon,
-  GridViewIcon,
   Key01Icon,
   Link01Icon,
-  PanelLeftOpenIcon,
   PlusSignIcon,
   Search01Icon,
-  SourceCodeIcon,
 } from "@hugeicons/core-free-icons";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { CollabUser } from "@/app/lib/collab/useCollaborativeSchema";
 import { PeerCursors } from "@/app/components/collab-presence";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import {
@@ -38,21 +32,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { HoverCard } from "@/components/ui/hover-card";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-} from "@/components/ui/input-group";
 import {
   Select,
   SelectContent,
@@ -68,14 +47,7 @@ import {
   FieldLegend,
   FieldSet,
 } from "@/components/ui/field";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarHeader,
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
@@ -116,7 +88,6 @@ import {
   type Rect,
   type SelectionKind,
 } from "@/app/lib/selection";
-import { typeColorVar } from "@/app/lib/datatype-color";
 import {
   isEditingTarget,
   matchShortcut,
@@ -159,13 +130,7 @@ import {
   type Relationship,
   type Cardinality,
 } from "@/app/lib/schema";
-import {
-  ColumnCard,
-  ColumnFlag,
-  KEY_STRATEGY_LABEL,
-  TableSummaryCard,
-  type MenuItem,
-} from "@/app/components/designer/primitives";
+import { type MenuItem } from "@/app/components/designer/primitives";
 import { RelationshipEdge } from "./editor-canvas/relationship-edge";
 import { ColumnList } from "./editor-side-panel/tables-tab/column-list";
 import type { ImportMessage } from "./editor-header/modal/import";
@@ -184,7 +149,7 @@ import { Dock } from "./editor-canvas/dock";
 import { SelectionToolbar } from "./editor-canvas/selection-toolbar";
 import { MemoCard } from "./editor-canvas/memo-card";
 import { SchemaGroupCard } from "./editor-canvas/schema-group";
-import { CodeView } from "./editor-side-panel/code-view";
+import { SidePanel } from "./editor-side-panel/side-panel";
 import { TablesTab } from "./editor-side-panel/tables-tab/tables-tab";
 import {
   RelationshipsTab,
@@ -364,8 +329,11 @@ export default function Workspace({
   const [importMessage, setImportMessage] = useState<ImportMessage | null>(
     null,
   );
-  const { settings: relationSettings, setSettings: setRelationSettings, isMac } =
-    useDesignerSettings();
+  const {
+    settings: relationSettings,
+    setSettings: setRelationSettings,
+    isMac,
+  } = useDesignerSettings();
   const {
     sidebarOpen,
     setSidebarOpen,
@@ -490,10 +458,7 @@ export default function Workspace({
       "--grid-y": `${pan.y - size / 2}px`,
       "--grid-opacity": Math.max(
         0,
-        Math.min(
-          1,
-          (zoom - GRID_FADE_END) / (GRID_FADE_START - GRID_FADE_END),
-        ),
+        Math.min(1, (zoom - GRID_FADE_END) / (GRID_FADE_START - GRID_FADE_END)),
       ),
     } as React.CSSProperties;
   }, [pan.x, pan.y, zoom]);
@@ -1678,11 +1643,7 @@ export default function Workspace({
         x: from.x + project(velocity.x),
         y: from.y + project(velocity.y),
       };
-      const target = resolveTablePosition(
-        table.id,
-        projected.x,
-        projected.y,
-      );
+      const target = resolveTablePosition(table.id, projected.x, projected.y);
       const tableCenter = {
         x: target.x + tableWidth(table) / 2,
         y: target.y + tableHeight(table) / 2,
@@ -2824,12 +2785,7 @@ export default function Workspace({
     // `code`, not `key`, so the hold survives non-US layouts. preventDefault
     // stops both the page scroll and Space activating a focused dock button.
     if (event.code === "Space") {
-      if (
-        isEditingTarget(event.target) ||
-        modal ||
-        openMenu ||
-        userMenuOpen
-      )
+      if (isEditingTarget(event.target) || modal || openMenu || userMenuOpen)
         return;
       event.preventDefault();
       if (!event.repeat) setSpaceHeld(true);
@@ -2845,11 +2801,7 @@ export default function Workspace({
     const shortcut = id && shortcutById(id);
     if (!id || !shortcut) return;
     // An open layer owns the keyboard, apart from the help sheet itself.
-    if (
-      (modal || openMenu || userMenuOpen) &&
-      id !== "shortcutsHelp"
-    )
-      return;
+    if ((modal || openMenu || userMenuOpen) && id !== "shortcutsHelp") return;
     if (shortcut.mutating && readOnly) return;
     const run = shortcutActions[id];
     if (!run) return;
@@ -3332,363 +3284,306 @@ export default function Workspace({
   ];
 
   const relationshipEntity = (row: RelationshipRow) => {
-            const relationship = row.relationship;
-            const { startTable, endTable } = row;
-            const pairs = relationship.fields.length
-              ? relationship.fields
-              : [
-                  {
-                    startFieldId: relationship.startFieldId,
-                    endFieldId: relationship.endFieldId,
-                  },
-                ];
-            return (
-              <Collapsible
-                className={`relationship-editor ${openRelationshipId === relationship.id ? "open" : ""}`}
-                key={relationship.id}
-                isExpanded={openRelationshipId === relationship.id}
-                onExpandedChange={(expanded) =>
-                  setOpenRelationshipId(
-                    expanded ? relationship.id : null,
-                  )
-                }
-              >
-                <CollapsibleTrigger className="relationship-row relationship-editor-head">
-                  <HugeiconsIcon
-                    icon={Link01Icon}
-                    aria-hidden="true"
+    const relationship = row.relationship;
+    const { startTable, endTable } = row;
+    const pairs = relationship.fields.length
+      ? relationship.fields
+      : [
+          {
+            startFieldId: relationship.startFieldId,
+            endFieldId: relationship.endFieldId,
+          },
+        ];
+    return (
+      <Collapsible
+        className={`relationship-editor ${openRelationshipId === relationship.id ? "open" : ""}`}
+        key={relationship.id}
+        isExpanded={openRelationshipId === relationship.id}
+        onExpandedChange={(expanded) =>
+          setOpenRelationshipId(expanded ? relationship.id : null)
+        }
+      >
+        <CollapsibleTrigger className="relationship-row relationship-editor-head">
+          <HugeiconsIcon icon={Link01Icon} aria-hidden="true" />
+          <span className="relationship-copy">
+            <strong>{relationship.name}</strong>
+            <small>
+              {row.from} → {row.to} · {row.cardinality}
+            </small>
+          </span>
+          <HugeiconsIcon icon={ArrowDown01Icon} className="entity-chevron" />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="relationship-editor-body">
+            <FieldGroup className="gap-4">
+              <Field>
+                <FieldLabel htmlFor={`rel-name-${relationship.id}`}>
+                  Name
+                </FieldLabel>
+                <Input
+                  id={`rel-name-${relationship.id}`}
+                  value={relationship.name}
+                  disabled={readOnly}
+                  onChange={(event) =>
+                    patchRelationship(relationship.id, {
+                      name: event.target.value,
+                    })
+                  }
+                />
+              </Field>
+              <div className="relationship-endpoints">
+                <span>
+                  <b>Foreign</b>
+                  {startTable?.name}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Swap relationship endpoints"
+                  isDisabled={readOnly}
+                  onClick={() => swapRelationship(relationship)}
+                >
+                  <HugeiconsIcon icon={Link01Icon} />
+                </Button>
+                <span>
+                  <b>Primary</b>
+                  {endTable?.name}
+                </span>
+              </div>
+              <Field>
+                <FieldLabel>Cardinality</FieldLabel>
+                <Select
+                  className="w-full"
+                  aria-label="Cardinality"
+                  isDisabled={readOnly}
+                  selectedKey={relationship.cardinality}
+                  onSelectionChange={(key) =>
+                    patchRelationship(relationship.id, {
+                      cardinality: key as Cardinality,
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem id="one_to_one">One to one</SelectItem>
+                      <SelectItem id="one_to_many">One to many</SelectItem>
+                      <SelectItem id="many_to_one">Many to one</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
+              {relationship.cardinality !== "one_to_one" && (
+                <Field>
+                  <FieldLabel htmlFor={`rel-many-${relationship.id}`}>
+                    Many-side label
+                  </FieldLabel>
+                  <Input
+                    id={`rel-many-${relationship.id}`}
+                    value={relationship.manyLabel}
+                    disabled={readOnly}
+                    onChange={(event) =>
+                      patchRelationship(relationship.id, {
+                        manyLabel: event.target.value,
+                      })
+                    }
                   />
-                  <span className="relationship-copy">
-                    <strong>{relationship.name}</strong>
-                    <small>
-                      {row.from} → {row.to} · {row.cardinality}
-                    </small>
-                  </span>
-                  <HugeiconsIcon
-                    icon={ArrowDown01Icon}
-                    className="entity-chevron"
-                  />
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <div className="relationship-editor-body">
-                    <FieldGroup className="gap-4">
-                      <Field>
-                        <FieldLabel
-                          htmlFor={`rel-name-${relationship.id}`}
-                        >
-                          Name
-                        </FieldLabel>
-                        <Input
-                          id={`rel-name-${relationship.id}`}
-                          value={relationship.name}
-                          disabled={readOnly}
-                          onChange={(event) =>
-                            patchRelationship(relationship.id, {
-                              name: event.target.value,
-                            })
-                          }
-                        />
-                      </Field>
-                      <div className="relationship-endpoints">
-                        <span>
-                          <b>Foreign</b>
-                          {startTable?.name}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="Swap relationship endpoints"
-                          isDisabled={readOnly}
-                          onClick={() =>
-                            swapRelationship(relationship)
-                          }
-                        >
-                          <HugeiconsIcon icon={Link01Icon} />
-                        </Button>
-                        <span>
-                          <b>Primary</b>
-                          {endTable?.name}
-                        </span>
-                      </div>
-                      <Field>
-                        <FieldLabel>Cardinality</FieldLabel>
-                        <Select
-                          className="w-full"
-                          aria-label="Cardinality"
-                          isDisabled={readOnly}
-                          selectedKey={relationship.cardinality}
-                          onSelectionChange={(key) =>
-                            patchRelationship(relationship.id, {
-                              cardinality: key as Cardinality,
-                            })
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectGroup>
-                              <SelectItem id="one_to_one">
-                                One to one
-                              </SelectItem>
-                              <SelectItem id="one_to_many">
-                                One to many
-                              </SelectItem>
-                              <SelectItem id="many_to_one">
-                                Many to one
-                              </SelectItem>
-                            </SelectGroup>
-                          </SelectContent>
-                        </Select>
-                      </Field>
-                      {relationship.cardinality !== "one_to_one" && (
-                        <Field>
-                          <FieldLabel
-                            htmlFor={`rel-many-${relationship.id}`}
-                          >
-                            Many-side label
-                          </FieldLabel>
-                          <Input
-                            id={`rel-many-${relationship.id}`}
-                            value={relationship.manyLabel}
-                            disabled={readOnly}
-                            onChange={(event) =>
-                              patchRelationship(relationship.id, {
-                                manyLabel: event.target.value,
-                              })
-                            }
-                          />
-                        </Field>
-                      )}
-                      <Field>
-                        <FieldLabel>On update</FieldLabel>
-                        <Select
-                          className="w-full"
-                          aria-label="On update"
-                          isDisabled={readOnly}
-                          selectedKey={relationship.updateConstraint}
-                          onSelectionChange={(key) =>
-                            patchRelationship(relationship.id, {
-                              updateConstraint:
-                                key as Relationship["updateConstraint"],
-                            })
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectGroup>
-                              {RELATIONSHIP_CONSTRAINTS.map(
-                                (constraint) => (
-                                  <SelectItem
-                                    key={constraint}
-                                    id={constraint}
-                                  >
-                                    {constraint}
-                                  </SelectItem>
-                                ),
-                              )}
-                            </SelectGroup>
-                          </SelectContent>
-                        </Select>
-                      </Field>
-                      <Field>
-                        <FieldLabel>On delete</FieldLabel>
-                        <Select
-                          className="w-full"
-                          aria-label="On delete"
-                          isDisabled={readOnly}
-                          selectedKey={relationship.deleteConstraint}
-                          onSelectionChange={(key) =>
-                            patchRelationship(relationship.id, {
-                              deleteConstraint:
-                                key as Relationship["deleteConstraint"],
-                            })
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectGroup>
-                              {RELATIONSHIP_CONSTRAINTS.map(
-                                (constraint) => (
-                                  <SelectItem
-                                    key={constraint}
-                                    id={constraint}
-                                  >
-                                    {constraint}
-                                  </SelectItem>
-                                ),
-                              )}
-                            </SelectGroup>
-                          </SelectContent>
-                        </Select>
-                      </Field>
-                    </FieldGroup>
-                    <FieldSet className="relationship-pairs">
-                      <FieldLegend variant="label">
-                        Composite key
-                      </FieldLegend>
-                      {pairs.map((pair, index) => (
-                        <div
-                          className="relationship-pair"
-                          key={`${pair.startFieldId}-${pair.endFieldId}-${index}`}
-                        >
-                          <Select
-                            className="w-full"
-                            aria-label="Foreign-side column"
-                            isDisabled={readOnly}
-                            selectedKey={pair.startFieldId}
-                            onSelectionChange={(key) =>
-                              patchRelationship(relationship.id, {
-                                fields: pairs.map(
-                                  (item, pairIndex) =>
-                                    pairIndex === index
-                                      ? {
-                                          ...item,
-                                          startFieldId: String(key),
-                                        }
-                                      : item,
-                                ),
-                              })
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectGroup>
-                                {startTable?.columns.map((column) => (
-                                  <SelectItem
-                                    key={column.id}
-                                    id={column.id}
-                                  >
-                                    {column.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
-                          <Select
-                            className="w-full"
-                            aria-label="Primary-side column"
-                            isDisabled={readOnly}
-                            selectedKey={pair.endFieldId}
-                            onSelectionChange={(key) =>
-                              patchRelationship(relationship.id, {
-                                fields: pairs.map(
-                                  (item, pairIndex) =>
-                                    pairIndex === index
-                                      ? {
-                                          ...item,
-                                          endFieldId: String(key),
-                                        }
-                                      : item,
-                                ),
-                              })
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectGroup>
-                                {endTable?.columns.map((column) => (
-                                  <SelectItem
-                                    key={column.id}
-                                    id={column.id}
-                                  >
-                                    {column.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
-                          {pairs.length > 1 && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              aria-label="Remove relationship field pair"
-                              isDisabled={readOnly}
-                              onClick={() =>
-                                patchRelationship(relationship.id, {
-                                  fields: pairs.filter(
-                                    (_, pairIndex) =>
-                                      pairIndex !== index,
-                                  ),
-                                })
-                              }
-                            >
-                              <HugeiconsIcon icon={Delete02Icon} />
-                            </Button>
-                          )}
-                        </div>
+                </Field>
+              )}
+              <Field>
+                <FieldLabel>On update</FieldLabel>
+                <Select
+                  className="w-full"
+                  aria-label="On update"
+                  isDisabled={readOnly}
+                  selectedKey={relationship.updateConstraint}
+                  onSelectionChange={(key) =>
+                    patchRelationship(relationship.id, {
+                      updateConstraint: key as Relationship["updateConstraint"],
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {RELATIONSHIP_CONSTRAINTS.map((constraint) => (
+                        <SelectItem key={constraint} id={constraint}>
+                          {constraint}
+                        </SelectItem>
                       ))}
-                      <Button
-                        variant="outline"
-                        className="self-start"
-                        isDisabled={
-                          readOnly ||
-                          pairs.length >=
-                            Math.min(
-                              startTable?.columns.length ?? 0,
-                              endTable?.columns.length ?? 0,
-                            )
-                        }
-                        onClick={() => {
-                          const start = startTable?.columns.find(
-                            (column) =>
-                              !pairs.some(
-                                (pair) =>
-                                  pair.startFieldId === column.id,
-                              ),
-                          );
-                          const end = endTable?.columns.find(
-                            (column) =>
-                              !pairs.some(
-                                (pair) =>
-                                  pair.endFieldId === column.id,
-                              ),
-                          );
-                          if (start && end)
-                            patchRelationship(relationship.id, {
-                              fields: [
-                                ...pairs,
-                                {
-                                  startFieldId: start.id,
-                                  endFieldId: end.id,
-                                },
-                              ],
-                            });
-                        }}
-                      >
-                        <HugeiconsIcon
-                          icon={PlusSignIcon}
-                          data-icon="inline-start"
-                        />{" "}
-                        Add field
-                      </Button>
-                    </FieldSet>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel>On delete</FieldLabel>
+                <Select
+                  className="w-full"
+                  aria-label="On delete"
+                  isDisabled={readOnly}
+                  selectedKey={relationship.deleteConstraint}
+                  onSelectionChange={(key) =>
+                    patchRelationship(relationship.id, {
+                      deleteConstraint: key as Relationship["deleteConstraint"],
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {RELATIONSHIP_CONSTRAINTS.map((constraint) => (
+                        <SelectItem key={constraint} id={constraint}>
+                          {constraint}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </FieldGroup>
+            <FieldSet className="relationship-pairs">
+              <FieldLegend variant="label">Composite key</FieldLegend>
+              {pairs.map((pair, index) => (
+                <div
+                  className="relationship-pair"
+                  key={`${pair.startFieldId}-${pair.endFieldId}-${index}`}
+                >
+                  <Select
+                    className="w-full"
+                    aria-label="Foreign-side column"
+                    isDisabled={readOnly}
+                    selectedKey={pair.startFieldId}
+                    onSelectionChange={(key) =>
+                      patchRelationship(relationship.id, {
+                        fields: pairs.map((item, pairIndex) =>
+                          pairIndex === index
+                            ? {
+                                ...item,
+                                startFieldId: String(key),
+                              }
+                            : item,
+                        ),
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {startTable?.columns.map((column) => (
+                          <SelectItem key={column.id} id={column.id}>
+                            {column.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    className="w-full"
+                    aria-label="Primary-side column"
+                    isDisabled={readOnly}
+                    selectedKey={pair.endFieldId}
+                    onSelectionChange={(key) =>
+                      patchRelationship(relationship.id, {
+                        fields: pairs.map((item, pairIndex) =>
+                          pairIndex === index
+                            ? {
+                                ...item,
+                                endFieldId: String(key),
+                              }
+                            : item,
+                        ),
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {endTable?.columns.map((column) => (
+                          <SelectItem key={column.id} id={column.id}>
+                            {column.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  {pairs.length > 1 && (
                     <Button
-                      variant="outline"
-                      className="relationship-delete"
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Remove relationship field pair"
                       isDisabled={readOnly}
                       onClick={() =>
-                        deleteRelationship(relationship.id)
+                        patchRelationship(relationship.id, {
+                          fields: pairs.filter(
+                            (_, pairIndex) => pairIndex !== index,
+                          ),
+                        })
                       }
                     >
-                      <HugeiconsIcon
-                        icon={Delete02Icon}
-                        data-icon="inline-start"
-                      />{" "}
-                      Delete relationship
+                      <HugeiconsIcon icon={Delete02Icon} />
                     </Button>
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-            );
+                  )}
+                </div>
+              ))}
+              <Button
+                variant="outline"
+                className="self-start"
+                isDisabled={
+                  readOnly ||
+                  pairs.length >=
+                    Math.min(
+                      startTable?.columns.length ?? 0,
+                      endTable?.columns.length ?? 0,
+                    )
+                }
+                onClick={() => {
+                  const start = startTable?.columns.find(
+                    (column) =>
+                      !pairs.some((pair) => pair.startFieldId === column.id),
+                  );
+                  const end = endTable?.columns.find(
+                    (column) =>
+                      !pairs.some((pair) => pair.endFieldId === column.id),
+                  );
+                  if (start && end)
+                    patchRelationship(relationship.id, {
+                      fields: [
+                        ...pairs,
+                        {
+                          startFieldId: start.id,
+                          endFieldId: end.id,
+                        },
+                      ],
+                    });
+                }}
+              >
+                <HugeiconsIcon icon={PlusSignIcon} data-icon="inline-start" />{" "}
+                Add field
+              </Button>
+            </FieldSet>
+            <Button
+              variant="outline"
+              className="relationship-delete"
+              isDisabled={readOnly}
+              onClick={() => deleteRelationship(relationship.id)}
+            >
+              <HugeiconsIcon icon={Delete02Icon} data-icon="inline-start" />{" "}
+              Delete relationship
+            </Button>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    );
   };
 
   return (
@@ -3709,142 +3604,25 @@ export default function Workspace({
         open={sidebarOpen}
         onOpenChange={setSidebarOpen}
       >
-        {/* The sidebar sits below the app bar, not against the viewport top. */}
-        <Sidebar
-          className="top-(--appbar-height) h-[calc(100svh-var(--appbar-height))]"
-          aria-label="Diagram structure"
-        >
-          <div
-            className={`sidebar-resizer ${isResizingSidebar ? "resizing" : ""}`}
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Resize sidebar width"
-            title="Drag to resize sidebar · Double-click to reset width"
-            onPointerDown={onSidebarResizeStart}
-            onDoubleClick={resetSidebarWidth}
-          >
-            <div className="sidebar-resizer-line" aria-hidden="true" />
-          </div>
-          <SidebarHeader className="panel-tabs">
-            <SidebarTrigger aria-label="Hide side panel">
-              <HugeiconsIcon icon={ArrowLeft01Icon} />
-            </SidebarTrigger>
-            <Tabs
-              selectedKey={panelTab}
-              onSelectionChange={(key) => setPanelTab(key as PanelTab)}
-            >
-              <TabsList variant="line">
-                <TabsTrigger id="tables">
-                  Tables ({schema.tables.length})
-                </TabsTrigger>
-                <TabsTrigger id="relationships">
-                  Relationships ({relationshipRows.length})
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </SidebarHeader>
-
-          <SidebarContent>
-            {panelMode === "code" ? (
-              <CodeView />
-            ) : panelTab === "tables" ? (
-              <TablesTab
-                tables={schema.tables}
-                filteredTables={filteredTables}
-                sections={tableSections}
-                hasGroups={Boolean((schema.groups ?? []).length)}
-                onAddTable={() => addTable()}
-                renderTable={tableEntity}
-              />
-            ) : (
-              <RelationshipsTab
-                rows={relationshipRows}
-                renderRow={relationshipEntity}
-              />
-            )}
-          </SidebarContent>
-
-          <SidebarFooter className="p-0">
-            <div className="panel-footer">
-              <span className="counter">
-                <HugeiconsIcon icon={DatabaseIcon} aria-hidden="true" />
-                {schema.tables.length}
-                <span className="sr-only">tables</span>
-              </span>
-              <span className="counter">
-                <HugeiconsIcon icon={Link01Icon} aria-hidden="true" />
-                {relationshipRows.length}
-                <span className="sr-only">relationships</span>
-              </span>
-              <ToggleGroup
-                aria-label="Panel view"
-                size="sm"
-                spacing={0}
-                variant="outline"
-                selectionMode="single"
-                disallowEmptySelection
-                selectedKeys={[panelMode]}
-                onSelectionChange={(keys) => {
-                  const [key] = [...keys];
-                  if (key) setPanelMode(key as PanelMode);
-                }}
-              >
-                <ToggleGroupItem id="structure">
-                  <HugeiconsIcon icon={GridViewIcon} data-icon="inline-start" />
-                  Structure
-                </ToggleGroupItem>
-                <ToggleGroupItem id="code">
-                  <HugeiconsIcon
-                    icon={SourceCodeIcon}
-                    data-icon="inline-start"
-                  />
-                  Code
-                </ToggleGroupItem>
-              </ToggleGroup>
-            </div>
-
-            <Collapsible
-              className="issues-bar"
-              isExpanded={issuesOpen}
-              onExpandedChange={setIssuesOpen}
-            >
-              <CollapsibleTrigger className="issues-head">
-                <HugeiconsIcon
-                  icon={Alert02Icon}
-                  className={errors.length ? "warn danger" : "warn"}
-                />
-                <span>Issues</span>
-                <Badge variant={errors.length ? "destructive" : "secondary"}>
-                  {issues.length}
-                </Badge>
-                <HugeiconsIcon
-                  icon={ArrowDown01Icon}
-                  className="issues-chevron"
-                />
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <ScrollArea className="issues-list">
-                  {!issues.length ? (
-                    <p className="issues-empty">No problems found.</p>
-                  ) : (
-                    issues.slice(0, 40).map((issue) => (
-                      <Button
-                        variant="ghost"
-                        className={`issue ${issue.severity}`}
-                        key={`${issue.message}-${issue.columnId ?? issue.tableId ?? ""}`}
-                        onClick={() =>
-                          issue.tableId && selectTable(issue.tableId)
-                        }
-                      >
-                        {issue.message}
-                      </Button>
-                    ))
-                  )}
-                </ScrollArea>
-              </CollapsibleContent>
-            </Collapsible>
-          </SidebarFooter>
-        </Sidebar>
+        <SidePanel
+          relationshipCount={relationshipRows.length}
+          tablesTab={
+            <TablesTab
+              tables={schema.tables}
+              filteredTables={filteredTables}
+              sections={tableSections}
+              hasGroups={Boolean((schema.groups ?? []).length)}
+              onAddTable={() => addTable()}
+              renderTable={tableEntity}
+            />
+          }
+          relationshipsTab={
+            <RelationshipsTab
+              rows={relationshipRows}
+              renderRow={relationshipEntity}
+            />
+          }
+        />
 
         {!sidebarOpen && (
           <SidebarTrigger className="panel-reveal" aria-label="Show side panel">
@@ -3927,7 +3705,8 @@ export default function Workspace({
                     event.stopPropagation();
                     // The pointerdown already decided this; re-running it here
                     // would undo a Shift-click toggle a moment after it landed.
-                    if (event.shiftKey || event.metaKey || event.ctrlKey) return;
+                    if (event.shiftKey || event.metaKey || event.ctrlKey)
+                      return;
                     if (isSelected(selectionRef.current, "memo", memo.id))
                       return;
                     setSelection(selectOnly("memo", memo.id));
