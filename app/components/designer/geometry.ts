@@ -6,6 +6,7 @@ import {
   normalizeTables,
   tableHeight,
   tableWidth,
+  type Relationship,
   type Schema,
   type Table,
 } from "@/app/lib/schema";
@@ -147,3 +148,14 @@ export function prepareCanvasSchema(schema: Schema): Schema {
   next.memos = normalizeMemos(next.memos);
   return next;
 }
+
+/**
+ * The pair of markers drawn at each end of an edge, and the pair the side panel
+ * joins with a colon. Shared so the two can never disagree.
+ */
+export const relationshipCardinalities = (relationship: Relationship) => {
+  if (relationship.cardinality === "one_to_one") return ["1", "1"];
+  if (relationship.cardinality === "one_to_many")
+    return ["1", relationship.manyLabel || "n"];
+  return [relationship.manyLabel || "n", "1"];
+};

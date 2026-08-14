@@ -19,7 +19,6 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { CollabUser } from "@/app/lib/collab/useCollaborativeSchema";
-import { PeerCursors } from "@/app/components/collab-presence";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import {
@@ -106,27 +105,22 @@ import {
   nextId,
   prefixTableName,
   RELATIONSHIP_CONSTRAINTS,
-  ORACLE_TYPES,
   primaryKeyColumns,
   stripTablePrefix,
   tableHeight,
   tableWidth,
-  typeSizePlaceholder,
   type Schema,
   type Table,
   type Column,
   type KeyStrategy,
   type Memo,
-  type MemoColor,
   type SchemaGroup,
   type Relationship,
   type Cardinality,
 } from "@/app/lib/schema";
 import { type MenuItem } from "@/app/components/designer/primitives";
-import { RelationshipEdge } from "./editor-canvas/relationship-edge";
 import { ColumnList } from "./editor-side-panel/tables-tab/column-list";
 import type { ImportMessage } from "./editor-header/modal/import";
-import { TableCard } from "./editor-canvas/table-card";
 import {
   useDesignerSettings,
   useLayout,
@@ -137,11 +131,8 @@ import {
 } from "@/app/hooks";
 import { ControlPanel } from "./editor-header/control-panel";
 import { Modals } from "./editor-header/modal/modal";
-import { Dock } from "./editor-canvas/dock";
-import { SelectionToolbar } from "./editor-canvas/selection-toolbar";
-import { MemoCard } from "./editor-canvas/memo-card";
-import { SchemaGroupCard } from "./editor-canvas/schema-group";
 import { SidePanel } from "./editor-side-panel/side-panel";
+import { Canvas } from "./editor-canvas/canvas";
 import { TablesTab } from "./editor-side-panel/tables-tab/tables-tab";
 import {
   RelationshipsTab,
@@ -153,7 +144,6 @@ import {
   GRID_FADE_END,
   GRID_FADE_START,
   GRID_SIZE,
-  GROUP_HEADER_HEIGHT,
   GROUP_MIN_HEIGHT,
   GROUP_MIN_WIDTH,
   HEADER_HEIGHT,
@@ -164,19 +154,17 @@ import {
   MEMO_MIN_WIDTH,
   MIN_ZOOM,
   NO_GROUP,
-  NO_REFERENCE,
   NUDGE,
   ROW_HEIGHT,
   TABLE_GAP,
   ZOOM_SENSITIVITY,
   ZOOM_STEP_LIMIT,
-  type PanelMode,
-  type PanelTab,
 } from "./constants";
 import {
   enclosedBy,
   insideGroup,
   prepareCanvasSchema,
+  relationshipCardinalities,
   resizeDelta,
   wheelScale,
 } from "./geometry";
@@ -2923,13 +2911,6 @@ export default function Workspace({
     };
   };
 
-  const relationshipCardinalities = (relationship: Relationship) => {
-    if (relationship.cardinality === "one_to_one") return ["1", "1"];
-    if (relationship.cardinality === "one_to_many")
-      return ["1", relationship.manyLabel || "n"];
-    return [relationship.manyLabel || "n", "1"];
-  };
-
   const patchRelationship = (id: string, patch: Partial<Relationship>) => {
     if (readOnly) return;
     commit(
@@ -3622,270 +3603,83 @@ export default function Workspace({
           </SidebarTrigger>
         )}
 
-        <div
-          ref={canvasRef}
-          className={`canvas-wrap ${grabbing ? "grabbing" : ""} ${grabbing || dragPosition || marquee || dragSelection ? "gesturing" : ""} ${panMode ? "pan-mode" : ""}`}
-          onPointerDownCapture={onCanvasDownCapture}
-          onPointerDown={onCanvasDown}
-          onPointerMove={(event) => {
-            // Canvas space, not screen space: peers at other zoom levels must
-            // see the pointer over the same table, not the same pixel.
-            setCursor(canvasPoint(event));
-            if (linking)
-              setLinking((current) =>
-                current ? { ...current, ...canvasPoint(event) } : current,
-              );
+        <Canvas
+          readOnly={readOnly}
+          save={save}
+          gestures={{
+            canvasRef,
+            gridStyle,
+            grabbing,
+            panMode,
+            dragPosition,
+            dragGroupPosition,
+            dragSelection,
+            marquee,
+            resizeTable,
+            linking,
+            multiFrame,
+            peerSelection,
+            onCanvasDown,
+            onCanvasDownCapture,
+            onPointerMove: (event) => {
+              // Canvas space, not screen space: peers at other zoom levels must
+              // see the pointer over the same table, not the same pixel.
+              setCursor(canvasPoint(event));
+              if (linking)
+                setLinking((current) =>
+                  current ? { ...current, ...canvasPoint(event) } : current,
+                );
+            },
+            onPointerLeave: () => setCursor(null),
+            finishLinking,
+            onPointerCancel: (event) => {
+              if (linking?.pointerId === event.pointerId) setLinking(null);
+            },
+            livePosition,
+            liveWidth,
+            liveMemo,
+            liveGroup,
+            editingMemoId,
+            setEditingMemoId,
+            memoHadText,
+            pressSelection,
+            startLinking,
+            onHeaderDown,
+            onTableResizeDown,
+            onTableResizeKeyDown,
+            onCardKeyDown,
+            onMemoDown,
+            onMemoResizeDown,
+            onGroupDown,
+            onGroupResizeDown,
+            resetTableWidth,
+            commitGroupSize,
+            commitMemoSize,
+            patchGroup,
+            deleteGroup,
+            applyGroupKeyword,
+            unprefixedTables,
+            patchMemo,
+            deleteMemo,
+            relationships,
+            relationshipPoint,
+            relationshipCounts,
+            foreignKeyTarget,
+            addTable,
+            editTableInPanel,
+            copyTableDDL,
+            makeJunction,
+            zoomBy,
+            fitView,
+            addGroup,
+            addMemo,
+            autoLayout,
+            onToggleHand: () => setHandMode((on) => !on),
+            hint,
+            copySelection,
+            deleteSelection,
           }}
-          onPointerLeave={() => setCursor(null)}
-          onPointerUp={finishLinking}
-          onPointerCancel={(event) => {
-            if (linking?.pointerId === event.pointerId) setLinking(null);
-          }}
-          style={gridStyle}
-        >
-          <div
-            className="canvas"
-            style={{
-              transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
-              willChange: grabbing || dragPosition ? "transform" : undefined,
-            }}
-          >
-            {(schema.groups ?? []).map((group) => (
-              <SchemaGroupCard
-                key={group.id}
-                group={group}
-                position={liveGroup(group)}
-                isSelected={selectedGroupId === group.id}
-                inMultiSelection={
-                  !single && isSelected(selection, "group", group.id)
-                }
-                isMoving={dragGroupPosition?.id === group.id}
-                pendingPrefix={unprefixedTables(group.id).length}
-                readOnly={readOnly}
-                onPointerDown={(event) => {
-                  event.stopPropagation();
-                  pressSelection(event, "group", group.id);
-                }}
-                onHeadPointerDown={onGroupDown}
-                onResizePointerDown={onGroupResizeDown}
-                onContextOpen={() =>
-                  setSelection(selectOnly("group", group.id))
-                }
-                onPatch={patchGroup}
-                onDelete={deleteGroup}
-                onAddTable={addTable}
-                onApplyKeyword={applyGroupKeyword}
-                onResizeCommit={commitGroupSize}
-              />
-            ))}
-            {(schema.memos ?? []).map((memo) => {
-              const position = liveMemo(memo);
-              return (
-                <MemoCard
-                  key={memo.id}
-                  memo={memo}
-                  position={position}
-                  isSelected={selectedMemoId === memo.id}
-                  inMultiSelection={
-                    !single && isSelected(selection, "memo", memo.id)
-                  }
-                  isEditing={editingMemoId === memo.id}
-                  onPointerDown={onMemoDown}
-                  onResizePointerDown={onMemoResizeDown}
-                  onSelect={() => setSelection(selectOnly("memo", memo.id))}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    // The pointerdown already decided this; re-running it here
-                    // would undo a Shift-click toggle a moment after it landed.
-                    if (event.shiftKey || event.metaKey || event.ctrlKey)
-                      return;
-                    if (isSelected(selectionRef.current, "memo", memo.id))
-                      return;
-                    setSelection(selectOnly("memo", memo.id));
-                  }}
-                  onPatch={patchMemo}
-                  onDelete={deleteMemo}
-                  onResizeCommit={commitMemoSize}
-                  onFocusText={() => {
-                    setSelection(selectOnly("memo", memo.id));
-                    setEditingMemoId(memo.id);
-                    if (memo.text.trim()) memoHadText.current.add(memo.id);
-                  }}
-                  onChangeText={(value) => {
-                    if (value.trim()) memoHadText.current.add(memo.id);
-                    patchMemo(memo.id, { text: value });
-                  }}
-                  onBlurText={() => {
-                    setEditingMemoId((current) =>
-                      current === memo.id ? null : current,
-                    );
-                    if (!memo.text.trim() && !memoHadText.current.has(memo.id))
-                      deleteMemo(memo.id);
-                  }}
-                />
-              );
-            })}
-            {/*
-              No width or height: the overlay is pinned to the canvas origin
-              and paints outside its own box (`overflow: visible`), so an edge
-              between two cards a long way out still draws.
-            */}
-            <svg className="edges" aria-hidden="true">
-              {relationships.map((relationship) => {
-                const from = relationshipPoint(
-                  relationship.from,
-                  relationship.fromIndex,
-                  relationship.to,
-                  `${relationship.id}:from`,
-                );
-                const to = relationshipPoint(
-                  relationship.to,
-                  relationship.toIndex,
-                  relationship.from,
-                  `${relationship.id}:to`,
-                );
-                const [fromCardinality, toCardinality] =
-                  relationshipCardinalities(relationship.relationship);
-                return (
-                  <RelationshipEdge
-                    key={relationship.id}
-                    fromX={from.x}
-                    fromY={from.y}
-                    fromDirection={from.direction}
-                    toX={to.x}
-                    toY={to.y}
-                    toDirection={to.direction}
-                    fromCardinality={fromCardinality}
-                    toCardinality={toCardinality}
-                    label={relationship.relationship.name}
-                    active={
-                      selectedId === relationship.from.id ||
-                      selectedId === relationship.to.id
-                    }
-                    showCardinality={relationSettings.showCardinality}
-                    showLabel={relationSettings.showRelationshipLabels}
-                  />
-                );
-              })}
-            </svg>
-            {schema.tables.map((table) => {
-              const position = livePosition(table);
-              const moving = dragPosition?.id === table.id;
-              const heldBy = peerSelection.get(table.id);
-              return (
-                <TableCard
-                  key={table.id}
-                  table={table}
-                  x={position.x}
-                  y={position.y}
-                  width={liveWidth(table)}
-                  moving={moving}
-                  selected={selectedId === table.id}
-                  multiSelected={
-                    !single && isSelected(selection, "table", table.id)
-                  }
-                  resizing={resizeTable?.id === table.id}
-                  hoverDisabled={moving || grabbing || linking !== null}
-                  heldByName={heldBy?.user.name}
-                  heldByColor={heldBy?.color}
-                  group={
-                    table.schemaId ? groupsById.get(table.schemaId) : undefined
-                  }
-                  relationshipCount={relationshipCounts.get(table.id) ?? 0}
-                  foreignKeyTarget={foreignKeyTarget}
-                  readOnly={readOnly}
-                  isMac={isMac}
-                  onSelect={selectTable}
-                  onHeaderDown={onHeaderDown}
-                  onResizeDown={onTableResizeDown}
-                  onResizeKeyDown={onTableResizeKeyDown}
-                  onResetWidth={resetTableWidth}
-                  onKeyDown={onCardKeyDown}
-                  onStartLink={startLinking}
-                  onEditInPanel={editTableInPanel}
-                  onCopyDDL={copyTableDDL}
-                  onAddColumn={addColumn}
-                  onMakeJunction={makeJunction}
-                  onDeleteTable={deleteTable}
-                  reorderColumns={reorderColumns}
-                />
-              );
-            })}
-            {multiFrame && (
-              <div
-                className="selection-frame"
-                aria-hidden="true"
-                style={{
-                  transform: `translate3d(${multiFrame.x}px, ${multiFrame.y}px, 0)`,
-                  width: multiFrame.width,
-                  height: multiFrame.height,
-                }}
-              />
-            )}
-            {marquee && (
-              <div
-                className="marquee"
-                aria-hidden="true"
-                style={{
-                  transform: `translate3d(${marquee.x}px, ${marquee.y}px, 0)`,
-                  width: marquee.width,
-                  height: marquee.height,
-                }}
-              />
-            )}
-            <PeerCursors peers={peers} zoom={zoom} />
-          </div>
-
-          {/*
-            Anchored to the frame but drawn in screen space and never scaled:
-            a toolbar that shrank with the zoom would be unreadable at the point
-            you most need it. Hidden mid-gesture — chrome that follows a drag is
-            noise, and the frame is doing the work of showing what is held.
-          */}
-          {multiFrame && !dragSelection && !marquee && (
-            <SelectionToolbar
-              frame={multiFrame}
-              readOnly={readOnly}
-              hint={hint}
-              onCopy={copySelection}
-              onDelete={deleteSelection}
-            />
-          )}
-
-          {linking && (
-            <svg
-              className="linking-overlay"
-              style={{
-                transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
-              }}
-              aria-hidden="true"
-            >
-              <path
-                d={`M ${linking.startX} ${linking.startY} L ${linking.x} ${linking.y}`}
-              />
-            </svg>
-          )}
-
-          {/*
-            Grouped by what each control changes: the viewport, then history,
-            then what the diagram contains, then the document as a whole.
-            Proximity is a claim about relationship, so a command that moves the
-            camera cannot sit among the ones that add tables.
-          */}
-          <Dock
-            panMode={panMode}
-            onToggleHand={() => setHandMode((on) => !on)}
-            zoomBy={zoomBy}
-            fitView={fitView}
-            addTable={() => addTable()}
-            addGroup={addGroup}
-            addMemo={addMemo}
-            makeJunction={makeJunction}
-            hasSelectedTable={Boolean(selected)}
-            autoLayout={autoLayout}
-            save={save}
-          />
-        </div>
+        />
       </SidebarProvider>
 
       <Modals
