@@ -4,3 +4,4 @@
  * than reaching into `components/designer/context/` directly.
  */
 export { useDesignerSettings } from "./use-designer-settings";
+export { useLayout } from "./use-layout";

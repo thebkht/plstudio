@@ -236,7 +236,7 @@ import {
   type ImportMessage,
 } from "@/app/components/designer/import-modal";
 import { TableCard } from "./table-card";
-import { useDesignerSettings } from "@/app/hooks";
+import { useDesignerSettings, useLayout } from "@/app/hooks";
 import {
   DRAG_THRESHOLD,
   GRID_DOT_RADIUS,
@@ -417,13 +417,6 @@ export default function Workspace({
   const [handMode, setHandMode] = useState(false);
   const [spaceHeld, setSpaceHeld] = useState(false);
   const panMode = handMode || spaceHeld;
-  const [modal, setModal] = useState<
-    "export" | "import" | "share" | "shortcuts" | null
-  >(null);
-  /**
-   * Chord glyphs differ per platform, and the platform is unknowable during SSR —
-   * so this settles after mount rather than during render, to keep hydration clean.
-   */
 
   /**
    * The zoom level a screen reader hears. Continuous zoom changes many times a
@@ -445,88 +438,36 @@ export default function Workspace({
   const [importMessage, setImportMessage] = useState<ImportMessage | null>(
     null,
   );
-  const [tableQuery, setTableQuery] = useState("");
-  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(
-    new Set(),
-  );
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [sidebarWidth, setSidebarWidth] = useState<number>(417);
-  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
-  const sidebarResizingRef = useRef<{
-    startX: number;
-    startWidth: number;
-  } | null>(null);
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("drawsql_sidebar_width");
-      if (saved) {
-        const parsed = parseInt(saved, 10);
-        if (!isNaN(parsed) && parsed >= 280 && parsed <= 800) {
-          setSidebarWidth(parsed);
-        }
-      }
-    } catch {}
-  }, []);
-
-  const updateSidebarWidth = useCallback((width: number) => {
-    const clamped = Math.max(280, Math.min(800, width));
-    setSidebarWidth(clamped);
-    try {
-      localStorage.setItem("drawsql_sidebar_width", clamped.toString());
-    } catch {}
-  }, []);
-
-  const onSidebarResizeStart = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (event.button !== 0) return;
-      event.preventDefault();
-      event.stopPropagation();
-      event.currentTarget.setPointerCapture(event.pointerId);
-      sidebarResizingRef.current = {
-        startX: event.clientX,
-        startWidth: sidebarWidth,
-      };
-      setIsResizingSidebar(true);
-    },
-    [sidebarWidth],
-  );
-
-  useEffect(() => {
-    if (!isResizingSidebar) return;
-    const move = (event: PointerEvent) => {
-      const ref = sidebarResizingRef.current;
-      if (!ref) return;
-      const deltaX = event.clientX - ref.startX;
-      updateSidebarWidth(ref.startWidth + deltaX);
-    };
-    const release = () => {
-      if (sidebarResizingRef.current) {
-        sidebarResizingRef.current = null;
-        setIsResizingSidebar(false);
-      }
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", release);
-    window.addEventListener("pointercancel", release);
-    return () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", release);
-      window.removeEventListener("pointercancel", release);
-    };
-  }, [isResizingSidebar, updateSidebarWidth]);
-
-  const [panelTab, setPanelTab] = useState<PanelTab>("tables");
-  const [panelMode, setPanelMode] = useState<PanelMode>("structure");
-  const [relationshipQuery, setRelationshipQuery] = useState("");
-  const [openRelationshipId, setOpenRelationshipId] = useState<string | null>(
-    null,
-  );
   const { settings: relationSettings, setSettings: setRelationSettings, isMac } =
     useDesignerSettings();
-  const [issuesOpen, setIssuesOpen] = useState(false);
-  const [openMenu, setOpenMenu] = useState<string | null>(null);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const {
+    sidebarOpen,
+    setSidebarOpen,
+    sidebarWidth,
+    isResizingSidebar,
+    onSidebarResizeStart,
+    resetSidebarWidth,
+    panelTab,
+    setPanelTab,
+    panelMode,
+    setPanelMode,
+    modal,
+    setModal,
+    openMenu,
+    setOpenMenu,
+    userMenuOpen,
+    setUserMenuOpen,
+    issuesOpen,
+    setIssuesOpen,
+    tableQuery,
+    setTableQuery,
+    relationshipQuery,
+    setRelationshipQuery,
+    openRelationshipId,
+    setOpenRelationshipId,
+    collapsedGroupIds,
+    setCollapsedGroupIds,
+  } = useLayout();
   const [linking, setLinking] = useState<{
     pointerId: number;
     sourceTableId: string;
@@ -3906,7 +3847,7 @@ export default function Workspace({
             aria-label="Resize sidebar width"
             title="Drag to resize sidebar · Double-click to reset width"
             onPointerDown={onSidebarResizeStart}
-            onDoubleClick={() => updateSidebarWidth(417)}
+            onDoubleClick={resetSidebarWidth}
           >
             <div className="sidebar-resizer-line" aria-hidden="true" />
           </div>
