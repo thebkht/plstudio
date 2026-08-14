@@ -296,10 +296,30 @@ const MEMO_COLORS: {
   background: string;
   border: string;
 }[] = [
-  { id: "yellow", label: "Yellow", background: "var(--memo-yellow-surface)", border: "var(--memo-yellow-edge)" },
-  { id: "blue", label: "Blue", background: "var(--memo-blue-surface)", border: "var(--memo-blue-edge)" },
-  { id: "green", label: "Green", background: "var(--memo-green-surface)", border: "var(--memo-green-edge)" },
-  { id: "pink", label: "Pink", background: "var(--memo-pink-surface)", border: "var(--memo-pink-edge)" },
+  {
+    id: "yellow",
+    label: "Yellow",
+    background: "var(--memo-yellow-surface)",
+    border: "var(--memo-yellow-edge)",
+  },
+  {
+    id: "blue",
+    label: "Blue",
+    background: "var(--memo-blue-surface)",
+    border: "var(--memo-blue-edge)",
+  },
+  {
+    id: "green",
+    label: "Green",
+    background: "var(--memo-green-surface)",
+    border: "var(--memo-green-edge)",
+  },
+  {
+    id: "pink",
+    label: "Pink",
+    background: "var(--memo-pink-surface)",
+    border: "var(--memo-pink-edge)",
+  },
 ];
 
 /** How far one arrow-key press resizes a handle; Shift takes a coarse step. */
@@ -308,7 +328,12 @@ const RESIZE_STEP_COARSE = 32;
 /** Arrow-key deltas for the resize handles, which are otherwise pointer-only. */
 const resizeDelta = (event: React.KeyboardEvent) => {
   const step = event.shiftKey ? RESIZE_STEP_COARSE : RESIZE_STEP;
-  const deltas: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+  const deltas: Record<string, [number, number]> = {
+    ArrowLeft: [-step, 0],
+    ArrowRight: [step, 0],
+    ArrowUp: [0, -step],
+    ArrowDown: [0, step],
+  };
   return deltas[event.key] ?? null;
 };
 
@@ -621,7 +646,9 @@ export default function Designer({
   const [workspaceInviteLink, setWorkspaceInviteLink] = useState("");
   const [workspaceInviteBusy, setWorkspaceInviteBusy] = useState(false);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
-  const [importMessage, setImportMessage] = useState<ImportMessage | null>(null);
+  const [importMessage, setImportMessage] = useState<ImportMessage | null>(
+    null,
+  );
   const [tableQuery, setTableQuery] = useState("");
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(
     new Set(),
@@ -629,7 +656,10 @@ export default function Designer({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState<number>(417);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
-  const sidebarResizingRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const sidebarResizingRef = useRef<{
+    startX: number;
+    startWidth: number;
+  } | null>(null);
 
   useEffect(() => {
     try {
@@ -2760,7 +2790,9 @@ export default function Designer({
     (event: React.KeyboardEvent<HTMLButtonElement>, tableId: string) => {
       const delta = resizeDelta(event);
       if (!delta || !delta[0]) return;
-      const table = schemaRef.current.tables.find((item) => item.id === tableId);
+      const table = schemaRef.current.tables.find(
+        (item) => item.id === tableId,
+      );
       if (!table) return;
       event.preventDefault();
       event.stopPropagation();
@@ -3895,7 +3927,9 @@ export default function Designer({
       onSelect: () =>
         setRelationSettings((current) => {
           const next = !current.autoSave;
-          toast.success(next ? "Auto-save turned on." : "Auto-save turned off.");
+          toast.success(
+            next ? "Auto-save turned on." : "Auto-save turned off.",
+          );
           return { ...current, autoSave: next };
         }),
     },
@@ -4094,7 +4128,9 @@ export default function Designer({
           />
         </div>
         {/* Marks where the document's identity ends and the verbs begin: on one
-            row the name and "File" would otherwise read as one strip of words. */}
+            row the name and "File" would otherwise read as one strip of words.
+            An explicit height, not `h-full` — the bar sets only `min-height`, so
+            a percentage height resolves against nothing and the rule vanishes. */}
         <Separator orientation="vertical" className="h-5" />
         <Menubar
           label="Diagram menus"
@@ -4102,7 +4138,9 @@ export default function Designer({
           isOpen={openMenu !== null}
           onStepOpen={(direction) => {
             const current = menus.findIndex((menu) => menu.name === openMenu);
-            setOpenMenu(menus[(current + direction + menus.length) % menus.length].name);
+            setOpenMenu(
+              menus[(current + direction + menus.length) % menus.length].name,
+            );
           }}
         >
           {menus.map((menu, index) => (
@@ -4133,7 +4171,9 @@ export default function Designer({
             }
             className={dirty && !readOnly ? "cursor-pointer select-none" : ""}
             onClick={dirty && !readOnly ? () => void save() : undefined}
-            title={dirty && !readOnly ? "Click to save changes (⌘S)" : undefined}
+            title={
+              dirty && !readOnly ? "Click to save changes (⌘S)" : undefined
+            }
           >
             {saveState === "saving"
               ? "Saving…"
@@ -4223,7 +4263,11 @@ export default function Designer({
                   </InputGroup>
                   {/* The panel's primary action, so it carries more weight
                       than the search field it sits beside. */}
-                  <Button variant="outline" size="sm" onClick={() => addTable()}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => addTable()}
+                  >
                     <HugeiconsIcon
                       icon={PlusSignIcon}
                       data-icon="inline-start"
@@ -5004,7 +5048,11 @@ export default function Designer({
                       if (!delta) return;
                       event.preventDefault();
                       event.stopPropagation();
-                      commitGroupSize(group.id, position.width + delta[0], position.height + delta[1]);
+                      commitGroupSize(
+                        group.id,
+                        position.width + delta[0],
+                        position.height + delta[1],
+                      );
                     }}
                   />
                 </section>
@@ -5120,7 +5168,10 @@ export default function Designer({
                       setEditingMemoId((current) =>
                         current === memo.id ? null : current,
                       );
-                      if (!memo.text.trim() && !memoHadText.current.has(memo.id))
+                      if (
+                        !memo.text.trim() &&
+                        !memoHadText.current.has(memo.id)
+                      )
                         deleteMemo(memo.id);
                     }}
                     onPointerDown={(event) => event.stopPropagation()}
@@ -5135,7 +5186,11 @@ export default function Designer({
                       if (!delta) return;
                       event.preventDefault();
                       event.stopPropagation();
-                      commitMemoSize(memo.id, position.width + delta[0], position.height + delta[1]);
+                      commitMemoSize(
+                        memo.id,
+                        position.width + delta[0],
+                        position.height + delta[1],
+                      );
                     }}
                   />
                   {editingMemoId === memo.id && (

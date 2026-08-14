@@ -250,14 +250,19 @@ button {
   letter-spacing: var(--tracking-tight);
 }
 .appbar-title-icon { color: var(--ink-3); flex: 0 0 auto; }
-.appbar-crumb { color: var(--ink-1); }
-.appbar-slash { color: var(--ink-3); }
+/* Fixed, never wrapping: as a shrinkable flex item the crumb is what gives when
+   the row tightens, and "My diagrams" breaks at its space into two lines —
+   which, against a `min-height` bar, silently makes the header taller than the
+   token says it is. The name field below is the one that may shrink. */
+.appbar-crumb { flex: 0 0 auto; white-space: nowrap; color: var(--ink-1); }
+.appbar-slash { flex: 0 0 auto; color: var(--ink-3); }
 /* A borderless inline title field: Input's chrome only appears on hover/focus,
    which means resetting its background and pill radius too, not just the
    border. `field-sizing` lets it hug the name instead of standing at a fixed
    width that strands space after "Sales" and truncates anything longer. */
 .appbar-name {
   height: auto;
+  flex: 0 1 auto;
   min-width: 6ch;
   max-width: 32ch;
   field-sizing: content;
