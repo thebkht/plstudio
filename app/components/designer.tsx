@@ -133,6 +133,12 @@ import {
   parseSchemaJson,
 } from "@/app/lib/schema-json";
 import {
+  createSaveQueue,
+  type SaveQueue,
+  type SaveResult,
+  type SaveState,
+} from "@/app/lib/save-queue";
+import {
   EMPTY_SELECTION,
   isSelected,
   marqueeSelection,
@@ -642,6 +648,7 @@ export default function Designer({
     y: number;
   } | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [saveState, setSaveState] = useState<SaveState>("idle");
   useEffect(() => {
     const repaired = prepareCanvasSchema(initialSchema);
     const changed = repaired.tables.some(
@@ -3129,38 +3136,121 @@ export default function Designer({
     commit(normalizeRelationships(next));
   };
 
-  const save = async (overwrite = false) => {
-    if (readOnly) return;
-    try {
-      const query = new URLSearchParams();
-      if (workspaceSlug) query.set("workspace", workspaceSlug);
-      if (shareToken) query.set("shareToken", shareToken);
-      const response = await fetch(
-        `/api/projects/${projectId}${query.toString() ? `?${query}` : ""}`,
-        {
-          method: "PUT",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ schema, overwrite }),
-        },
-      );
-      if (response.ok) {
-        const next = (await response.json()) as Schema;
-        setRevision(next.revision);
-        setDirty(false);
-      } else if (response.status === 409) {
-        toast.error("This project changed elsewhere.", {
-          description: "Saving now would overwrite the other changes.",
-          duration: Infinity,
-          action: { label: "Overwrite", onClick: () => void save(true) },
-        });
-        return;
-      }
-      if (response.ok) toast.success("Project saved.");
-      else toast.error("Save failed — project storage is unavailable.");
-    } catch {
-      toast.error("Could not reach the server.");
+  /**
+   * One write at a time, newest snapshot wins, and each response's revision
+   * seeds the next request — see `createSaveQueue` for why that last part is
+   * what keeps an autosave from conflicting with itself.
+   *
+   * Built once per project. Everything it needs that changes goes through a
+   * ref, so the queue is never torn down mid-write.
+   */
+  const saveQueueRef = useRef<SaveQueue | null>(null);
+  const revisionRef = useRef(schema.revision);
+  revisionRef.current = schema.revision;
+  const announceSaveRef = useRef<(result: SaveResult) => void>(() => {});
+  if (!saveQueueRef.current)
+    saveQueueRef.current = createSaveQueue({
+      revision: () => revisionRef.current,
+      onRevision: setRevision,
+      onState: setSaveState,
+      onResult: (result) => announceSaveRef.current(result),
+      write: async (next, revision, overwrite) => {
+        const query = new URLSearchParams();
+        if (workspaceSlug) query.set("workspace", workspaceSlug);
+        if (shareToken) query.set("shareToken", shareToken);
+        const response = await fetch(
+          `/api/projects/${projectId}${query.toString() ? `?${query}` : ""}`,
+          {
+            method: "PUT",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              schema: { ...next, revision },
+              overwrite,
+            }),
+          },
+        );
+        if (response.ok) {
+          const saved = (await response.json()) as Schema;
+          return { status: "saved", revision: saved.revision };
+        }
+        if (response.status === 409) {
+          // The body carries the record as it now stands, so the overwrite
+          // that follows is sent against the revision that rejected us.
+          const current = (await response.json().catch(() => null)) as {
+            revision?: number;
+          } | null;
+          return {
+            status: "conflict",
+            revision: current?.revision ?? revision,
+          };
+        }
+        return {
+          status: "failed",
+          message: "Project storage is unavailable.",
+        };
+      },
+    });
+  const saveQueue = saveQueueRef.current;
+
+  /**
+   * An autosave says nothing when it works — a toast per keystroke-batch is
+   * noise, and the badge already reports the state. Only an explicit save is
+   * congratulated, and only a problem interrupts.
+   */
+  const [explicitSave, setExplicitSave] = useState(false);
+  announceSaveRef.current = (result) => {
+    if (result.status === "saved") {
+      setDirty(false);
+      if (explicitSave) toast.success("Project saved.");
+      setExplicitSave(false);
+      return;
     }
+    setExplicitSave(false);
+    if (result.status === "conflict") {
+      toast.error("This project changed elsewhere.", {
+        description: "Saving now would overwrite the other changes.",
+        duration: Infinity,
+        action: { label: "Overwrite", onClick: () => void save(true) },
+      });
+      return;
+    }
+    toast.error(result.message);
   };
+
+  const save = (overwrite = false) => {
+    if (readOnly) return Promise.resolve();
+    setExplicitSave(true);
+    return saveQueue.flush(schemaRef.current, { overwrite });
+  };
+
+  /**
+   * The autosave itself: every edit of this client's re-arms the debounce, so
+   * a burst of typing writes once when it stops. Gated on `dirty` so a
+   * collaborator's edit does not trigger a write here — the collab server
+   * already mirrors those into the same file.
+   */
+  useEffect(() => {
+    if (readOnly || !dirty) return;
+    saveQueue.push(schema);
+  }, [dirty, readOnly, saveQueue, schema]);
+
+  useEffect(() => () => saveQueue.cancel(), [saveQueue]);
+
+  /**
+   * A tab closed mid-debounce would lose the edits still waiting it out, so
+   * spend the last moment writing them. `keepalive` is what lets the request
+   * outlive the document.
+   */
+  useEffect(() => {
+    if (readOnly) return;
+    const onHide = () => {
+      if (document.visibilityState !== "hidden") return;
+      if (saveQueue.state !== "pending") return;
+      void saveQueue.flush(schemaRef.current);
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => document.removeEventListener("visibilitychange", onHide);
+  }, [readOnly, saveQueue]);
 
   /**
    * Whatever the canvas selection currently is, remove it — in one commit, so
@@ -3820,8 +3910,25 @@ export default function Designer({
                 onOpenChange={setOpenMenu}
               />
             ))}
-            <Badge variant={dirty ? "secondary" : "ghost"}>
-              {dirty ? "Unsaved changes" : "No changes"}
+            {/* The one piece of feedback autosave gets, since it is otherwise silent. */}
+            <Badge
+              variant={
+                saveState === "conflict" || saveState === "failed"
+                  ? "destructive"
+                  : dirty
+                    ? "secondary"
+                    : "ghost"
+              }
+            >
+              {saveState === "saving"
+                ? "Saving…"
+                : saveState === "conflict"
+                  ? "Conflict"
+                  : saveState === "failed"
+                    ? "Not saved"
+                    : dirty
+                      ? "Unsaved changes"
+                      : "Saved"}
             </Badge>
           </div>
         </div>
