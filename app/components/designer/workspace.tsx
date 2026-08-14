@@ -16,7 +16,6 @@ import {
   ArrowRight01Icon,
   ArrowTurnBackwardIcon,
   ArrowTurnForwardIcon,
-  Copy01Icon,
   DatabaseIcon,
   Delete02Icon,
   Download04Icon,
@@ -43,16 +42,6 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { CollabUser } from "@/app/lib/collab/useCollaborativeSchema";
 import { PeerCursors } from "@/app/components/collab-presence";
-import { Alert, AlertTitle } from "@/components/ui/alert";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -94,14 +83,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   Field,
-  FieldDescription,
   FieldGroup,
   FieldLabel,
   FieldLegend,
@@ -120,7 +102,6 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
-import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Input } from "@/components/ui/input";
 import { generateDDL } from "@/app/lib/generators";
 import {
@@ -160,8 +141,6 @@ import {
 } from "@/app/lib/selection";
 import { typeColorVar } from "@/app/lib/datatype-color";
 import {
-  SHORTCUTS,
-  SHORTCUT_GROUPS,
   isEditingTarget,
   matchShortcut,
   shortcutById,
@@ -203,24 +182,18 @@ import {
   type Relationship,
   type Cardinality,
 } from "@/app/lib/schema";
-import { authClient } from "@/app/lib/auth-client";
 import {
   ColumnCard,
   ColumnFlag,
   DockButton,
   KEY_STRATEGY_LABEL,
-  ShortcutKeys,
   TableSummaryCard,
   type MenuItem,
 } from "@/app/components/designer/primitives";
 import { RelationshipEdge } from "@/app/components/designer/relationship-edge";
-import { ExportModal } from "@/app/components/designer/export-modal";
 import { ColumnList } from "@/app/components/designer/column-list";
 import { highlightSql } from "@/app/components/designer/highlight";
-import {
-  ImportModal,
-  type ImportMessage,
-} from "@/app/components/designer/import-modal";
+import type { ImportMessage } from "@/app/components/designer/import-modal";
 import { TableCard } from "./table-card";
 import {
   useDesignerSettings,
@@ -231,6 +204,7 @@ import {
   useTransform,
 } from "@/app/hooks";
 import { ControlPanel } from "./editor-header/control-panel";
+import { Modals } from "./editor-header/modal/modal";
 import {
   DRAG_THRESHOLD,
   GRID_DOT_RADIUS,
@@ -406,13 +380,6 @@ export default function Workspace({
   const [spaceHeld, setSpaceHeld] = useState(false);
   const panMode = handMode || spaceHeld;
 
-  const [shareLink, setShareLink] = useState("");
-  const [shareBusy, setShareBusy] = useState(false);
-  const [shareError, setShareError] = useState("");
-  const [workspaceEmail, setWorkspaceEmail] = useState("");
-  const [workspaceInviteLink, setWorkspaceInviteLink] = useState("");
-  const [workspaceInviteBusy, setWorkspaceInviteBusy] = useState(false);
-  const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [importMessage, setImportMessage] = useState<ImportMessage | null>(
     null,
   );
@@ -2477,9 +2444,6 @@ export default function Workspace({
         await navigator.clipboard.writeText(value);
         toast.success(message);
       } catch {
-        setShareError(
-          "Clipboard access failed. Select and copy the link manually.",
-        );
         toast.error("Clipboard access failed.");
       }
     },
@@ -2505,62 +2469,6 @@ export default function Workspace({
     [copyText],
   );
 
-  const generateShareLink = async () => {
-    setShareBusy(true);
-    setShareError("");
-    try {
-      const query = workspaceSlug
-        ? `?workspace=${encodeURIComponent(workspaceSlug)}`
-        : "";
-      const response = await fetch(`/api/projects/${projectId}/share${query}`, {
-        method: "POST",
-      });
-      const body = (await response.json()) as { url?: string; error?: string };
-      if (!response.ok || !body.url)
-        throw new Error(body.error || "Could not create project link.");
-      setShareLink(body.url);
-      await copyText(body.url);
-    } catch (error) {
-      setShareError(
-        error instanceof Error
-          ? error.message
-          : "Could not create project link.",
-      );
-    } finally {
-      setShareBusy(false);
-    }
-  };
-
-  const inviteToWorkspace = async () => {
-    if (!workspaceSlug || !workspaceEmail.trim()) return;
-    setWorkspaceInviteBusy(true);
-    setShareError("");
-    try {
-      await (authClient.organization as any).setActive({
-        organizationSlug: workspaceSlug,
-      });
-      const result = await (authClient.organization as any).inviteMember({
-        organizationId: workspaceId,
-        email: workspaceEmail.trim(),
-        role: "member",
-      });
-      if (result.error || !result.data?.id)
-        throw new Error(
-          result.error?.message || "Could not create workspace invitation.",
-        );
-      const url = `${window.location.origin}/invite/${result.data.id}`;
-      setWorkspaceInviteLink(url);
-      await copyText(url);
-    } catch (error) {
-      setShareError(
-        error instanceof Error
-          ? error.message
-          : "Could not create workspace invitation.",
-      );
-    } finally {
-      setWorkspaceInviteBusy(false);
-    }
-  };
   const importSchema = (text: string) => {
     const result = parseCreateTable(text);
     if (!result.schema) {
@@ -2939,8 +2847,7 @@ export default function Workspace({
         isEditingTarget(event.target) ||
         modal ||
         openMenu ||
-        userMenuOpen ||
-        confirmRevoke
+        userMenuOpen
       )
         return;
       event.preventDefault();
@@ -2949,7 +2856,7 @@ export default function Workspace({
     }
     if (event.key === "Escape") {
       // Overlays dismiss themselves; Escape only clears canvas selection.
-      if (modal || openMenu || userMenuOpen || confirmRevoke) return;
+      if (modal || openMenu || userMenuOpen) return;
       setSelection(EMPTY_SELECTION);
       return;
     }
@@ -2958,7 +2865,7 @@ export default function Workspace({
     if (!id || !shortcut) return;
     // An open layer owns the keyboard, apart from the help sheet itself.
     if (
-      (modal || openMenu || userMenuOpen || confirmRevoke) &&
+      (modal || openMenu || userMenuOpen) &&
       id !== "shortcutsHelp"
     )
       return;
@@ -4743,143 +4650,13 @@ export default function Workspace({
         </div>
       </SidebarProvider>
 
-      <Dialog
-        isOpen={modal === "share"}
-        onOpenChange={(open) => !open && setModal(null)}
-      >
-        <DialogHeader>
-          <DialogTitle>Share project</DialogTitle>
-          <DialogDescription>
-            Invite people to collaborate on this diagram.
-          </DialogDescription>
-        </DialogHeader>
-        <FieldGroup>
-          <Field>
-            <FieldLabel>Project invite link</FieldLabel>
-            <FieldDescription>
-              Anyone with the link can preview the project. Sign-in is required
-              to edit.
-            </FieldDescription>
-            {shareLink ? (
-              <div className="flex gap-2">
-                <Input
-                  aria-label="Project invite link"
-                  value={shareLink}
-                  readOnly
-                />
-                <Button
-                  variant="outline"
-                  onClick={() => void copyText(shareLink)}
-                >
-                  <HugeiconsIcon icon={Copy01Icon} data-icon="inline-start" />
-                  Copy
-                </Button>
-              </div>
-            ) : (
-              <Button
-                className="self-start"
-                isDisabled={shareBusy}
-                onClick={() => void generateShareLink()}
-              >
-                {shareBusy ? "Generating…" : "Generate invite link"}
-              </Button>
-            )}
-            {shareLink && (
-              <Button
-                variant="outline"
-                className="self-start"
-                isDisabled={shareBusy}
-                onClick={() => setConfirmRevoke(true)}
-              >
-                Revoke and generate new link
-              </Button>
-            )}
-          </Field>
-          {workspaceSlug && (
-            <Field>
-              <FieldLabel>Invite to workspace</FieldLabel>
-              <FieldDescription>
-                Send a single-use invitation to a workspace member.
-              </FieldDescription>
-              <div className="flex gap-2">
-                <Input
-                  aria-label="Invitee email"
-                  type="email"
-                  placeholder="person@example.com"
-                  value={workspaceEmail}
-                  onChange={(event) => setWorkspaceEmail(event.target.value)}
-                />
-                <Button
-                  isDisabled={workspaceInviteBusy || !workspaceEmail.trim()}
-                  onClick={() => void inviteToWorkspace()}
-                >
-                  {workspaceInviteBusy ? "Generating…" : "Generate link"}
-                </Button>
-              </div>
-              {workspaceInviteLink && (
-                <div className="flex gap-2">
-                  <Input
-                    aria-label="Workspace invitation link"
-                    value={workspaceInviteLink}
-                    readOnly
-                  />
-                  <Button
-                    variant="outline"
-                    onClick={() => void copyText(workspaceInviteLink)}
-                  >
-                    <HugeiconsIcon icon={Copy01Icon} data-icon="inline-start" />
-                    Copy
-                  </Button>
-                </div>
-              )}
-            </Field>
-          )}
-          {shareError && (
-            <Alert variant="destructive">
-              <AlertTitle>{shareError}</AlertTitle>
-            </Alert>
-          )}
-        </FieldGroup>
-      </Dialog>
-
-      <AlertDialog isOpen={confirmRevoke} onOpenChange={setConfirmRevoke}>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Revoke this link?</AlertDialogTitle>
-          <AlertDialogDescription>
-            The current link stops working immediately and a new one is
-            generated in its place.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel onClick={() => setConfirmRevoke(false)}>
-            Cancel
-          </AlertDialogCancel>
-          <AlertDialogAction
-            onClick={() => {
-              setConfirmRevoke(false);
-              void generateShareLink();
-            }}
-          >
-            Revoke and generate
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialog>
-
-      <ExportModal
-        isOpen={modal === "export"}
-        onOpenChange={(open) => !open && setModal(null)}
-        schema={schema}
-        errors={errors}
-        onClearInvalidForeignKeys={clearInvalidForeignKeys}
-      />
-
-      <ImportModal
-        isOpen={modal === "import"}
-        onOpenChange={(open) => !open && setModal(null)}
-        schema={schema}
+      <Modals
+        projectId={projectId}
+        workspaceSlug={workspaceSlug}
+        workspaceId={workspaceId}
         readOnly={readOnly}
-        message={importMessage}
-        onMessage={setImportMessage}
+        importMessage={importMessage}
+        onImportMessage={setImportMessage}
         onReplace={(text, format) => {
           if (format === "json") importJson(text);
           else if (format === "mermaid") importMermaid(text);
@@ -4890,69 +4667,8 @@ export default function Workspace({
           else if (format === "mermaid") appendMermaid(text);
           else appendSchema(text);
         }}
+        onClearInvalidForeignKeys={clearInvalidForeignKeys}
       />
-
-      <Dialog
-        isOpen={modal === "shortcuts"}
-        onOpenChange={(open) => !open && setModal(null)}
-        className="sm:max-w-2xl"
-      >
-        <DialogHeader>
-          <DialogTitle>Keyboard shortcuts</DialogTitle>
-          <DialogDescription>
-            {readOnly
-              ? "Editing shortcuts are unavailable on a read-only link."
-              : "Bare-letter shortcuts pause while you are typing in a field."}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="shortcut-sheet">
-          {SHORTCUT_GROUPS.map((group) => (
-            <section className="shortcut-group" key={group}>
-              <h3 className="shortcut-group-title">{group}</h3>
-              <dl className="shortcut-list">
-                {SHORTCUTS.filter((shortcut) => shortcut.group === group).map(
-                  (shortcut) => (
-                    <div
-                      className="shortcut-row"
-                      key={shortcut.id}
-                      aria-disabled={shortcut.mutating && readOnly}
-                    >
-                      <dt>{shortcut.label}</dt>
-                      <dd>
-                        <ShortcutKeys id={shortcut.id} isMac={isMac} />
-                      </dd>
-                    </div>
-                  ),
-                )}
-              </dl>
-            </section>
-          ))}
-          <section className="shortcut-group">
-            <h3 className="shortcut-group-title">Selection</h3>
-            <dl className="shortcut-list">
-              <div className="shortcut-row">
-                <dt>Clear selection</dt>
-                <dd>
-                  <KbdGroup>
-                    <Kbd>{isMac ? "esc" : "Esc"}</Kbd>
-                  </KbdGroup>
-                </dd>
-              </div>
-              <div className="shortcut-row">
-                <dt>Nudge the focused table</dt>
-                <dd>
-                  <KbdGroup>
-                    <Kbd>←</Kbd>
-                    <Kbd>↑</Kbd>
-                    <Kbd>↓</Kbd>
-                    <Kbd>→</Kbd>
-                  </KbdGroup>
-                </dd>
-              </div>
-            </dl>
-          </section>
-        </div>
-      </Dialog>
     </div>
   );
 }
