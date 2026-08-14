@@ -4,6 +4,7 @@ import { memo } from "react";
 import { AvatarStack } from "@/components/kibo-ui/avatar-stack";
 import { Cursor, CursorBody, CursorName, CursorPointer } from "@/components/kibo-ui/cursor";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { avatarGradient } from "@/app/lib/avatar";
 import type { CollabStatus, Peer } from "@/app/lib/collab/useCollaborativeSchema";
 
 const initials = (name: string) => name.trim().slice(0, 2).toUpperCase() || "?";
@@ -43,7 +44,7 @@ export const PeerAvatars = memo(function PeerAvatars({ peers, status }: { peers:
       {peers.map((peer) => (
         <Avatar key={peer.clientId} title={peer.user.name} aria-label={peer.user.name} style={{ outline: `2px solid ${peer.color}` }}>
           {peer.user.image ? <AvatarImage src={peer.user.image} alt="" /> : null}
-          <AvatarFallback>{initials(peer.user.name)}</AvatarFallback>
+          <AvatarFallback style={avatarGradient(peer.user.id)}>{initials(peer.user.name)}</AvatarFallback>
         </Avatar>
       ))}
     </AvatarStack>

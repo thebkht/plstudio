@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Logout01Icon, UserCircleIcon } from "@hugeicons/core-free-icons";
 import { authClient } from "@/app/lib/auth-client";
+import { avatarGradient } from "@/app/lib/avatar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +43,7 @@ export default function NavUser({
   const [uncontrolled, setUncontrolled] = useState(false);
   const name = user?.name?.trim() || "Guest";
   const initials = initialsOf(user?.name);
+  const seededFace = avatarGradient(user?.email || user?.name);
   return (
     <DropdownMenuTrigger
       isOpen={isOpen ?? uncontrolled}
@@ -50,7 +52,7 @@ export default function NavUser({
       <Button variant="ghost" size="icon" aria-label="Account menu">
         <Avatar size="sm">
           {user?.image && <AvatarImage src={user.image} alt={name} />}
-          <AvatarFallback>
+          <AvatarFallback style={seededFace}>
             {initials || <HugeiconsIcon icon={UserCircleIcon} />}
           </AvatarFallback>
         </Avatar>
@@ -59,7 +61,7 @@ export default function NavUser({
         <DropdownMenuLabel className="nav-user-label">
           <Avatar size="sm">
             {user?.image && <AvatarImage src={user.image} alt={name} />}
-            <AvatarFallback>
+            <AvatarFallback style={seededFace}>
               {initials || <HugeiconsIcon icon={UserCircleIcon} />}
             </AvatarFallback>
           </Avatar>
