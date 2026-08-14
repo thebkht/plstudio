@@ -4131,7 +4131,7 @@ export default function Designer({
             row the name and "File" would otherwise read as one strip of words.
             An explicit height, not `h-full` — the bar sets only `min-height`, so
             a percentage height resolves against nothing and the rule vanishes. */}
-        <Separator orientation="vertical" className="h-5" />
+        <Separator orientation="vertical" className="h-full" />
         <Menubar
           label="Diagram menus"
           count={menus.length}
