@@ -16,7 +16,7 @@ import { Alert, AlertAction, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { highlightJson, highlightMermaid, highlightSql } from "./highlight";
+import { highlightJson, highlightMermaid, highlightSql } from "../../highlight";
 
 type ExportTab = "ddl" | "dml" | "mermaid" | "json";
 

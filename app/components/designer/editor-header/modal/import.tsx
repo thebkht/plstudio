@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { highlightJson, highlightMermaid, highlightSql } from "./highlight";
+import { highlightJson, highlightMermaid, highlightSql } from "../../highlight";
 
 export type ImportFormat = "ddl" | "mermaid" | "json";
 export type ImportMessage = { ok: boolean; text: string };

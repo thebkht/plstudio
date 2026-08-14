@@ -168,7 +168,7 @@ import {
 } from "@/app/components/designer/primitives";
 import { RelationshipEdge } from "./editor-canvas/relationship-edge";
 import { ColumnList } from "./editor-side-panel/tables-tab/column-list";
-import type { ImportMessage } from "@/app/components/designer/import-modal";
+import type { ImportMessage } from "./editor-header/modal/import";
 import { TableCard } from "./editor-canvas/table-card";
 import {
   useDesignerSettings,
@@ -185,6 +185,7 @@ import { SelectionToolbar } from "./editor-canvas/selection-toolbar";
 import { MemoCard } from "./editor-canvas/memo-card";
 import { SchemaGroupCard } from "./editor-canvas/schema-group";
 import { CodeView } from "./editor-side-panel/code-view";
+import { TablesTab } from "./editor-side-panel/tables-tab/tables-tab";
 import {
   DRAG_THRESHOLD,
   GRID_DOT_RADIUS,
@@ -3383,133 +3384,14 @@ export default function Workspace({
             {panelMode === "code" ? (
               <CodeView />
             ) : panelTab === "tables" ? (
-              <>
-                <div className="panel-toolbar">
-                  <InputGroup>
-                    <InputGroupAddon>
-                      <HugeiconsIcon icon={Search01Icon} />
-                    </InputGroupAddon>
-                    <InputGroupInput
-                      aria-label="Search tables"
-                      placeholder="Search tables"
-                      value={tableQuery}
-                      onChange={(event) => setTableQuery(event.target.value)}
-                    />
-                  </InputGroup>
-                  {/* The panel's primary action, so it carries more weight
-                      than the search field it sits beside. */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => addTable()}
-                  >
-                    <HugeiconsIcon
-                      icon={PlusSignIcon}
-                      data-icon="inline-start"
-                    />
-                    Add table
-                  </Button>
-                </div>
-                <ScrollArea className="panel-body">
-                  {!schema.tables.length ? (
-                    <Empty>
-                      <EmptyHeader>
-                        <EmptyMedia variant="icon">
-                          <HugeiconsIcon icon={DatabaseIcon} />
-                        </EmptyMedia>
-                        <EmptyTitle>No tables</EmptyTitle>
-                        <EmptyDescription>
-                          Start building your diagram!
-                        </EmptyDescription>
-                      </EmptyHeader>
-                      <EmptyContent>
-                        <Button onClick={() => addTable()}>
-                          <HugeiconsIcon
-                            icon={PlusSignIcon}
-                            data-icon="inline-start"
-                          />
-                          Add table
-                        </Button>
-                      </EmptyContent>
-                    </Empty>
-                  ) : !filteredTables.length ? (
-                    <Empty>
-                      <EmptyHeader>
-                        <EmptyTitle>No matches</EmptyTitle>
-                        <EmptyDescription>
-                          No table names contain “{tableQuery}”.
-                        </EmptyDescription>
-                      </EmptyHeader>
-                    </Empty>
-                  ) : !(schema.groups ?? []).length ? (
-                    filteredTables.map((table) => tableEntity(table))
-                  ) : (
-                    tableSections.map((section) => {
-                      const expanded =
-                        Boolean(tableQuery.trim()) ||
-                        !collapsedGroupIds.has(section.id);
-                      return (
-                        <Collapsible
-                          className={`entity-group ${expanded ? "open" : ""}`}
-                          key={section.id}
-                          isExpanded={expanded}
-                          onExpandedChange={(next) =>
-                            setCollapsedGroupIds((current) => {
-                              const ids = new Set(current);
-                              if (next) ids.delete(section.id);
-                              else ids.add(section.id);
-                              return ids;
-                            })
-                          }
-                        >
-                          <CollapsibleTrigger className="entity-group-head">
-                            <span
-                              className="entity-group-dot"
-                              style={{ background: section.accent }}
-                              aria-hidden="true"
-                            />
-                            <span className="entity-group-name">
-                              {section.name}
-                            </span>
-                            {section.prefix && (
-                              <span className="entity-group-keyword">
-                                {section.prefix}
-                              </span>
-                            )}
-                            {/* The bare number is unambiguous beside the list it
-                                counts; screen readers get the unit. */}
-                            <span
-                              className="entity-group-count"
-                              title={`${section.tables.length} ${section.tables.length === 1 ? "table" : "tables"}`}
-                              aria-label={`${section.tables.length} ${section.tables.length === 1 ? "table" : "tables"}`}
-                            >
-                              {section.tables.length}
-                            </span>
-                            <HugeiconsIcon
-                              icon={ArrowDown01Icon}
-                              className="entity-group-chevron"
-                              aria-hidden="true"
-                            />
-                          </CollapsibleTrigger>
-                          <CollapsibleContent>
-                            <div className="entity-group-body">
-                              {section.tables.length ? (
-                                section.tables.map((table) =>
-                                  tableEntity(table),
-                                )
-                              ) : (
-                                <p className="entity-group-empty">
-                                  No tables yet — assign one under Schema group.
-                                </p>
-                              )}
-                            </div>
-                          </CollapsibleContent>
-                        </Collapsible>
-                      );
-                    })
-                  )}
-                </ScrollArea>
-              </>
+              <TablesTab
+                tables={schema.tables}
+                filteredTables={filteredTables}
+                sections={tableSections}
+                hasGroups={Boolean((schema.groups ?? []).length)}
+                onAddTable={() => addTable()}
+                renderTable={tableEntity}
+              />
             ) : (
               <ScrollArea className="panel-body relationship-panel-body">
                 <InputGroup className="relationship-search">

@@ -3,12 +3,12 @@
 import type { Schema } from "@/app/lib/schema";
 import type { ValidationIssue } from "@/app/lib/validation";
 import { useLayout, useSchema } from "@/app/hooks";
-import { ExportModal } from "../../export-modal";
+import { ExportModal } from "./export";
 import {
   ImportModal,
   type ImportFormat,
   type ImportMessage,
-} from "../../import-modal";
+} from "./import";
 import { ShareModal } from "./share";
 import { ShortcutsModal } from "./shortcuts";
 
