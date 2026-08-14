@@ -198,6 +198,7 @@ button {
 
 /* ── Shell ─────────────────────────────────────────────────────────── */
 .app {
+  position: relative;
   height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -216,14 +217,55 @@ button {
 /* One row: identity, then commands, then actions. `min-height` rather than a
    fixed height so content can never be clipped by its own container — the
    previous fixed 65px held 45px of box against ~67px of stacked content. */
+/*
+ * A floating material rather than a strip the layout gives up: the canvas runs
+ * the full height of the window and the bar sits over it, the way a toolbar
+ * does above a document. Translucency is what makes that legible -- you can see
+ * the canvas continue underneath, so the bar reads as glass over the work
+ * rather than as a lid on it. It is also why the bar is out of flow: in flow
+ * there is nothing behind it and `backdrop-filter` blurs nothing.
+ *
+ * A larger surface than the dock, so it reads as thicker -- more blur, and the
+ * shadow that separates it from whatever passes beneath.
+ */
 .appbar {
-  flex: 0 0 auto;
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 30;
   min-height: var(--appbar-height);
   display: flex;
   align-items: center;
   gap: 14px;
   padding: 7px 16px;
-  border-bottom: 1px solid var(--hairline);
+  background: color-mix(in srgb, var(--surface-0) 72%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+}
+/*
+ * A scroll edge, not a divider. A hard 1px rule under floating chrome draws a
+ * line where the material's own edge should do the work; this fades out instead,
+ * so the bar dissolves into the canvas rather than being stamped onto it.
+ */
+.appbar::after {
+  content: "";
+  position: absolute;
+  inset: 100% 0 auto;
+  height: 12px;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--ink-1) 7%, transparent),
+    transparent
+  );
+}
+/*
+ * The same bargain the dock strikes: a blur over a canvas re-reads and re-blurs
+ * its backdrop on every frame of a pan, zoom or drag. Go opaque for the gesture
+ * and settle back when the pointer lifts.
+ */
+.app:has(.canvas-wrap.gesturing) .appbar {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   background: var(--surface-0);
 }
 .appbar-brand {
@@ -254,7 +296,9 @@ button {
    the row tightens, and "My diagrams" breaks at its space into two lines —
    which, against a `min-height` bar, silently makes the header taller than the
    token says it is. The name field below is the one that may shrink. */
-.appbar-crumb { flex: 0 0 auto; white-space: nowrap; color: var(--ink-1); }
+/* Vibrancy: over a translucent surface flat grey text goes soft, so the crumb
+   carries a little more weight than its size would otherwise ask for. */
+.appbar-crumb { flex: 0 0 auto; white-space: nowrap; color: var(--ink-1); font-weight: 500; }
 .appbar-slash { flex: 0 0 auto; color: var(--ink-3); }
 /* A borderless inline title field: Input's chrome only appears on hover/focus,
    which means resetting its background and pill radius too, not just the
@@ -316,9 +360,11 @@ button {
   min-height: 0;
   padding: 0 12px 14px;
 }
+/* Clears the app bar by hand: `.body` now runs to the top of the window, so
+   10px from its edge would put this underneath the floating bar. */
 .panel-reveal {
   position: absolute;
-  top: 10px;
+  top: calc(var(--appbar-height) + 10px);
   left: 10px;
   z-index: 10;
 }
@@ -1499,10 +1545,14 @@ button {
   [data-slot="button"]:active, [data-slot="toggle-group-item"]:active, .table-card,
   .project-card:hover, .project-card:active, .workspace-list a:hover, .workspace-list a:active,
   .template-card:hover { transform: none; } }
-@media (prefers-reduced-transparency: reduce) { .dock, [data-slot="dialog-overlay"], [data-slot="alert-dialog-overlay"], .workspace-topbar {
+@media (prefers-reduced-transparency: reduce) { .dock, [data-slot="dialog-overlay"], [data-slot="alert-dialog-overlay"], .workspace-topbar, .appbar {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
+  /* Solid, and the hairline comes back: with nothing showing through, the soft
+     edge has no material to belong to and the bar needs a stated border. */
+  .appbar { background: var(--surface-0); border-bottom: 1px solid var(--hairline); }
+  .appbar::after { display: none; }
   .workspace-topbar { background: var(--surface-0); }
   /* The context menu is a blurred material; make it opaque and drop the blur. */
   [data-slot="context-menu-content"] { background: var(--popover); }
@@ -1513,6 +1563,9 @@ button {
   .marquee { background: transparent; border-width: 2px; }
   [data-slot="dialog-overlay"], [data-slot="alert-dialog-overlay"] { background: color-mix(in srgb, var(--surface-0) 92%, transparent); } }
 @media (prefers-contrast: more) { .table-card, [data-slot="dialog-content"], [data-slot="sidebar-container"], .dock { border-color: var(--ink-1); }
+  /* A defined edge beats a fade when contrast is what was asked for. */
+  .appbar { background: var(--surface-0); border-bottom: 1px solid var(--ink-1); }
+  .appbar::after { display: none; }
   [data-slot="context-menu-content"] { background: var(--popover); }
   :where(.table-card, .row-grip, .table-resize, .memo-card):focus-visible {
     outline-width: 3px;
