@@ -451,30 +451,6 @@ export function groupMembers(schema: Schema, groupId: string) {
   };
 }
 
-/**
- * Where a group's own origin may rest while it is dragged. Its members travel
- * with it, so the limit is the *assembly's* bounding box, not the group rect:
- * a table overhanging the right edge stops the group that much sooner. An
- * assembly wider than the world collapses to a single legal position rather
- * than to an inverted range.
- */
-export function groupDragBounds(schema: Schema, group: SchemaGroup, world: { width: number; height: number }) {
-  const { tables, memos } = groupMembers(schema, group.id);
-  const boxes = [
-    { x: group.x, y: group.y, width: group.width, height: group.height },
-    ...tables.map((table) => ({ x: table.x, y: table.y, width: tableWidth(table), height: tableHeight(table) })),
-    ...memos.map((memo) => ({ x: memo.x, y: memo.y, width: memo.width, height: memo.height })),
-  ];
-  const minX = group.x - Math.min(...boxes.map((box) => box.x));
-  const minY = group.y - Math.min(...boxes.map((box) => box.y));
-  return {
-    minX,
-    maxX: Math.max(minX, group.x + world.width - Math.max(...boxes.map((box) => box.x + box.width))),
-    minY,
-    maxY: Math.max(minY, group.y + world.height - Math.max(...boxes.map((box) => box.y + box.height))),
-  };
-}
-
 export const RELATIONSHIP_CONSTRAINTS: RelationshipConstraint[] = [
   "No action",
   "Restrict",

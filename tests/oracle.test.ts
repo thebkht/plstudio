@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateDDL, generateDML } from "@/app/lib/generators";
 import { appendCreateTable, parseCreateTable } from "@/app/lib/parser";
-import { groupDragBounds, groupPrefix, makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, normalizeMemos, normalizeGroups, normalizeRelationships, normalizeTables, prefixTableName, SCHEMA_FORMAT_VERSION, stripTablePrefix, tableHeight, tableWidth, typeString } from "@/app/lib/schema";
+import { groupPrefix, makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, normalizeMemos, normalizeGroups, normalizeRelationships, normalizeTables, prefixTableName, SCHEMA_FORMAT_VERSION, stripTablePrefix, tableHeight, tableWidth, typeString } from "@/app/lib/schema";
 import { validateCheckExpression, validateSchema, validateTypeSpec } from "@/app/lib/validation";
 
 describe("Oracle schema model", () => {
@@ -199,35 +199,6 @@ describe("Oracle schema model", () => {
     const normalized = normalizeGroups({ ...makeDemoSchema(), groups: [group], memos: [kept, orphan] });
     expect(normalized.memos?.[0].schemaId).toBe(group.id);
     expect(normalized.memos?.[1].schemaId).toBeUndefined();
-  });
-
-  it("stops a group where its outermost member meets the world edge", () => {
-    const world = { width: 2000, height: 2000 };
-    const group = makeSchemaGroup("Core", 400, 400, 0);
-    const bare = { ...makeDemoSchema(), tables: [], groups: [group] };
-    expect(groupDragBounds(bare, group, world)).toMatchObject({ minX: 0, maxX: world.width - group.width, minY: 0, maxY: world.height - group.height });
-
-    // A table hanging 100px past the right edge costs the group 100px of travel,
-    // and one starting 40px above the top keeps it 40px off the top edge.
-    const overhanging = { ...makeTable("OVER", group.x + group.width - tableWidth({ name: "OVER" }) + 100, group.y + 20, 0) };
-    const above = { ...makeTable("ABOVE", group.x + 20, group.y - 40, 0) };
-    const withMembers = { ...bare, tables: [{ ...overhanging, schemaId: group.id }, { ...above, schemaId: group.id }] };
-    const bounds = groupDragBounds(withMembers, group, world);
-    expect(bounds.maxX).toBe(world.width - group.width - 100);
-    expect(bounds.minY).toBe(40);
-
-    // An unassigned table sitting inside the rect is not a member, so it does not bind.
-    const bystander = { ...bare, tables: [overhanging] };
-    expect(groupDragBounds(bystander, group, world).maxX).toBe(world.width - group.width);
-  });
-
-  it("collapses to a single legal origin when the assembly outgrows the world", () => {
-    const world = { width: 600, height: 600 };
-    const group = makeSchemaGroup("Core", 100, 100, 0);
-    const schema = { ...makeDemoSchema(), tables: [{ ...makeTable("WIDE", 0, 0, 0), schemaId: group.id }], groups: [group] };
-    const bounds = groupDragBounds(schema, group, world);
-    expect(bounds.maxX).toBe(bounds.minX);
-    expect(bounds.maxY).toBe(bounds.minY);
   });
 
   it("blocks foreign keys into composite primary keys", () => {

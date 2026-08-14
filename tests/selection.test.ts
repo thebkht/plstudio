@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateDDL } from "@/app/lib/generators";
-import { makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, normalizeRelationships, tableHeight, tableWidth, type Schema } from "@/app/lib/schema";
-import { EMPTY_SELECTION, marqueeSelection, moveSelection, movingEntities, pruneSelection, rectFromPoints, removeSelection, selectAll, selectionBounds, selectionCount, selectionDragBounds, selectionSchema, selectOnly, toggleSelected } from "@/app/lib/selection";
+import { makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, normalizeRelationships, tableWidth, type Schema } from "@/app/lib/schema";
+import { EMPTY_SELECTION, marqueeSelection, moveSelection, movingEntities, pruneSelection, rectFromPoints, removeSelection, selectAll, selectionBounds, selectionCount, selectionSchema, selectOnly, toggleSelected } from "@/app/lib/selection";
 
 /**
  * A group at (400,400) sized 760x520, holding one table and one memo, with a
@@ -93,29 +93,6 @@ describe("moving a selection", () => {
     const { schema, group, inside } = grouped();
     const moved = moveSelection(schema, selectOnly("table", inside.id), -300, 0);
     expect(moved.tables[0].schemaId).toBe(group.id);
-  });
-
-  it("bounds the drag by the assembly, not by any one card", () => {
-    const world = { width: 2000, height: 2000 };
-    const { schema, group, inside, outside } = grouped();
-    const selection = { tables: [inside.id, outside.id], memos: [], groups: [] };
-    const bounds = selectionDragBounds(schema, selection, world);
-    // The left edge is the inner table's, the right edge is the outer table's.
-    expect(bounds.minDx).toBe(-inside.x);
-    expect(bounds.maxDx).toBe(world.width - (outside.x + tableWidth(outside)));
-
-    // A group drags by its own bounding box, members included.
-    const whole = selectionDragBounds(schema, selectOnly("group", group.id), world);
-    expect(whole.minDy).toBe(-group.y);
-    const bottom = Math.max(group.y + group.height, inside.y + tableHeight(inside));
-    expect(whole.maxDy).toBe(world.height - bottom);
-  });
-
-  it("collapses to a single legal delta when the assembly outgrows the world", () => {
-    const { schema } = grouped();
-    const bounds = selectionDragBounds(schema, selectAll(schema), { width: 500, height: 500 });
-    expect(bounds.maxDx).toBe(bounds.minDx);
-    expect(bounds.maxDy).toBe(bounds.minDy);
   });
 
   it("reports the box drawn around the whole set", () => {

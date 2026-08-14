@@ -134,26 +134,6 @@ export function selectionBounds(schema: Schema, selection: CanvasSelection): Rec
 }
 
 /**
- * How far the selection may travel, as a *delta* range: a set of cards has no
- * single origin to clamp, so the limit is the assembly's bounding box against
- * the world -- the rule `groupDragBounds` applies to one group and its members,
- * generalised to an arbitrary set. An assembly larger than the world collapses
- * to a single legal delta rather than to an inverted range.
- */
-export function selectionDragBounds(schema: Schema, selection: CanvasSelection, world: { width: number; height: number }) {
-  const bounds = selectionBounds(schema, selection);
-  if (!bounds) return { minDx: 0, maxDx: 0, minDy: 0, maxDy: 0 };
-  const minDx = -bounds.x;
-  const minDy = -bounds.y;
-  return {
-    minDx,
-    maxDx: Math.max(minDx, world.width - (bounds.x + bounds.width)),
-    minDy,
-    maxDy: Math.max(minDy, world.height - (bounds.y + bounds.height)),
-  };
-}
-
-/**
  * Shift the selection by a delta.
  *
  * Deliberately no overlap push-out and no group-membership reassignment, for
