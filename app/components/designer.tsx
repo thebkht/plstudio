@@ -7,6 +7,7 @@ import { SettingsProvider } from "@/app/components/designer/context/settings-con
 import { LayoutProvider } from "@/app/components/designer/context/layout-context";
 import { SelectProvider } from "@/app/components/designer/context/select-context";
 import { TransformProvider } from "@/app/components/designer/context/transform-context";
+import { SaveStateProvider } from "@/app/components/designer/context/save-state-context";
 
 /**
  * The editor's entry point. This file is deliberately thin: it exists to mount
@@ -22,7 +23,9 @@ export default function Designer(props: DesignerProps) {
       <LayoutProvider>
         <SelectProvider>
           <TransformProvider>
-            <Workspace {...props} />
+            <SaveStateProvider>
+              <Workspace {...props} />
+            </SaveStateProvider>
           </TransformProvider>
         </SelectProvider>
       </LayoutProvider>

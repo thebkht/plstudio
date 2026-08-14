@@ -143,7 +143,6 @@ import {
   createSaveQueue,
   type SaveQueue,
   type SaveResult,
-  type SaveState,
 } from "@/app/lib/save-queue";
 import {
   EMPTY_SELECTION,
@@ -236,6 +235,7 @@ import { TableCard } from "./table-card";
 import {
   useDesignerSettings,
   useLayout,
+  useSaveState,
   useSelect,
   useTransform,
 } from "@/app/hooks";
@@ -466,8 +466,7 @@ export default function Workspace({
     x: number;
     y: number;
   } | null>(null);
-  const [dirty, setDirty] = useState(false);
-  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const { dirty, setDirty, saveState, setSaveState } = useSaveState();
   useEffect(() => {
     const repaired = prepareCanvasSchema(initialSchema);
     const changed = repaired.tables.some(
