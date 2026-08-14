@@ -2732,6 +2732,12 @@ export default function Designer({
    */
   const onCanvasDownCapture = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!panMode || event.button !== 0) return;
+    // Only the canvas itself is pannable surface. The dock and the selection
+    // toolbar are chrome floating over it, and swallowing their presses here
+    // left the hand tool unable to switch itself off — its own button never saw
+    // the click that would have toggled it.
+    const target = event.target as Element;
+    if (target !== event.currentTarget && !target.closest(".canvas")) return;
     event.preventDefault();
     event.stopPropagation();
     startPan(event);

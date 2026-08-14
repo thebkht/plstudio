@@ -57,7 +57,7 @@ export function createSaveQueue({
   onRevision,
   onState,
   onResult,
-  delay = 1200,
+  delay = 3000,
 }: {
   write: (
     schema: Schema,
@@ -70,6 +70,12 @@ export function createSaveQueue({
   onState: (state: SaveState) => void;
   /** Every outcome, so the caller can raise the conflict toast exactly once. */
   onResult?: (result: SaveResult) => void;
+  /**
+   * How long a burst of edits has to settle before it is written. Long enough
+   * that a pause for thought mid-edit is not mistaken for the end of one — the
+   * timer re-arms on every edit, so this is the cost of the quietest gap, not
+   * of the whole burst. Explicit Save bypasses it via `flush`.
+   */
   delay?: number;
 }): SaveQueue {
   let pending: Schema | null = null;
