@@ -4130,64 +4130,56 @@ export default function Designer({
 
   return (
     <div className={`app ${readOnly ? "share-read-only" : ""}`}>
-      <header className="appbar">
+      <header className="appbar items-center">
         <a className="appbar-brand" aria-label="PLStudio home" href="/">
           <BrandMark compact />
         </a>
-        <div className="appbar-title">
-          <HugeiconsIcon
-            icon={DatabaseIcon}
-            size={17}
-            className="appbar-title-icon"
-          />
-          <a
-            className="appbar-crumb"
-            href={workspaceSlug ? `/${workspaceSlug}` : "/"}
-          >
-            {workspaceSlug ? "Diagrams" : "My diagrams"}
-          </a>
-          <span className="appbar-slash">/</span>
-          <Input
-            className="appbar-name"
-            aria-label="Diagram name"
-            value={schema.name}
-            onChange={(event) => {
-              if (readOnly) return;
-              commitWith((current) => ({
-                ...current,
-                name: event.target.value,
-              }));
-            }}
-          />
-        </div>
-        {/* Marks where the document's identity ends and the verbs begin: on one
-            row the name and "File" would otherwise read as one strip of words.
-            An explicit height, not `h-full` — the bar sets only `min-height`, so
-            a percentage height resolves against nothing and the rule vanishes. */}
-        <Separator orientation="vertical" className="h-full" />
-        <Menubar
-          label="Diagram menus"
-          count={menus.length}
-          isOpen={openMenu !== null}
-          onStepOpen={(direction) => {
-            const current = menus.findIndex((menu) => menu.name === openMenu);
-            setOpenMenu(
-              menus[(current + direction + menus.length) % menus.length].name,
-            );
-          }}
-        >
-          {menus.map((menu, index) => (
-            <Menu
-              key={menu.name}
-              name={menu.name}
-              index={index}
-              items={menu.items}
-              open={openMenu === menu.name}
-              anyOpen={openMenu !== null}
-              onOpenChange={setOpenMenu}
+        <div className="flex flex-col">
+          <div className="appbar-title">
+            <a
+              className="appbar-crumb"
+              href={workspaceSlug ? `/${workspaceSlug}` : "/"}
+            >
+              {workspaceSlug ? "Diagrams" : "My diagrams"}
+            </a>
+            <span className="appbar-slash">/</span>
+            <Input
+              className="appbar-name"
+              aria-label="Diagram name"
+              value={schema.name}
+              onChange={(event) => {
+                if (readOnly) return;
+                commitWith((current) => ({
+                  ...current,
+                  name: event.target.value,
+                }));
+              }}
             />
-          ))}
-        </Menubar>
+          </div>
+          <Menubar
+            label="Diagram menus"
+            count={menus.length}
+            isOpen={openMenu !== null}
+            onStepOpen={(direction) => {
+              const current = menus.findIndex((menu) => menu.name === openMenu);
+              setOpenMenu(
+                menus[(current + direction + menus.length) % menus.length].name,
+              );
+            }}
+          >
+            {menus.map((menu, index) => (
+              <Menu
+                key={menu.name}
+                name={menu.name}
+                index={index}
+                items={menu.items}
+                open={openMenu === menu.name}
+                anyOpen={openMenu !== null}
+                onOpenChange={setOpenMenu}
+              />
+            ))}
+          </Menubar>
+        </div>
         <div className="appbar-actions">
           {/*
            * Feedback for save state: displays whether changes are saved,
