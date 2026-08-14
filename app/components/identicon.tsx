@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { AVATAR_GRID, avatarFace } from "@/app/lib/avatar";
+import { AVATAR_VIEWBOX, avatarFace } from "@/app/lib/avatar";
 
 /**
  * The generated face for an account with no picture. Drawn as inline SVG
@@ -9,14 +9,27 @@ import { AVATAR_GRID, avatarFace } from "@/app/lib/avatar";
  * Decorative by design: the surrounding avatar already carries the name in its
  * label, so this is hidden from assistive tech.
  */
-export const Identicon = memo(function Identicon({ seed, className }: { seed?: string | null; className?: string }) {
-  const { background, foreground, cells } = avatarFace(seed);
+export const Identicon = memo(function Identicon({
+  seed,
+  variantIndex,
+  className,
+}: {
+  seed?: string | null;
+  variantIndex?: number;
+  className?: string;
+}) {
+  const { background, foreground, path } = avatarFace(seed, variantIndex);
   return (
-    <svg viewBox={`0 0 ${AVATAR_GRID} ${AVATAR_GRID}`} className={className} aria-hidden focusable="false">
-      <rect width={AVATAR_GRID} height={AVATAR_GRID} fill={background} />
-      {cells.map(([column, row]) => (
-        <rect key={`${column}-${row}`} x={column} y={row} width="1" height="1" rx="0.22" fill={foreground} />
-      ))}
+    <svg
+      viewBox={`0 0 ${AVATAR_VIEWBOX} ${AVATAR_VIEWBOX}`}
+      className={className}
+      shapeRendering="crispEdges"
+      preserveAspectRatio="xMidYMid slice"
+      aria-hidden
+      focusable="false"
+    >
+      <rect width={AVATAR_VIEWBOX} height={AVATAR_VIEWBOX} fill={background} />
+      <path d={path} fill={foreground} />
     </svg>
   );
 });
