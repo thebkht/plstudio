@@ -49,7 +49,7 @@ export default function NavUser({
       onOpenChange={onOpenChange ?? setUncontrolled}
     >
       <Button variant="ghost" size="icon" aria-label="Account menu">
-        <Avatar size="sm">
+        <Avatar>
           {user?.image && <AvatarImage src={user.image} alt={name} />}
           <AvatarFallback className="overflow-hidden p-0">
             <Identicon seed={seed} className="size-full" />
@@ -58,7 +58,7 @@ export default function NavUser({
       </Button>
       <DropdownMenu placement="bottom end" className="w-auto min-w-56">
         <DropdownMenuLabel className="nav-user-label">
-          <Avatar size="sm">
+          <Avatar>
             {user?.image && <AvatarImage src={user.image} alt={name} />}
             <AvatarFallback className="overflow-hidden p-0">
               <Identicon seed={seed} className="size-full" />

@@ -11,6 +11,9 @@ import {
   PALETTE,
   primaryKeyColumns,
   SCHEMA_FORMAT_VERSION,
+  tableHeight,
+  tableWidth,
+  TABLE_WIDTH,
   type Column,
   type ForeignKeyRef,
   type GroupColor,
@@ -91,10 +94,10 @@ export function normalizeOracleType(rawType: string): { type: OracleType; size: 
     return { type: "NVARCHAR2", size: size || "100" };
   }
   if (upper === "CHAR") {
-    return { type: "CHAR", size: size || "" };
+    return { type: "CHAR", size: size || "1" };
   }
   if (upper === "NCHAR") {
-    return { type: "NCHAR", size: size || "" };
+    return { type: "NCHAR", size: size || "1" };
   }
   if (upper === "BOOLEAN" || upper === "BOOL" || upper === "BIT") {
     return { type: "CHAR", size: "1" };
@@ -140,7 +143,7 @@ export function normalizeOracleType(rawType: string): { type: OracleType; size: 
     return { type: "BLOB", size: "" };
   }
   if (upper === "RAW" || upper === "UUID" || upper === "GUID") {
-    return { type: "RAW", size: size || (upper === "UUID" || upper === "GUID" ? "16" : "") };
+    return { type: "RAW", size: size || "16" };
   }
   if (upper === "BFILE") {
     return { type: "BFILE", size: "" };
@@ -434,115 +437,213 @@ export function parseMermaidER(mermaidText: string, options: ParseOptions = {}):
     return { schema: null, warnings, errors };
   }
 
-  // Organize groups
-  const groups: SchemaGroup[] = [];
-  const groupMap = new Map<string, SchemaGroup>();
-
-  // Collect distinct group titles
-  const groupTitles = [...new Set(entities.map((e) => e.groupTitle).filter(Boolean))];
-  groupTitles.forEach((title, idx) => {
-    const group = makeSchemaGroup(
-      title,
-      80,
-      80,
-      idx % GROUP_COLORS.length,
-    );
-    group.color = GROUP_COLORS[idx % GROUP_COLORS.length];
-    groups.push(group);
-    groupMap.set(title!, group);
-  });
-
-  // Create tables and layout
+  // Create table instances first so we can measure their actual dimensions
   const tables: Table[] = [];
   const tablesByName = new Map<string, Table>();
 
-  // If groups exist, layout tables within groups
-  if (groups.length > 0) {
-    let currentY = 80;
-    const groupCols = 2; // 2 groups per row if wide, or stacked cleanly
+  entities.forEach((entity, idx) => {
+    const table = makeTable(entity.name, 0, 0, idx % PALETTE.length);
+    table.columns = entity.columns.length
+      ? entity.columns.map((c) => c.column)
+      : [makeColumn({ name: "ID", type: "NUMBER", size: "", notNull: true, pk: true })];
+
+    const pkCols = primaryKeyColumns(table);
+    table.keyStrategy = pkCols.length === 1 && pkCols[0].type === "NUMBER" ? "sequence-trigger" : "none";
+
+    tables.push(table);
+    tablesByName.set(normalizeIdentifier(table.name), table);
+  });
+
+  // Organize groups and compute dynamic layout
+  const groups: SchemaGroup[] = [];
+  const groupTitles = [...new Set(entities.map((e) => e.groupTitle).filter(Boolean))];
+
+  if (groupTitles.length > 0) {
+    // 1. Assign tables to groups
+    const groupTablesMap = new Map<string, Table[]>();
+    groupTitles.forEach((title, idx) => {
+      const group = makeSchemaGroup(title!, 80, 80, idx % GROUP_COLORS.length);
+      group.color = GROUP_COLORS[idx % GROUP_COLORS.length];
+      groups.push(group);
+
+      const memberEntities = entities.filter((e) => e.groupTitle === title);
+      const memberTables = memberEntities
+        .map((e) => tablesByName.get(normalizeIdentifier(e.name)))
+        .filter(Boolean) as Table[];
+
+      memberTables.forEach((t) => {
+        t.schemaId = group.id;
+      });
+      groupTablesMap.set(group.id, memberTables);
+    });
+
+    // 2. Compute group widths to arrange columns
+    const calcGroupWidth = (memberTables: Table[]) => {
+      const num = memberTables.length;
+      const tCols = num >= 6 ? 3 : num >= 2 ? 2 : 1;
+      let totalWidth = 60; // 30px left + 30px right padding
+      for (let c = 0; c < tCols; c++) {
+        const colTables = memberTables.filter((_, idx) => idx % tCols === c);
+        const colW = Math.max(
+          ...colTables.map((t) => Math.max(tableWidth(t), 280)),
+          280,
+        );
+        totalWidth += colW + (c > 0 ? 40 : 0);
+      }
+      return Math.max(380, totalWidth);
+    };
+
+    // Calculate column 0 max width for 2-column group placement
+    const col0Groups = groups.filter((_, idx) => idx % 2 === 0);
+    const col0Width = Math.max(
+      ...col0Groups.map((g) => calcGroupWidth(groupTablesMap.get(g.id) ?? [])),
+      780,
+    );
+
+    const nextGroupY = [80, 80];
 
     groups.forEach((group, gIdx) => {
-      const memberEntities = entities.filter((e) => e.groupTitle === group.name);
-      const groupCol = gIdx % groupCols;
-      const groupRow = Math.floor(gIdx / groupCols);
-
-      const numTables = memberEntities.length;
-      const tCols = numTables >= 6 ? 3 : 2;
+      const gCol = gIdx % 2;
+      const memberTables = groupTablesMap.get(group.id) ?? [];
+      const numTables = memberTables.length;
+      const tCols = numTables >= 6 ? 3 : numTables >= 2 ? 2 : 1;
       const tRows = Math.max(1, Math.ceil(numTables / tCols));
 
-      group.width = Math.max(380, 60 + tCols * 340);
-      group.height = Math.max(260, 90 + tRows * 280);
+      group.x = gCol === 0 ? 80 : 80 + col0Width + 60;
+      group.y = nextGroupY[gCol];
 
-      group.x = 80 + groupCol * (Math.max(380, 60 + 3 * 340) + 60);
-      group.y = currentY;
+      // Measure column widths
+      const colWidths: number[] = [];
+      for (let c = 0; c < tCols; c++) {
+        const colTables = memberTables.filter((_, idx) => idx % tCols === c);
+        const colW = Math.max(
+          ...colTables.map((t) => Math.max(tableWidth(t), 280)),
+          280,
+        );
+        colWidths.push(colW);
+      }
 
-      memberEntities.forEach((entity, eIdx) => {
-        const col = eIdx % tCols;
-        const row = Math.floor(eIdx / tCols);
+      // Measure row heights
+      const rowHeights: number[] = [];
+      for (let r = 0; r < tRows; r++) {
+        const rowTables = memberTables.filter(
+          (_, idx) => Math.floor(idx / tCols) === r,
+        );
+        const rowH = Math.max(
+          ...rowTables.map((t) => tableHeight(t)),
+          180,
+        );
+        rowHeights.push(rowH);
+      }
 
-        const x = group.x + 30 + col * 340;
-        const y = group.y + 60 + row * 280;
+      // Calculate table X and Y positions
+      const colX: number[] = [];
+      let curX = group.x + 30;
+      for (let c = 0; c < tCols; c++) {
+        colX.push(curX);
+        curX += colWidths[c] + 40;
+      }
 
-        const table = makeTable(entity.name, x, y, (gIdx * 3 + eIdx) % PALETTE.length);
-        table.schemaId = group.id;
-        table.columns = entity.columns.length
-          ? entity.columns.map((c) => c.column)
-          : [makeColumn({ name: "ID", type: "NUMBER", size: "", notNull: true, pk: true })];
+      const rowY: number[] = [];
+      let curY = group.y + 60;
+      for (let r = 0; r < tRows; r++) {
+        rowY.push(curY);
+        curY += rowHeights[r] + 40;
+      }
 
-        // Key strategy
-        const pkCols = primaryKeyColumns(table);
-        table.keyStrategy = pkCols.length === 1 && pkCols[0].type === "NUMBER" ? "sequence-trigger" : "none";
-
-        tables.push(table);
-        tablesByName.set(normalizeIdentifier(table.name), table);
+      memberTables.forEach((table, eIdx) => {
+        const c = eIdx % tCols;
+        const r = Math.floor(eIdx / tCols);
+        table.x = colX[c];
+        table.y = rowY[r];
       });
 
-      if (groupCol === groupCols - 1 || gIdx === groups.length - 1) {
-        // Advance currentY for next row of groups
-        const rowGroups = groups.slice(groupRow * groupCols, (groupRow + 1) * groupCols);
-        const maxHeight = Math.max(...rowGroups.map((g) => g.height), 260);
-        currentY += maxHeight + 60;
-      }
+      group.width = Math.max(
+        380,
+        colX[tCols - 1] + colWidths[tCols - 1] + 30 - group.x,
+      );
+      group.height = Math.max(
+        260,
+        rowY[tRows - 1] + rowHeights[tRows - 1] + 30 - group.y,
+      );
+
+      nextGroupY[gCol] = group.y + group.height + 60;
     });
 
-    // Handle any orphan entities without a group
-    const orphanEntities = entities.filter((e) => !e.groupTitle);
-    orphanEntities.forEach((entity, idx) => {
-      const col = idx % 4;
-      const row = Math.floor(idx / 4);
-      const table = makeTable(
-        entity.name,
-        80 + col * 340,
-        currentY + row * 280,
-        (groups.length + idx) % PALETTE.length,
+    // Handle any orphan tables without a group
+    const orphanTables = tables.filter((t) => !t.schemaId);
+    if (orphanTables.length > 0) {
+      let curOrphanY = Math.max(...nextGroupY) + 20;
+      const orphanCols = Math.min(
+        4,
+        Math.max(2, Math.ceil(Math.sqrt(orphanTables.length))),
       );
-      table.columns = entity.columns.length
-        ? entity.columns.map((c) => c.column)
-        : [makeColumn({ name: "ID", type: "NUMBER", size: "", notNull: true, pk: true })];
-      const pkCols = primaryKeyColumns(table);
-      table.keyStrategy = pkCols.length === 1 && pkCols[0].type === "NUMBER" ? "sequence-trigger" : "none";
-      tables.push(table);
-      tablesByName.set(normalizeIdentifier(table.name), table);
-    });
+      const orphanRows = Math.ceil(orphanTables.length / orphanCols);
+
+      for (let r = 0; r < orphanRows; r++) {
+        const rowTables = orphanTables.filter(
+          (_, idx) => Math.floor(idx / orphanCols) === r,
+        );
+        const rowH = Math.max(
+          ...rowTables.map((t) => tableHeight(t)),
+          180,
+        );
+        rowTables.forEach((table, c) => {
+          table.x = 80 + c * 340;
+          table.y = curOrphanY;
+        });
+        curOrphanY += rowH + 40;
+      }
+    }
   } else {
-    // No groups detected: simple responsive grid layout
-    const gridCols = Math.min(4, Math.max(2, Math.ceil(Math.sqrt(entities.length))));
-    entities.forEach((entity, idx) => {
-      const col = idx % gridCols;
-      const row = Math.floor(idx / gridCols);
-      const table = makeTable(
-        entity.name,
-        80 + col * 340,
-        80 + row * 280,
-        idx % PALETTE.length,
+    // No groups detected: responsive grid with dynamic table height and width
+    const gridCols = Math.min(
+      4,
+      Math.max(2, Math.ceil(Math.sqrt(tables.length))),
+    );
+    const gridRows = Math.ceil(tables.length / gridCols);
+
+    const colWidths: number[] = [];
+    for (let c = 0; c < gridCols; c++) {
+      const colTables = tables.filter((_, idx) => idx % gridCols === c);
+      const colW = Math.max(
+        ...colTables.map((t) => Math.max(tableWidth(t), 280)),
+        280,
       );
-      table.columns = entity.columns.length
-        ? entity.columns.map((c) => c.column)
-        : [makeColumn({ name: "ID", type: "NUMBER", size: "", notNull: true, pk: true })];
-      const pkCols = primaryKeyColumns(table);
-      table.keyStrategy = pkCols.length === 1 && pkCols[0].type === "NUMBER" ? "sequence-trigger" : "none";
-      tables.push(table);
-      tablesByName.set(normalizeIdentifier(table.name), table);
+      colWidths.push(colW);
+    }
+
+    const rowHeights: number[] = [];
+    for (let r = 0; r < gridRows; r++) {
+      const rowTables = tables.filter(
+        (_, idx) => Math.floor(idx / gridCols) === r,
+      );
+      const rowH = Math.max(
+        ...rowTables.map((t) => tableHeight(t)),
+        180,
+      );
+      rowHeights.push(rowH);
+    }
+
+    const colX: number[] = [];
+    let curX = 80;
+    for (let c = 0; c < gridCols; c++) {
+      colX.push(curX);
+      curX += colWidths[c] + 40;
+    }
+
+    const rowY: number[] = [];
+    let curY = 80;
+    for (let r = 0; r < gridRows; r++) {
+      rowY.push(curY);
+      curY += rowHeights[r] + 40;
+    }
+
+    tables.forEach((table, idx) => {
+      const c = idx % gridCols;
+      const r = Math.floor(idx / gridCols);
+      table.x = colX[c];
+      table.y = rowY[r];
     });
   }
 

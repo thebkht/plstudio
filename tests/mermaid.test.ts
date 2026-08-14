@@ -6,7 +6,8 @@ import {
   generateMermaidER,
 } from "@/app/lib/mermaid";
 import { parseCreateTable } from "@/app/lib/parser";
-import { makeDemoSchema, makeEmptySchema, makeTable } from "@/app/lib/schema";
+import { makeDemoSchema, makeEmptySchema, makeTable, tableHeight, tableWidth } from "@/app/lib/schema";
+import { validateSchema } from "@/app/lib/validation";
 
 const SAMPLE_DEPOSIT_CODE = `
 %% OMONAT (DEPOSIT) DOMENI - ER model
@@ -410,6 +411,28 @@ describe("Mermaid ER Parser & Importer", () => {
     const accountContractId = account?.columns.find((c) => c.name === "contract_id");
     expect(accountContractId?.fk?.tableId).toBe(depositContract?.id);
     expect(accountContractId?.fk?.columnId).toBe(contractIdCol?.id);
+
+    // Validate Oracle schema issues (CHAR size, identifiers, etc.) -> MUST HAVE 0 ERRORS
+    const validationIssues = validateSchema(schema);
+    const validationErrors = validationIssues.filter((i) => i.severity === "error");
+    expect(validationErrors).toEqual([]);
+
+    // Validate that every group's bounding box encompasses all its member tables without overflow
+    schema.groups?.forEach((group) => {
+      const memberTables = schema.tables.filter((t) => t.schemaId === group.id);
+      expect(memberTables.length).toBeGreaterThan(0);
+
+      memberTables.forEach((table) => {
+        const w = tableWidth(table);
+        const h = tableHeight(table);
+        // Table top-left must be inside group
+        expect(table.x).toBeGreaterThanOrEqual(group.x);
+        expect(table.y).toBeGreaterThanOrEqual(group.y);
+        // Table bottom-right must be inside group
+        expect(table.x + w).toBeLessThanOrEqual(group.x + group.width + 1);
+        expect(table.y + h).toBeLessThanOrEqual(group.y + group.height + 1);
+      });
+    });
   });
 
 
