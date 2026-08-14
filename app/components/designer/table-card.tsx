@@ -143,6 +143,7 @@ export const TableCard = memo(function TableCard({
   onSelect,
   onHeaderDown,
   onResizeDown,
+  onResizeKeyDown,
   onResetWidth,
   onKeyDown,
   onStartLink,
@@ -184,6 +185,7 @@ export const TableCard = memo(function TableCard({
   onSelect: (tableId: string) => void;
   onHeaderDown: (event: ReactPointerEvent<HTMLDivElement>, tableId: string) => void;
   onResizeDown: (event: ReactPointerEvent<HTMLButtonElement>, tableId: string) => void;
+  onResizeKeyDown: (event: KeyboardEvent<HTMLButtonElement>, tableId: string) => void;
   onResetWidth: (tableId: string) => void;
   onKeyDown: (event: KeyboardEvent<HTMLDivElement>, tableId: string) => void;
   onStartLink: (event: ReactPointerEvent, tableId: string, columnId: string, columnIndex: number) => void;
@@ -386,9 +388,10 @@ export const TableCard = memo(function TableCard({
           <button
             type="button"
             className={`table-resize ${resizing ? "resizing" : ""}`}
-            aria-label={`Resize ${table.name}. Double-click to fit the name.`}
+            aria-label={`Resize ${table.name}. Left and Right arrows resize, Shift for larger steps. Double-click to fit the name.`}
             title="Drag to resize · double-click to reset"
             onPointerDown={(event) => onResizeDown(event, table.id)}
+            onKeyDown={(event) => onResizeKeyDown(event, table.id)}
             onDoubleClick={() => onResetWidth(table.id)}
           >
             <span className="table-resize-grip" aria-hidden="true" />

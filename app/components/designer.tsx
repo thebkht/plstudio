@@ -295,11 +295,21 @@ const MEMO_COLORS: {
   background: string;
   border: string;
 }[] = [
-  { id: "yellow", label: "Yellow", background: "#fff7bf", border: "#6b58f5" },
-  { id: "blue", label: "Blue", background: "#dff3ff", border: "#287da8" },
-  { id: "green", label: "Green", background: "#e8f7d7", border: "#72b92d" },
-  { id: "pink", label: "Pink", background: "#ffe4e9", border: "#d85d78" },
+  { id: "yellow", label: "Yellow", background: "var(--memo-yellow-surface)", border: "var(--memo-yellow-edge)" },
+  { id: "blue", label: "Blue", background: "var(--memo-blue-surface)", border: "var(--memo-blue-edge)" },
+  { id: "green", label: "Green", background: "var(--memo-green-surface)", border: "var(--memo-green-edge)" },
+  { id: "pink", label: "Pink", background: "var(--memo-pink-surface)", border: "var(--memo-pink-edge)" },
 ];
+
+/** How far one arrow-key press resizes a handle; Shift takes a coarse step. */
+const RESIZE_STEP = 8;
+const RESIZE_STEP_COARSE = 32;
+/** Arrow-key deltas for the resize handles, which are otherwise pointer-only. */
+const resizeDelta = (event: React.KeyboardEvent) => {
+  const step = event.shiftKey ? RESIZE_STEP_COARSE : RESIZE_STEP;
+  const deltas: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+  return deltas[event.key] ?? null;
+};
 
 /**
  * Whether a dropped card's centre lands inside a group. The header strip is
@@ -527,6 +537,13 @@ export default function Designer({
     [selectSingle],
   );
   const [editingMemoId, setEditingMemoId] = useState<string | null>(null);
+  /**
+   * Memos that have held text at some point. A memo left blank was never really
+   * created, so blurring it discards it; one the user has just emptied is a memo
+   * they are still editing, and silently deleting it on a stray click away would
+   * destroy work. Seeded on focus so memos loaded from the document count too.
+   */
+  const memoHadText = useRef(new Set<string>());
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   /** Live position of the table under the pointer; schema is written once on release. */
@@ -2736,6 +2753,20 @@ export default function Designer({
    * Width-only resize from the card's right edge — a card's height is derived
    * from its column count, so there is nothing vertical to drag.
    */
+  /** A table resizes on one axis, so only the horizontal arrows do anything. */
+  const onTableResizeKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLButtonElement>, tableId: string) => {
+      const delta = resizeDelta(event);
+      if (!delta || !delta[0]) return;
+      const table = schemaRef.current.tables.find((item) => item.id === tableId);
+      if (!table) return;
+      event.preventDefault();
+      event.stopPropagation();
+      commitTableWidth(tableId, liveWidthRef.current(table) + delta[0]);
+    },
+    [commitTableWidth],
+  );
+
   const onTableResizeDown = useCallback(
     (event: React.PointerEvent<HTMLButtonElement>, tableId: string) => {
       if (event.button !== 0 || readOnly) return;
@@ -3282,7 +3313,7 @@ export default function Designer({
   /**
    * One write at a time, newest snapshot wins, and each response's revision
    * seeds the next request — see `createSaveQueue` for why that last part is
-   * what keeps an autosave from conflicting with itself.
+   * what keeps consecutive saves from conflicting with themselves.
    *
    * Built once per project. Everything it needs that changes goes through a
    * ref, so the queue is never torn down mid-write.
@@ -3336,19 +3367,14 @@ export default function Designer({
   const saveQueue = saveQueueRef.current;
 
   /**
-   * An autosave says nothing when it works — a toast per keystroke-batch is
-   * noise, and the badge already reports the state. Only an explicit save is
-   * congratulated, and only a problem interrupts.
+   * Manual save feedback.
    */
-  const [explicitSave, setExplicitSave] = useState(false);
   announceSaveRef.current = (result) => {
     if (result.status === "saved") {
       setDirty(false);
-      if (explicitSave) toast.success("Project saved.");
-      setExplicitSave(false);
+      toast.success("Project saved.");
       return;
     }
-    setExplicitSave(false);
     if (result.status === "conflict") {
       toast.error("This project changed elsewhere.", {
         description: "Saving now would overwrite the other changes.",
@@ -3362,38 +3388,23 @@ export default function Designer({
 
   const save = (overwrite = false) => {
     if (readOnly) return Promise.resolve();
-    setExplicitSave(true);
     return saveQueue.flush(schemaRef.current, { overwrite });
   };
-
-  /**
-   * The autosave itself: every edit of this client's re-arms the debounce, so
-   * a burst of typing writes once when it stops. Gated on `dirty` so a
-   * collaborator's edit does not trigger a write here — the collab server
-   * already mirrors those into the same file.
-   */
-  useEffect(() => {
-    if (readOnly || !dirty) return;
-    saveQueue.push(schema);
-  }, [dirty, readOnly, saveQueue, schema]);
 
   useEffect(() => () => saveQueue.cancel(), [saveQueue]);
 
   /**
-   * A tab closed mid-debounce would lose the edits still waiting it out, so
-   * spend the last moment writing them. `keepalive` is what lets the request
-   * outlive the document.
+   * Warn before closing the tab or navigating away if there are unsaved changes.
    */
   useEffect(() => {
-    if (readOnly) return;
-    const onHide = () => {
-      if (document.visibilityState !== "hidden") return;
-      if (saveQueue.state !== "pending") return;
-      void saveQueue.flush(schemaRef.current);
+    if (!dirty || readOnly) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
     };
-    document.addEventListener("visibilitychange", onHide);
-    return () => document.removeEventListener("visibilitychange", onHide);
-  }, [readOnly, saveQueue]);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [dirty, readOnly]);
 
   /**
    * Whatever the canvas selection currently is, remove it — in one commit, so
@@ -4051,29 +4062,36 @@ export default function Designer({
                 onOpenChange={setOpenMenu}
               />
             ))}
-            {/* The one piece of feedback autosave gets, since it is otherwise silent. */}
-            <Badge
-              variant={
-                saveState === "conflict" || saveState === "failed"
-                  ? "destructive"
-                  : dirty
-                    ? "secondary"
-                    : "ghost"
-              }
-            >
-              {saveState === "saving"
-                ? "Saving…"
-                : saveState === "conflict"
-                  ? "Conflict"
-                  : saveState === "failed"
-                    ? "Not saved"
-                    : dirty
-                      ? "Unsaved changes"
-                      : "Saved"}
-            </Badge>
           </div>
         </div>
         <div className="appbar-actions">
+          {/*
+           * Feedback for save state: displays whether changes are saved,
+           * unsaved, saving, or encountered a conflict/error. Clicking when
+           * dirty saves the project.
+           */}
+          <Badge
+            variant={
+              saveState === "conflict" || saveState === "failed"
+                ? "destructive"
+                : dirty
+                  ? "secondary"
+                  : "ghost"
+            }
+            className={dirty && !readOnly ? "cursor-pointer select-none" : ""}
+            onClick={dirty && !readOnly ? () => void save() : undefined}
+            title={dirty && !readOnly ? "Click to save changes (⌘S)" : undefined}
+          >
+            {saveState === "saving"
+              ? "Saving…"
+              : saveState === "conflict"
+                ? "Conflict"
+                : saveState === "failed"
+                  ? "Not saved"
+                  : dirty
+                    ? "Unsaved changes"
+                    : "Saved"}
+          </Badge>
           <PeerAvatars peers={peers} status={collabStatus} />
           <Button className="share-btn" onClick={() => setModal("share")}>
             <HugeiconsIcon icon={Share08Icon} size={15} /> Share
@@ -4145,12 +4163,14 @@ export default function Designer({
                     </InputGroupAddon>
                     <InputGroupInput
                       aria-label="Search tables"
-                      placeholder="Search..."
+                      placeholder="Search tables"
                       value={tableQuery}
                       onChange={(event) => setTableQuery(event.target.value)}
                     />
                   </InputGroup>
-                  <Button variant="ghost" size="sm" onClick={() => addTable()}>
+                  {/* The panel's primary action, so it carries more weight
+                      than the search field it sits beside. */}
+                  <Button variant="outline" size="sm" onClick={() => addTable()}>
                     <HugeiconsIcon
                       icon={PlusSignIcon}
                       data-icon="inline-start"
@@ -4224,7 +4244,13 @@ export default function Designer({
                                 {section.prefix}
                               </span>
                             )}
-                            <span className="entity-group-count">
+                            {/* The bare number is unambiguous beside the list it
+                                counts; screen readers get the unit. */}
+                            <span
+                              className="entity-group-count"
+                              title={`${section.tables.length} ${section.tables.length === 1 ? "table" : "tables"}`}
+                              aria-label={`${section.tables.length} ${section.tables.length === 1 ? "table" : "tables"}`}
+                            >
                               {section.tables.length}
                             </span>
                             <HugeiconsIcon
@@ -4917,9 +4943,16 @@ export default function Designer({
                   <button
                     type="button"
                     className="schema-group-resize"
-                    aria-label={`Resize schema group ${group.name}`}
+                    aria-label={`Resize schema group ${group.name}. Arrow keys resize, Shift for larger steps.`}
                     disabled={readOnly}
                     onPointerDown={(event) => onGroupResizeDown(event, group)}
+                    onKeyDown={(event) => {
+                      const delta = resizeDelta(event);
+                      if (!delta) return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      commitGroupSize(group.id, position.width + delta[0], position.height + delta[1]);
+                    }}
                   />
                 </section>
               );
@@ -4978,7 +5011,6 @@ export default function Designer({
                       size={14}
                       aria-hidden="true"
                     />
-                    <span className="memo-drag-label">Memo</span>
                     <div
                       className="memo-actions"
                       onPointerDown={(event) => event.stopPropagation()}
@@ -5024,23 +5056,34 @@ export default function Designer({
                     onFocus={() => {
                       setSelection(selectOnly("memo", memo.id));
                       setEditingMemoId(memo.id);
+                      if (memo.text.trim()) memoHadText.current.add(memo.id);
                     }}
-                    onChange={(event) =>
-                      patchMemo(memo.id, { text: event.target.value })
-                    }
+                    onChange={(event) => {
+                      if (event.target.value.trim())
+                        memoHadText.current.add(memo.id);
+                      patchMemo(memo.id, { text: event.target.value });
+                    }}
                     onBlur={() => {
                       setEditingMemoId((current) =>
                         current === memo.id ? null : current,
                       );
-                      if (!memo.text.trim()) deleteMemo(memo.id);
+                      if (!memo.text.trim() && !memoHadText.current.has(memo.id))
+                        deleteMemo(memo.id);
                     }}
                     onPointerDown={(event) => event.stopPropagation()}
                   />
                   <button
                     type="button"
                     className="memo-resize"
-                    aria-label="Resize memo"
+                    aria-label="Resize memo. Arrow keys resize, Shift for larger steps."
                     onPointerDown={(event) => onMemoResizeDown(event, memo)}
+                    onKeyDown={(event) => {
+                      const delta = resizeDelta(event);
+                      if (!delta) return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      commitMemoSize(memo.id, position.width + delta[0], position.height + delta[1]);
+                    }}
                   />
                   {editingMemoId === memo.id && (
                     <span className="memo-edit-hint">Editing</span>
@@ -5121,6 +5164,7 @@ export default function Designer({
                   onSelect={selectTable}
                   onHeaderDown={onHeaderDown}
                   onResizeDown={onTableResizeDown}
+                  onResizeKeyDown={onTableResizeKeyDown}
                   onResetWidth={resetTableWidth}
                   onKeyDown={onCardKeyDown}
                   onStartLink={startLinking}

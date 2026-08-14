@@ -91,6 +91,20 @@
   --shadow-card: 0 1px 2px rgb(18 73 94 / 0.05), 0 6px 16px -8px rgb(18 73 94 / 0.14);
   --shadow-card-hover: 0 2px 4px rgb(18 73 94 / 0.06), 0 14px 28px -12px rgb(18 73 94 / 0.2);
 
+  /* Memo palette. Four peers, so they share a lightness and a chroma and
+     differ only in hue -- the old set ranged from a near-white yellow to a
+     mid pink, which read as a ranking. Each memo's border, its swatch and its
+     selected outline are the same value, so the control shows what it makes. */
+  --memo-ink: #322c28;
+  --memo-yellow-surface: #f4efdc;
+  --memo-yellow-edge: #a88d19;
+  --memo-green-surface: #e3f4e6;
+  --memo-green-edge: #4ea464;
+  --memo-blue-surface: #e0f1fe;
+  --memo-blue-edge: #3598d4;
+  --memo-pink-surface: #fee8ef;
+  --memo-pink-edge: #ca6c93;
+
   /* Table card surfaces (zinc ramp, matching the diagram's neutral tone). */
   --table-surface: #f4f4f5;
   --table-ink: #27272a;
@@ -958,7 +972,7 @@ button {
   contain: layout paint style;
   border: 2px solid;
   border-radius: 10px;
-  color: #493c2d;
+  color: var(--memo-ink);
   box-shadow: 0 10px 18px rgb(51 43 34 / 13%);
   transform-origin: 0 0;
   transition: box-shadow var(--duration-base) var(--ease-out), border-color var(--duration-base) var(--ease-out);
@@ -966,7 +980,7 @@ button {
 .memo-card:hover, .memo-card.selected {
   box-shadow: 0 16px 26px rgb(51 43 34 / 18%);
 }
-.memo-card.selected { outline: 2px solid color-mix(in srgb, #287da8 72%, transparent); outline-offset: 3px; }
+.memo-card.selected { outline: 2px solid color-mix(in oklch, var(--primary) 72%, transparent); outline-offset: 3px; }
 .memo-toolbar {
   display: flex;
   align-items: center;
@@ -978,9 +992,16 @@ button {
   user-select: none;
   touch-action: none;
 }
+.memo-toolbar { border-bottom-color: color-mix(in srgb, var(--memo-ink) 15%, transparent); }
 .memo-toolbar svg { opacity: .7; }
-.memo-drag-label { flex: 1; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; opacity: .62; }
-.memo-actions { display: flex; align-items: center; gap: 4px; }
+/* The colour swatches and delete are chrome, not content: they arrive when the
+   memo is pointed at, selected, or holding focus, and stay out of the way of
+   the note the rest of the time. The toolbar strip itself always shows -- it is
+   the drag handle, so it has to be visible to be grabbed. */
+.memo-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; opacity: 0; transition: opacity var(--duration-base) var(--ease-out); }
+.memo-card:hover .memo-actions, .memo-card.selected .memo-actions, .memo-card:focus-within .memo-actions { opacity: 1; }
+/* Destructive action set apart from the decorative one beside it. */
+.memo-actions [aria-label="Delete memo"] { margin-left: 8px; }
 .memo-color {
   width: 18px;
   min-width: 18px;
@@ -989,11 +1010,12 @@ button {
   border: 1px solid rgb(73 60 45 / 20%);
   border-radius: 50%;
 }
-.memo-color[data-selected] { box-shadow: 0 0 0 2px #fff, 0 0 0 3px #493c2d; }
-.memo-color-yellow { background: #f6dc58; }
-.memo-color-blue { background: #72b8db; }
-.memo-color-green { background: #91cf4d; }
-.memo-color-pink { background: #e98b9f; }
+.memo-color { border-color: color-mix(in srgb, var(--memo-ink) 20%, transparent); }
+.memo-color[data-selected] { box-shadow: 0 0 0 2px #fff, 0 0 0 3px var(--memo-ink); }
+.memo-color-yellow { background: var(--memo-yellow-edge); }
+.memo-color-blue { background: var(--memo-blue-edge); }
+.memo-color-green { background: var(--memo-green-edge); }
+.memo-color-pink { background: var(--memo-pink-edge); }
 .memo-text {
   flex: 1;
   width: 100%;
@@ -1006,8 +1028,8 @@ button {
   color: inherit;
   font: 500 15px/1.45 var(--font-sans), sans-serif;
 }
-.memo-text::placeholder { color: rgb(73 60 45 / 52%); }
-.memo-edit-hint { position: absolute; right: 10px; bottom: 7px; color: rgb(73 60 45 / 46%); font-size: 10px; pointer-events: none; }
+.memo-text::placeholder { color: color-mix(in srgb, var(--memo-ink) 52%, transparent); }
+.memo-edit-hint { position: absolute; right: 10px; bottom: 7px; color: color-mix(in srgb, var(--memo-ink) 46%, transparent); font-size: 10px; pointer-events: none; }
 .memo-resize {
   position: absolute;
   right: 1px;
@@ -1016,7 +1038,7 @@ button {
   height: 18px;
   padding: 0;
   border: 0;
-  background: linear-gradient(135deg, transparent 0 47%, rgb(73 60 45 / 42%) 48% 53%, transparent 54% 62%, rgb(73 60 45 / 42%) 63% 68%, transparent 69%);
+  background: linear-gradient(135deg, transparent 0 47%, color-mix(in srgb, var(--memo-ink) 42%, transparent) 48% 53%, transparent 54% 62%, color-mix(in srgb, var(--memo-ink) 42%, transparent) 63% 68%, transparent 69%);
   cursor: nwse-resize;
   touch-action: none;
 }
