@@ -14,20 +14,13 @@ import {
   ArrowDown01Icon,
   ArrowLeft01Icon,
   ArrowRight01Icon,
-  ArrowTurnBackwardIcon,
-  ArrowTurnForwardIcon,
   DatabaseIcon,
   Delete02Icon,
-  Download04Icon,
   FingerPrintIcon,
-  FloppyDiskIcon,
   GitMergeIcon,
   GridViewIcon,
-  HandGrabIcon,
   Key01Icon,
-  Layers01Icon,
   Link01Icon,
-  Maximize01Icon,
   PanelLeftOpenIcon,
   PlusSignIcon,
   Search01Icon,
@@ -35,8 +28,6 @@ import {
   StickyNote01Icon,
   Table01Icon,
   Tag01Icon,
-  ZoomInAreaIcon,
-  ZoomOutAreaIcon,
 } from "@hugeicons/core-free-icons";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -92,7 +83,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import {
   Sidebar,
   SidebarContent,
@@ -185,7 +175,6 @@ import {
 import {
   ColumnCard,
   ColumnFlag,
-  DockButton,
   KEY_STRATEGY_LABEL,
   TableSummaryCard,
   type MenuItem,
@@ -205,6 +194,7 @@ import {
 } from "@/app/hooks";
 import { ControlPanel } from "./editor-header/control-panel";
 import { Modals } from "./editor-header/modal/modal";
+import { Dock } from "./editor-canvas/dock";
 import {
   DRAG_THRESHOLD,
   GRID_DOT_RADIUS,
@@ -319,7 +309,6 @@ export default function Workspace({
     stopAnimationRef,
     stopAnimation,
     animateTo,
-    settledZoom,
   } = useTransform();
   /** Live position of the table under the pointer; schema is written once on release. */
   const [dragPosition, setDragPosition] = useState<{
@@ -4535,118 +4524,19 @@ export default function Workspace({
             Proximity is a claim about relationship, so a command that moves the
             camera cannot sit among the ones that add tables.
           */}
-          <ButtonGroup className="dock" aria-label="Canvas controls">
-            <DockButton
-              label="Hand tool"
-              icon={HandGrabIcon}
-              shortcut="toggleHand"
-              isMac={isMac}
-              isActive={panMode}
-              onClick={() => setHandMode((on) => !on)}
-            />
-            <DockButton
-              label="Zoom out"
-              icon={ZoomOutAreaIcon}
-              shortcut="zoomOut"
-              isMac={isMac}
-              onClick={() => zoomBy(-0.1)}
-            />
-            <span className="dock-zoom">{Math.round(zoom * 100)}%</span>
-            <DockButton
-              label="Zoom in"
-              icon={ZoomInAreaIcon}
-              shortcut="zoomIn"
-              isMac={isMac}
-              onClick={() => zoomBy(0.1)}
-            />
-            <DockButton
-              label="Fit to screen"
-              icon={Maximize01Icon}
-              shortcut="fitView"
-              isMac={isMac}
-              onClick={fitView}
-            />
-            <Separator orientation="vertical" />
-            <DockButton
-              label="Undo"
-              icon={ArrowTurnBackwardIcon}
-              shortcut="undo"
-              isMac={isMac}
-              isDisabled={!canUndo}
-              disabledReason="Nothing to undo yet"
-              onClick={undo}
-            />
-            <DockButton
-              label="Redo"
-              icon={ArrowTurnForwardIcon}
-              shortcut="redo"
-              isMac={isMac}
-              isDisabled={!canRedo}
-              disabledReason="Nothing to redo"
-              onClick={redo}
-            />
-            <Separator orientation="vertical" />
-            <DockButton
-              label="Add table"
-              icon={Table01Icon}
-              shortcut="addTable"
-              isMac={isMac}
-              onClick={() => addTable()}
-            />
-            <DockButton
-              label="Add schema group"
-              icon={Layers01Icon}
-              shortcut="addGroup"
-              isMac={isMac}
-              onClick={addGroup}
-            />
-            <DockButton
-              label="Add memo"
-              icon={StickyNote01Icon}
-              shortcut="addMemo"
-              isMac={isMac}
-              onClick={addMemo}
-            />
-            <DockButton
-              label="Add junction table"
-              icon={Link01Icon}
-              shortcut="junction"
-              isMac={isMac}
-              isDisabled={!selected}
-              disabledReason="Select a table first"
-              onClick={makeJunction}
-            />
-            <Separator orientation="vertical" />
-            <DockButton
-              label="Tidy up layout"
-              icon={GridViewIcon}
-              shortcut="tidyLayout"
-              isMac={isMac}
-              onClick={autoLayout}
-            />
-            <DockButton
-              label="Save to database"
-              icon={FloppyDiskIcon}
-              shortcut="save"
-              isMac={isMac}
-              onClick={() => void save()}
-            />
-            <DockButton
-              label="Export"
-              icon={Download04Icon}
-              shortcut="export"
-              isMac={isMac}
-              onClick={() => setModal("export")}
-            />
-          </ButtonGroup>
-          {/*
-            The zoom readout is not itself a live region: it changes on every
-            frame of a ctrl-scroll, which would announce a flood. This settles
-            first and announces the number the gesture landed on.
-          */}
-          <span className="sr-only" aria-live="polite" aria-atomic="true">
-            {settledZoom}% zoom
-          </span>
+          <Dock
+            panMode={panMode}
+            onToggleHand={() => setHandMode((on) => !on)}
+            zoomBy={zoomBy}
+            fitView={fitView}
+            addTable={() => addTable()}
+            addGroup={addGroup}
+            addMemo={addMemo}
+            makeJunction={makeJunction}
+            hasSelectedTable={Boolean(selected)}
+            autoLayout={autoLayout}
+            save={save}
+          />
         </div>
       </SidebarProvider>
 
