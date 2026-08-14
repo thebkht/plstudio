@@ -111,7 +111,7 @@ const writeRelationship = (map: Y.Map<unknown>, relationship: Relationship) =>
   });
 
 const writeGroup = (map: Y.Map<unknown>, group: SchemaGroup) =>
-  writeFields(map, { id: group.id, name: group.name, x: group.x, y: group.y, width: group.width, height: group.height, color: group.color });
+  writeFields(map, { id: group.id, name: group.name, keyword: group.keyword, x: group.x, y: group.y, width: group.width, height: group.height, color: group.color });
 
 const writeMemo = (map: Y.Map<unknown>, memo: Memo) =>
   writeFields(map, { id: memo.id, text: memo.text, x: memo.x, y: memo.y, width: memo.width, height: memo.height, color: memo.color, schemaId: memo.schemaId });
@@ -145,7 +145,7 @@ const readRecord = <T>(map: Y.Map<unknown>, keys: readonly (keyof T & string)[])
 const COLUMN_KEYS = ["id", "name", "type", "size", "notNull", "pk", "unique", "defaultValue", "check", "comment"] as const;
 const TABLE_KEYS = ["id", "name", "x", "y", "color", "keyStrategy", "schemaId", "comment", "width"] as const;
 const RELATIONSHIP_KEYS = ["id", "startTableId", "startFieldId", "endTableId", "endFieldId", "fields", "name", "cardinality", "manyLabel", "updateConstraint", "deleteConstraint"] as const;
-const GROUP_KEYS = ["id", "name", "x", "y", "width", "height", "color"] as const;
+const GROUP_KEYS = ["id", "name", "keyword", "x", "y", "width", "height", "color"] as const;
 const MEMO_KEYS = ["id", "text", "x", "y", "width", "height", "color", "schemaId"] as const;
 
 /**

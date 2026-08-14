@@ -109,8 +109,16 @@ export function generateDDL(schema: Schema) {
       return `  ${sqlIdentifier(column.name).padEnd(columnNameWidth + 3)}${typeString(column).toLowerCase()}${identity}${attrs ? ` ${attrs}` : ""}`;
     });
     const group = table.schemaId ? groupsById.get(table.schemaId) : undefined;
-    const dataTablespace = group ? ` tablespace ${sqlIdentifier(group.name)}_data` : "";
-    const indexTablespace = group ? ` tablespace ${sqlIdentifier(group.name)}_index` : "";
+    /*
+     * The keyword is the module's short code, which is what a tablespace is
+     * actually named after; the group's display name is prose, and
+     * `MLL -- MULTI LANGUAGE TOOLS` normalizes to the unusable
+     * `mll___multi_language_tools_data`. Falling back to the name keeps every
+     * diagram written before keywords generating byte-identical DDL.
+     */
+    const tablespace = group ? sqlIdentifier(group.keyword?.trim() || group.name) : "";
+    const dataTablespace = group ? ` tablespace ${tablespace}_data` : "";
+    const indexTablespace = group ? ` tablespace ${tablespace}_index` : "";
     out.push(lines.join(",\n"), `)${dataTablespace};`, "--");
 
     if (pk.length)
