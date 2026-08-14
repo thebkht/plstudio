@@ -184,6 +184,37 @@ export function parseMermaidER(mermaidText: string, options: ParseOptions = {}):
   const rawLines = mermaidText.replace(/\r\n/g, "\n").split("\n");
   const entities: ParsedMermaidEntity[] = [];
   const relationships: ParsedMermaidRelationship[] = [];
+  const explicitFkCols = new Set<string>();
+
+  // Extract diagram title from top comments or title directive if present
+  let diagramTitle = "Imported Mermaid Schema";
+  const explicitTitleMatch =
+    mermaidText.match(/^\s*title\s+(.+)$/im) ??
+    mermaidText.match(/^\s*accTitle:\s*(.+)$/im);
+  if (explicitTitleMatch) {
+    diagramTitle = explicitTitleMatch[1].trim();
+  } else {
+    const firstComment = rawLines.find(
+      (l) =>
+        l.trim().startsWith("%%") &&
+        !l.trim().startsWith("%%{") &&
+        l.trim().length > 4,
+    );
+    if (firstComment) {
+      const cleaned = firstComment
+        .replace(/^%%\s*/, "")
+        .replace(/\s*-\s*ER\s*(?:model|diagram)$/i, "")
+        .trim();
+      if (
+        cleaned &&
+        cleaned.length >= 3 &&
+        !cleaned.includes("===") &&
+        !cleaned.includes("---")
+      ) {
+        diagramTitle = cleaned;
+      }
+    }
+  }
 
   let currentGroupTitle: string | undefined;
   let inEntity: ParsedMermaidEntity | null = null;
@@ -300,6 +331,10 @@ export function parseMermaidER(mermaidText: string, options: ParseOptions = {}):
         unique: isUk,
         comment: comment || undefined,
       });
+
+      if (isFk) {
+        explicitFkCols.add(col.id);
+      }
 
       inEntity.columns.push({
         column: col,
@@ -642,20 +677,26 @@ export function parseMermaidER(mermaidText: string, options: ParseOptions = {}):
     }
   });
 
-  // Resolve any self-referencing FK columns (e.g. `parent_contract_id FK`, `reversal_of FK`)
+  // Resolve self-referencing FK columns (e.g. `parent_contract_id FK`, `reversal_of FK`)
   tables.forEach((table) => {
     const tablePk = primaryKeyColumns(table)[0] ?? table.columns[0];
     if (!tablePk) return;
+    const tableNorm = normalizeIdentifier(table.name);
 
     table.columns.forEach((col) => {
       if (linkedChildCols.has(col.id)) return;
+      if (!explicitFkCols.has(col.id)) return; // MUST be explicitly marked FK
 
       const colNorm = normalizeIdentifier(col.name);
       const isSelfRef =
         colNorm.startsWith("PARENT_") ||
         colNorm.startsWith("REVERSAL_") ||
         colNorm.startsWith("PREV_") ||
-        colNorm.endsWith(`_${normalizeIdentifier(tablePk.name)}`);
+        colNorm.startsWith("ROOT_") ||
+        colNorm.startsWith("NEXT_") ||
+        colNorm === "PARENT_ID" ||
+        colNorm === "REVERSAL_OF" ||
+        colNorm.includes(tableNorm);
 
       if (isSelfRef && col.type === tablePk.type && col.id !== tablePk.id) {
         col.fk = { tableId: table.id, columnId: tablePk.id };
@@ -679,9 +720,89 @@ export function parseMermaidER(mermaidText: string, options: ParseOptions = {}):
     });
   });
 
+  // Resolve unlinked explicit FK columns pointing to other tables in the schema
+  tables.forEach((table) => {
+    table.columns.forEach((col) => {
+      if (linkedChildCols.has(col.id)) return;
+      if (!explicitFkCols.has(col.id)) return; // MUST be explicitly marked FK
+
+      const colNorm = normalizeIdentifier(col.name);
+
+      type TableCandidate = { target: Table; pk: Column; score: number };
+      const candidates: TableCandidate[] = [];
+
+      for (const candidateTable of tables) {
+        if (candidateTable.id === table.id) continue;
+        const candidatePk = getParentPk(candidateTable);
+        const candidatePkNorm = normalizeIdentifier(candidatePk.name);
+        const candidateTableNorm = normalizeIdentifier(candidateTable.name);
+
+        if (col.type !== candidatePk.type) continue;
+
+        let score = 0;
+
+        // Exact match of table name with column prefix (e.g. table OPERATION with column operation_id)
+        if (colNorm === `${candidateTableNorm}_ID`) {
+          score += 100;
+        }
+
+        // Exact match of PK name
+        if (colNorm === candidatePkNorm) {
+          score += 90;
+        }
+
+        // Column ends with _PK (e.g. target_contract_id ends with _contract_id)
+        if (colNorm.endsWith(`_${candidatePkNorm}`)) {
+          score += 75;
+        }
+
+        // Table name singular matches column prefix
+        if (
+          colNorm === `${candidateTableNorm.replace(/S$/, "")}_ID` ||
+          colNorm === `${candidateTableNorm.replace(/ES$/, "")}_ID`
+        ) {
+          score += 70;
+        }
+
+        // Column contains table name
+        if (colNorm.includes(candidateTableNorm)) {
+          score += 40;
+        }
+
+        if (score > 0) {
+          candidates.push({ target: candidateTable, pk: candidatePk, score });
+        }
+      }
+
+      candidates.sort((a, b) => b.score - a.score);
+      const best = candidates[0];
+
+      if (best) {
+        col.fk = { tableId: best.target.id, columnId: best.pk.id };
+        linkedChildCols.add(col.id);
+
+        const relId = nextId("rel");
+        importedRelationships.push({
+          id: relId,
+          startTableId: table.id,
+          startFieldId: col.id,
+          endTableId: best.target.id,
+          endFieldId: best.pk.id,
+          fields: [{ startFieldId: col.id, endFieldId: best.pk.id }],
+          name: `fk_${table.name}_${col.name}_${best.target.name}`,
+          cardinality: "many_to_one",
+          manyLabel: "n",
+          updateConstraint: "No action",
+          deleteConstraint: "No action",
+        });
+      }
+    });
+  });
+
+
   const importedSchema: Schema = {
     id: nextId("schema"),
-    name: "Imported Mermaid Schema",
+    name: diagramTitle,
     revision: 1,
     schemaFormatVersion: SCHEMA_FORMAT_VERSION,
     tables,

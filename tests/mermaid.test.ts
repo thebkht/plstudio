@@ -354,6 +354,9 @@ describe("Mermaid ER Parser & Importer", () => {
       "5-QATLAM: BOGLANISH, COMPLIANCE, GRAFIK",
     ]);
 
+    // Verify title
+    expect(schema.name).toBe("OMONAT (DEPOSIT) DOMENI");
+
     // Check specific table DEPOSIT_CONTRACT
     const depositContract = schema.tables.find((t) => t.name === "DEPOSIT_CONTRACT");
     expect(depositContract).toBeDefined();
@@ -369,6 +372,10 @@ describe("Mermaid ER Parser & Importer", () => {
 
     const partyIdCol = depositContract?.columns.find((c) => c.name === "party_id");
     expect(partyIdCol?.comment).toBe("PARTY - tashqi, FK yoq");
+    expect(partyIdCol?.fk).toBeNull(); // External domain, no false FK
+
+    const parentContractId = depositContract?.columns.find((c) => c.name === "parent_contract_id");
+    expect(parentContractId?.fk?.tableId).toBe(depositContract?.id); // Valid self-reference
 
     // Check OPERATION table
     const operation = schema.tables.find((t) => t.name === "OPERATION");
@@ -376,6 +383,18 @@ describe("Mermaid ER Parser & Importer", () => {
     const reqIdCol = operation?.columns.find((c) => c.name === "request_id");
     expect(reqIdCol?.unique).toBe(true);
     expect(reqIdCol?.comment).toBe("idempotentlik");
+    const opIdCol = operation?.columns.find((c) => c.name === "operation_id");
+
+    // Check CONTRACT_RESTRICTION_H operation_id points to OPERATION (not self)
+    const restriction = schema.tables.find((t) => t.name === "CONTRACT_RESTRICTION_H");
+    const restrOpId = restriction?.columns.find((c) => c.name === "operation_id");
+    expect(restrOpId?.fk?.tableId).toBe(operation?.id);
+    expect(restrOpId?.fk?.columnId).toBe(opIdCol?.id);
+
+    // Check CONTRACT_PARTICIPANT_H party_id has no false self-ref FK
+    const participant = schema.tables.find((t) => t.name === "CONTRACT_PARTICIPANT_H");
+    const partPartyId = participant?.columns.find((c) => c.name === "party_id");
+    expect(partPartyId?.fk).toBeNull();
 
     // Check CONTRACT_MOVEMENT
     const movement = schema.tables.find((t) => t.name === "CONTRACT_MOVEMENT");
@@ -383,6 +402,8 @@ describe("Mermaid ER Parser & Importer", () => {
     const dirCol = movement?.columns.find((c) => c.name === "direction");
     expect(dirCol?.type).toBe("CHAR");
     expect(dirCol?.comment).toBe("D / C");
+    const reversalCol = movement?.columns.find((c) => c.name === "reversal_of");
+    expect(reversalCol?.fk?.tableId).toBe(movement?.id); // Valid self-reference
 
     // Check Foreign Key relationships
     const account = schema.tables.find((t) => t.name === "CONTRACT_ACCOUNT");
@@ -390,6 +411,7 @@ describe("Mermaid ER Parser & Importer", () => {
     expect(accountContractId?.fk?.tableId).toBe(depositContract?.id);
     expect(accountContractId?.fk?.columnId).toBe(contractIdCol?.id);
   });
+
 
   it("delegates to Mermaid parser from parseCreateTable when Mermaid code is passed", () => {
     const { schema, errors } = parseCreateTable(SAMPLE_DEPOSIT_CODE);
