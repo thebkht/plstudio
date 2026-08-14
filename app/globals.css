@@ -646,7 +646,11 @@ button {
   min-width: 0;
   overflow: hidden;
   touch-action: none;
-  cursor: grab;
+  /*
+   * An arrow, not a grab hand: the left button selects here. The hand belongs
+   * to the tool that actually pans, which is what `.pan-mode` below says.
+   */
+  cursor: default;
   background-color: #ffffff;
   background-image: radial-gradient(var(--grid-dot) 0.85px, transparent 0.85px);
   background-size: var(--grid-size) var(--grid-size);

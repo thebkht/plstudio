@@ -4483,7 +4483,7 @@ export default function Designer({
 
         <div
           ref={canvasRef}
-          className={`canvas-wrap ${grabbing ? "grabbing" : ""} ${grabbing || dragPosition ? "gesturing" : ""} ${panMode ? "pan-mode" : ""}`}
+          className={`canvas-wrap ${grabbing ? "grabbing" : ""} ${grabbing || dragPosition || marquee || dragSelection ? "gesturing" : ""} ${panMode ? "pan-mode" : ""}`}
           onPointerDownCapture={onCanvasDownCapture}
           onPointerDown={onCanvasDown}
           onPointerMove={(event) => {
