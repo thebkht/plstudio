@@ -177,11 +177,8 @@ import {
 import {
   FLICK_SPRING,
   SETTLE_SPRING,
-  Spring,
   VelocityTracker,
-  prefersReducedMotion,
   project,
-  runFrameLoop,
   type Vec,
 } from "@/app/lib/motion";
 import {
@@ -236,7 +233,12 @@ import {
   type ImportMessage,
 } from "@/app/components/designer/import-modal";
 import { TableCard } from "./table-card";
-import { useDesignerSettings, useLayout, useSelect } from "@/app/hooks";
+import {
+  useDesignerSettings,
+  useLayout,
+  useSelect,
+  useTransform,
+} from "@/app/hooks";
 import {
   DRAG_THRESHOLD,
   GRID_DOT_RADIUS,
@@ -343,8 +345,19 @@ export default function Workspace({
    * destroy work. Seeded on focus so memos loaded from the document count too.
    */
   const memoHadText = useRef(new Set<string>());
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const {
+    zoom,
+    setZoom,
+    pan,
+    setPan,
+    panRef,
+    zoomRef,
+    springsRef,
+    stopAnimationRef,
+    stopAnimation,
+    animateTo,
+    settledZoom,
+  } = useTransform();
   /** Live position of the table under the pointer; schema is written once on release. */
   const [dragPosition, setDragPosition] = useState<{
     id: string;
@@ -404,16 +417,6 @@ export default function Workspace({
   const [spaceHeld, setSpaceHeld] = useState(false);
   const panMode = handMode || spaceHeld;
 
-  /**
-   * The zoom level a screen reader hears. Continuous zoom changes many times a
-   * second, so the announcement waits for the gesture to stop rather than
-   * narrating every frame of it.
-   */
-  const [settledZoom, setSettledZoom] = useState(100);
-  useEffect(() => {
-    const timer = setTimeout(() => setSettledZoom(Math.round(zoom * 100)), 400);
-    return () => clearTimeout(timer);
-  }, [zoom]);
   const [shareLink, setShareLink] = useState("");
   const [shareBusy, setShareBusy] = useState(false);
   const [shareError, setShareError] = useState("");
@@ -514,10 +517,6 @@ export default function Workspace({
     moved: boolean;
     tracker: VelocityTracker;
   } | null>(null);
-  const springsRef = useRef<{ x: Spring; y: Spring } | null>(null);
-  const stopAnimationRef = useRef<(() => void) | null>(null);
-  const panRef = useRef(pan);
-  const zoomRef = useRef(zoom);
   const schemaRef = useRef(schema);
   const dragPositionRef = useRef(dragPosition);
   /**
@@ -533,8 +532,6 @@ export default function Workspace({
   const resizeTableRef = useRef(resizeTable);
   const dragSelectionRef = useRef(dragSelection);
   dragSelectionRef.current = dragSelection;
-  panRef.current = pan;
-  zoomRef.current = zoom;
   schemaRef.current = schema;
   dragGroupPositionRef.current = dragGroupPosition;
   resizeGroupRef.current = resizeGroup;
@@ -1452,52 +1449,6 @@ export default function Workspace({
       setDragPosition(null);
     },
     [readOnly, resolveTablePosition, writeTablePosition],
-  );
-
-  const stopAnimation = useCallback(() => {
-    stopAnimationRef.current?.();
-    stopAnimationRef.current = null;
-  }, []);
-
-  /**
-   * Springs a value pair from its current position to `target`, seeded with the
-   * gesture's release velocity so there is no seam between drag and animation.
-   */
-  const animateTo = useCallback(
-    (
-      from: Vec,
-      target: Vec,
-      velocity: Vec,
-      options: { damping: number; response: number },
-      onFrame: (value: Vec) => void,
-      onSettle?: (value: Vec) => void,
-    ) => {
-      stopAnimation();
-      if (prefersReducedMotion()) {
-        onFrame(target);
-        onSettle?.(target);
-        return;
-      }
-      // X and Y get independent springs; a single spring on 2D distance
-      // desyncs whenever the two axes carry different velocities.
-      const springX = new Spring(from.x, options);
-      const springY = new Spring(from.y, options);
-      springX.setTarget(target.x, velocity.x);
-      springY.setTarget(target.y, velocity.y);
-      springsRef.current = { x: springX, y: springY };
-      stopAnimationRef.current = runFrameLoop((dt) => {
-        const movingX = springX.step(dt);
-        const movingY = springY.step(dt);
-        const value = { x: springX.value, y: springY.value };
-        onFrame(value);
-        if (movingX || movingY) return true;
-        springsRef.current = null;
-        stopAnimationRef.current = null;
-        onSettle?.(value);
-        return false;
-      });
-    },
-    [stopAnimation],
   );
 
   const commitGroupPosition = useCallback(
