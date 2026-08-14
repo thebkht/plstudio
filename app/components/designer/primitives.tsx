@@ -363,7 +363,7 @@ export function Menubar({
     <MenubarContext.Provider value={{ active, setActive }}>
       <div
         ref={ref}
-        className="menubar -mx-4"
+        className="menubar -mx-2"
         role="toolbar"
         aria-orientation="horizontal"
         aria-label={label}
