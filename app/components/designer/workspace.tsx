@@ -169,7 +169,6 @@ import {
   SHORTCUTS,
   SHORTCUT_GROUPS,
   isEditingTarget,
-  isMacPlatform,
   matchShortcut,
   shortcutById,
   shortcutHint,
@@ -237,6 +236,7 @@ import {
   type ImportMessage,
 } from "@/app/components/designer/import-modal";
 import { TableCard } from "./table-card";
+import { useDesignerSettings } from "@/app/hooks";
 import {
   DRAG_THRESHOLD,
   GRID_DOT_RADIUS,
@@ -424,8 +424,6 @@ export default function Workspace({
    * Chord glyphs differ per platform, and the platform is unknowable during SSR —
    * so this settles after mount rather than during render, to keep hydration clean.
    */
-  const [isMac, setIsMac] = useState(false);
-  useEffect(() => setIsMac(isMacPlatform()), []);
 
   /**
    * The zoom level a screen reader hears. Continuous zoom changes many times a
@@ -524,11 +522,8 @@ export default function Workspace({
   const [openRelationshipId, setOpenRelationshipId] = useState<string | null>(
     null,
   );
-  const [relationSettings, setRelationSettings] = useState({
-    showCardinality: true,
-    showRelationshipLabels: true,
-    autoSave: false,
-  });
+  const { settings: relationSettings, setSettings: setRelationSettings, isMac } =
+    useDesignerSettings();
   const [issuesOpen, setIssuesOpen] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -645,27 +640,6 @@ export default function Workspace({
     } as React.CSSProperties;
   }, [pan.x, pan.y, zoom]);
 
-  useEffect(() => {
-    try {
-      const saved =
-        window.localStorage.getItem("plstudio-settings") ||
-        window.localStorage.getItem("drawsql-settings");
-      if (saved)
-        setRelationSettings((current) => ({
-          ...current,
-          ...JSON.parse(saved),
-        }));
-    } catch {
-      /* Ignore malformed local settings. */
-    }
-  }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem(
-      "plstudio-settings",
-      JSON.stringify(relationSettings),
-    );
-  }, [relationSettings]);
   dragPositionRef.current = dragPosition;
 
   useEffect(

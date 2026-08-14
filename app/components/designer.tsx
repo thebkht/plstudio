@@ -3,6 +3,7 @@
 import Workspace, {
   type DesignerProps,
 } from "@/app/components/designer/workspace";
+import { SettingsProvider } from "@/app/components/designer/context/settings-context";
 
 /**
  * The editor's entry point. This file is deliberately thin: it exists to mount
@@ -13,5 +14,9 @@ import Workspace, {
  * a straight pass-through and `Workspace` still owns the state itself.
  */
 export default function Designer(props: DesignerProps) {
-  return <Workspace {...props} />;
+  return (
+    <SettingsProvider>
+      <Workspace {...props} />
+    </SettingsProvider>
+  );
 }
