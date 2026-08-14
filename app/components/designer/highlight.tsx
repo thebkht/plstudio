@@ -52,3 +52,18 @@ export function highlightJson(source: string): ReactNode[] {
     token.endsWith(":") ? "keyword" : token.startsWith('"') ? "string" : "number",
   );
 }
+
+const MERMAID_TOKEN =
+  /(%%[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\b\d+(?:\.\d+)?\b|\|[o|]--[|o]\{|\}o--\|\||\|\|--\|\||\|\|--o\{|\|\|--\|\{|\|[o|]\.\.[|o]\{|\}o\.\.\|\||\|\|\.\.\|\||\|\|\.\.o\{|\|\|\.\.\|\{|--|\.\.|\b(?:erDiagram|title|accTitle|accDescr|PK|FK|UK|NN|NOT|NULL|PRIMARY|KEY|FOREIGN|UNIQUE|NUMBER|VARCHAR2|VARCHAR|CHAR|NCHAR|NVARCHAR2|DATE|TIMESTAMP|CLOB|BLOB|RAW|FLOAT|DOUBLE|BINARY|UUID|STRING|BOOLEAN|INTEGER|INT|BIGINT|DECIMAL|NUMERIC|TEXT)\b)/gi;
+
+export function highlightMermaid(source: string): ReactNode[] {
+  return highlight(source, MERMAID_TOKEN, (token) =>
+    token.startsWith("%%")
+      ? "comment"
+      : token.startsWith('"') || token.startsWith("'")
+        ? "string"
+        : /^\d/.test(token)
+          ? "number"
+          : "keyword",
+  );
+}

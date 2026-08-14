@@ -7,8 +7,9 @@ import {
   FileUploadIcon,
   FolderOpenIcon,
 } from "@hugeicons/core-free-icons";
-import { generateDDL } from "@/app/lib/generators";
+import { generateDDL, generateMermaidER } from "@/app/lib/generators";
 import { exportSchemaJson } from "@/app/lib/schema-json";
+import { isMermaidER } from "@/app/lib/mermaid";
 import type { Schema } from "@/app/lib/schema";
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -21,13 +22,14 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { highlightJson, highlightSql } from "./highlight";
+import { highlightJson, highlightMermaid, highlightSql } from "./highlight";
 
-export type ImportFormat = "ddl" | "json";
+export type ImportFormat = "ddl" | "mermaid" | "json";
 export type ImportMessage = { ok: boolean; text: string };
 
 const importTabs = [
   ["ddl", "Oracle DDL"],
+  ["mermaid", "Mermaid ER"],
   ["json", "JSON"],
 ] as const satisfies ReadonlyArray<readonly [ImportFormat, string]>;
 
@@ -36,11 +38,13 @@ const MAX_FILE_BYTES = 5_000_000;
 
 const DESCRIPTION: Record<ImportFormat, string> = {
   ddl: "Supported CREATE TABLE subset · all-or-nothing · add to this project or replace it",
+  mermaid: "Mermaid erDiagram (entities, keys, relationships & comments) · add or replace",
   json: "A diagram exported from the JSON tab · replace restores it whole, add merges its tables in under fresh ids",
 };
 
 const PLACEHOLDER: Record<ImportFormat, string> = {
   ddl: "CREATE TABLE STUDENT ( ID NUMBER NOT NULL, NAME VARCHAR2(100), CONSTRAINT PK_STUDENT PRIMARY KEY (ID) );",
+  mermaid: 'erDiagram\n    STUDENT {\n        NUMBER id PK\n        VARCHAR2(100) name\n    }\n    ENROLLMENT {\n        NUMBER student_id FK\n        VARCHAR2(20) course_code\n    }\n    STUDENT ||--o{ ENROLLMENT : "has"',
   json: '{ "formatVersion": 1, "schema": { "name": "Registrar", "tables": [ … ] } }',
 };
 
@@ -48,7 +52,7 @@ const PLACEHOLDER: Record<ImportFormat, string> = {
  * The text the user is importing is the only state here; parsing and
  * committing it stay with the designer, which owns the schema.
  *
- * Both formats share one text box, so a file opened on the wrong tab is one
+ * Formats share one text box, so a file opened on the wrong tab is one
  * click from being read correctly rather than something to paste again.
  */
 export const ImportModal = ({
@@ -88,16 +92,35 @@ export const ImportModal = ({
     const text = await file.text();
     setImportText(text);
     // Only a file switches tabs; doing it while someone types would move the ground under them.
-    setFormat(text.trimStart().startsWith("{") ? "json" : "ddl");
+    const trimmed = text.trimStart();
+    if (trimmed.startsWith("{")) {
+      setFormat("json");
+    } else if (trimmed.startsWith("%%") || isMermaidER(text)) {
+      setFormat("mermaid");
+    } else {
+      setFormat("ddl");
+    }
   };
 
   const editor = (
     <div className="sql-editor">
       <pre ref={highlightRef} className="sql-highlight" aria-hidden="true">
-        <code>{isJson ? highlightJson(importText) : highlightSql(importText)}</code>
+        <code>
+          {isJson
+            ? highlightJson(importText)
+            : format === "mermaid"
+              ? highlightMermaid(importText)
+              : highlightSql(importText)}
+        </code>
       </pre>
       <Textarea
-        aria-label={isJson ? "Schema JSON input" : "Oracle DDL input"}
+        aria-label={
+          isJson
+            ? "Schema JSON input"
+            : format === "mermaid"
+              ? "Mermaid ER input"
+              : "Oracle DDL input"
+        }
         className="sql-input"
         placeholder={PLACEHOLDER[format]}
         value={importText}
@@ -142,7 +165,7 @@ export const ImportModal = ({
           <input
             ref={fileRef}
             type="file"
-            accept=".json,.sql,.ddl,application/json,text/plain"
+            accept=".json,.sql,.ddl,.mmd,.mermaid,application/json,text/plain"
             className="sr-only"
             aria-label="Schema file"
             onChange={openFile}
@@ -166,7 +189,15 @@ export const ImportModal = ({
       <DialogFooter>
         <Button
           variant="outline"
-          onClick={() => setImportText(isJson ? exportSchemaJson(schema) : generateDDL(schema))}
+          onClick={() =>
+            setImportText(
+              isJson
+                ? exportSchemaJson(schema)
+                : format === "mermaid"
+                  ? generateMermaidER(schema)
+                  : generateDDL(schema),
+            )
+          }
         >
           Use current export
         </Button>

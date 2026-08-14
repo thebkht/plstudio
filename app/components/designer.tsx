@@ -128,7 +128,12 @@ import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Input } from "@/components/ui/input";
 import { generateDDL } from "@/app/lib/generators";
-import { appendCreateTable, parseCreateTable } from "@/app/lib/parser";
+import {
+  appendCreateTable,
+  appendMermaidER,
+  parseCreateTable,
+  parseMermaidER,
+} from "@/app/lib/parser";
 import {
   exportSchemaJson,
   mergeSchemaJson,
@@ -3337,6 +3342,33 @@ export default function Designer({
     selectTable(result.added[0]?.id ?? null);
     revealTables(result.added);
   };
+  const importMermaid = (text: string) => {
+    const result = parseMermaidER(text);
+    if (!result.schema) {
+      setImportMessage({ ok: false, text: result.errors.join(" ") });
+      return;
+    }
+    setImportMessage({
+      ok: true,
+      text: `${result.schema.tables.length} table(s) imported.${result.warnings.length ? ` ${result.warnings.length} warning(s).` : ""}`,
+    });
+    commit({ ...result.schema, id: schema.id, revision: schema.revision });
+    selectTable(result.schema.tables[0]?.id ?? null);
+  };
+  const appendMermaid = (text: string) => {
+    const result = appendMermaidER(schema, text);
+    if (!result.schema) {
+      setImportMessage({ ok: false, text: result.errors.join(" ") });
+      return;
+    }
+    setImportMessage({
+      ok: true,
+      text: `${result.added.length} table(s) added.${result.skipped.length ? ` Already in this project: ${result.skipped.join(", ")}.` : ""}${result.warnings.length ? ` ${result.warnings.length} warning(s).` : ""}`,
+    });
+    commit(result.schema);
+    selectTable(result.added[0]?.id ?? null);
+    revealTables(result.added);
+  };
   const clearInvalidForeignKeys = () => {
     const next = {
       ...schema,
@@ -5652,12 +5684,16 @@ export default function Designer({
         readOnly={readOnly}
         message={importMessage}
         onMessage={setImportMessage}
-        onReplace={(text, format) =>
-          format === "json" ? importJson(text) : importSchema(text)
-        }
-        onAppend={(text, format) =>
-          format === "json" ? appendJson(text) : appendSchema(text)
-        }
+        onReplace={(text, format) => {
+          if (format === "json") importJson(text);
+          else if (format === "mermaid") importMermaid(text);
+          else importSchema(text);
+        }}
+        onAppend={(text, format) => {
+          if (format === "json") appendJson(text);
+          else if (format === "mermaid") appendMermaid(text);
+          else appendSchema(text);
+        }}
       />
 
       <Dialog

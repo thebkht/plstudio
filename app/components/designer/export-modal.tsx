@@ -8,7 +8,7 @@ import {
   Download04Icon,
   Tick02Icon,
 } from "@hugeicons/core-free-icons";
-import { generateDDL, generateDML } from "@/app/lib/generators";
+import { generateDDL, generateDML, generateMermaidER } from "@/app/lib/generators";
 import { exportSchemaJson } from "@/app/lib/schema-json";
 import type { Schema } from "@/app/lib/schema";
 import type { ValidationIssue } from "@/app/lib/validation";
@@ -16,13 +16,14 @@ import { Alert, AlertAction, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { highlightJson, highlightSql } from "./highlight";
+import { highlightJson, highlightMermaid, highlightSql } from "./highlight";
 
-type ExportTab = "ddl" | "dml" | "json";
+type ExportTab = "ddl" | "dml" | "mermaid" | "json";
 
 const exportTabs = [
   ["ddl", "DDL"],
   ["dml", "DML"],
+  ["mermaid", "Mermaid"],
   ["json", "JSON"],
 ] as const satisfies ReadonlyArray<readonly [ExportTab, string]>;
 
@@ -53,12 +54,24 @@ export const ExportModal = ({
     () => (isOpen && exportTab === "dml" ? generateDML(schema) : ""),
     [exportTab, isOpen, schema],
   );
+  const mermaid = useMemo(
+    () => (isOpen && exportTab === "mermaid" ? generateMermaidER(schema) : ""),
+    [exportTab, isOpen, schema],
+  );
   const json = useMemo(
     () => (isOpen && exportTab === "json" ? exportSchemaJson(schema) : ""),
     [exportTab, isOpen, schema],
   );
   const isJson = exportTab === "json";
-  const output = exportTab === "ddl" ? ddl : exportTab === "dml" ? dml : json;
+  const isMermaid = exportTab === "mermaid";
+  const output =
+    exportTab === "ddl"
+      ? ddl
+      : exportTab === "dml"
+        ? dml
+        : exportTab === "mermaid"
+          ? mermaid
+          : json;
 
   const copyOutput = async () => {
     await navigator.clipboard.writeText(output);
@@ -66,10 +79,20 @@ export const ExportModal = ({
     window.setTimeout(() => setCopied(false), 1200);
   };
   const download = () => {
-    const url = URL.createObjectURL(new Blob([output], { type: isJson ? "application/json" : "text/plain" }));
+    const url = URL.createObjectURL(
+      new Blob([output], {
+        type: isJson ? "application/json" : "text/plain",
+      }),
+    );
     const link = document.createElement("a");
     link.href = url;
-    link.download = isJson ? `${fileSlug(schema.name)}.json` : exportTab === "dml" ? "dml.sql" : "schema.sql";
+    link.download = isJson
+      ? `${fileSlug(schema.name)}.json`
+      : isMermaid
+        ? `${fileSlug(schema.name)}.mmd`
+        : exportTab === "dml"
+          ? "dml.sql"
+          : "schema.sql";
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -104,8 +127,8 @@ export const ExportModal = ({
             </Button>
           </div>
         </div>
-        {/* A JSON export is a snapshot of the diagram, not generated SQL, so an Oracle error has no bearing on it. */}
-        {errors.length > 0 && !isJson && (
+        {/* A JSON or Mermaid export is a snapshot of the diagram, not generated Oracle SQL, so an Oracle DDL error does not block it. */}
+        {errors.length > 0 && !isJson && !isMermaid && (
           <Alert variant="destructive" className="mt-4">
             <HugeiconsIcon icon={Cancel01Icon} />
             <AlertTitle>
@@ -121,7 +144,13 @@ export const ExportModal = ({
         {exportTabs.map(([key]) => (
           <TabsContent key={key} id={key}>
             <pre className="code">
-              <code>{isJson ? highlightJson(output) : highlightSql(output)}</code>
+              <code>
+                {isJson
+                  ? highlightJson(output)
+                  : isMermaid
+                    ? highlightMermaid(output)
+                    : highlightSql(output)}
+              </code>
             </pre>
           </TabsContent>
         ))}

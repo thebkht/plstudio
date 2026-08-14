@@ -1,4 +1,5 @@
 import { APPEND_GAP, contentEdges, makeColumn, makeTable, nextId, normalizeIdentifier, normalizeRelationships, PALETTE, SCHEMA_FORMAT_VERSION, type Column, type ForeignKeyRef, type OracleType, type Schema, type Table } from "./schema";
+import { isMermaidER, parseMermaidER, appendMermaidER, generateMermaidER } from "./mermaid";
 
 export type ParseResult = { schema: Schema | null; warnings: string[]; errors: string[] };
 
@@ -216,6 +217,9 @@ function checkTarget(table: Table, expression: string) {
 }
 
 export function parseCreateTable(sql: string, options: ParseOptions = {}): ParseResult {
+  if (isMermaidER(sql)) {
+    return parseMermaidER(sql, options);
+  }
   const knownTables = options.knownTables ?? [];
   const warnings: string[] = [];
   const errors: string[] = [];
@@ -379,6 +383,9 @@ export type AppendResult = {
  * project's table and column of that name.
  */
 export function appendCreateTable(base: Schema, sql: string): AppendResult {
+  if (isMermaidER(sql)) {
+    return appendMermaidER(base, sql);
+  }
   const parsed = parseCreateTable(sql, { knownTables: base.tables });
   if (!parsed.schema) return { schema: null, added: [], skipped: [], warnings: parsed.warnings, errors: parsed.errors };
 
@@ -461,3 +468,5 @@ export function appendCreateTable(base: Schema, sql: string): AppendResult {
   });
   return { schema, added, skipped, warnings: parsed.warnings, errors: [] };
 }
+
+export { isMermaidER, parseMermaidER, appendMermaidER, generateMermaidER };

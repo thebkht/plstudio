@@ -439,3 +439,5 @@ export function exportSchema(schema: Schema) {
   return `${generateDDL(schema)}\n\n${generateDML(schema)}`;
 }
 
+export { generateMermaidER } from "./mermaid";
+
