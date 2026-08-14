@@ -127,7 +127,31 @@ import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Input } from "@/components/ui/input";
 import { generateDDL } from "@/app/lib/generators";
 import { appendCreateTable, parseCreateTable } from "@/app/lib/parser";
-import { mergeSchemaJson, parseSchemaJson } from "@/app/lib/schema-json";
+import {
+  exportSchemaJson,
+  mergeSchemaJson,
+  parseSchemaJson,
+} from "@/app/lib/schema-json";
+import {
+  EMPTY_SELECTION,
+  isSelected,
+  marqueeSelection,
+  moveSelection,
+  movingEntities,
+  pruneSelection,
+  rectFromPoints,
+  removeSelection,
+  selectAll,
+  selectOnly,
+  selectionBounds,
+  selectionCount,
+  selectionDragBounds,
+  selectionSchema,
+  toggleSelected,
+  type CanvasSelection,
+  type Rect,
+  type SelectionKind,
+} from "@/app/lib/selection";
 import { typeColorVar } from "@/app/lib/datatype-color";
 import {
   SHORTCUTS,
@@ -411,7 +435,7 @@ export default function Designer({
     status: collabStatus,
     peers,
     setCursor,
-    setSelection,
+    setSelection: broadcastSelection,
   } = useCollaborativeSchema({
     projectId,
     initialSchema: useMemo(
@@ -423,11 +447,32 @@ export default function Designer({
     shareToken,
     workspaceSlug,
   });
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  /**
+   * One selection for the whole canvas. The three ids below are *derived* from
+   * it rather than stored beside it: everything that acts on "the selected
+   * table" — the side panel, ⌘↵, the junction command, the context menus — means
+   * exactly one thing selected, which is what `single` says. Two sources of
+   * truth here would drift within a release.
+   */
+  const [selection, setSelection] = useState<CanvasSelection>(EMPTY_SELECTION);
+  const selectionRef = useRef(selection);
+  selectionRef.current = selection;
+  const single = selectionCount(selection) === 1;
+  const selectedId = single ? (selection.tables[0] ?? null) : null;
+  const selectedGroupId = single ? (selection.groups[0] ?? null) : null;
+  const selectedMemoId = single ? (selection.memos[0] ?? null) : null;
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [selectedMemoId, setSelectedMemoId] = useState<string | null>(null);
+  /** Replace the selection with one thing. Stable, so cards can memoize on it. */
+  const selectSingle = useCallback(
+    (kind: SelectionKind, id: string | null) =>
+      setSelection(id ? selectOnly(kind, id) : EMPTY_SELECTION),
+    [],
+  );
+  const selectTable = useCallback(
+    (id: string | null) => selectSingle("table", id),
+    [selectSingle],
+  );
   const [editingMemoId, setEditingMemoId] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -469,6 +514,17 @@ export default function Designer({
     width: number;
     height: number;
   } | null>(null);
+  /**
+   * The offset a multi-selection is currently dragged by. One delta for the
+   * whole set, on the same reasoning as `dragGroupPosition`: a state write per
+   * frame per selected card would make a fifty-table drag fifty times the work.
+   */
+  const [dragSelection, setDragSelection] = useState<{
+    dx: number;
+    dy: number;
+  } | null>(null);
+  /** The rectangle being swept, in canvas space. Null when no marquee is live. */
+  const [marquee, setMarquee] = useState<Rect | null>(null);
   const [grabbing, setGrabbing] = useState(false);
   /**
    * The hand tool. `handMode` is the sticky dock toggle; `spaceHeld` is the
@@ -613,11 +669,17 @@ export default function Designer({
       | "memo-resize"
       | "group"
       | "group-resize"
-      | "pan";
+      | "pan"
+      /** Sweeping a rectangle over empty canvas. */
+      | "marquee"
+      /** Dragging everything selected, as one. */
+      | "selection";
     pointerId: number;
     tableId?: string;
     groupId?: string;
     memoId?: string;
+    /** What the marquee unions onto — the selection held when the sweep began. */
+    base?: CanvasSelection;
     grabX: number;
     grabY: number;
     originX: number;
@@ -652,6 +714,8 @@ export default function Designer({
   const dragMemoPositionRef = useRef(dragMemoPosition);
   const resizeMemoRef = useRef(resizeMemo);
   const resizeTableRef = useRef(resizeTable);
+  const dragSelectionRef = useRef(dragSelection);
+  dragSelectionRef.current = dragSelection;
   panRef.current = pan;
   zoomRef.current = zoom;
   schemaRef.current = schema;
@@ -685,22 +749,68 @@ export default function Designer({
   }, [relationSettings]);
   dragPositionRef.current = dragPosition;
 
-  useEffect(() => setSelection(selectedId), [selectedId, setSelection]);
+  useEffect(
+    () => broadcastSelection(selection.tables),
+    [selection.tables, broadcastSelection],
+  );
+
+  /**
+   * A commit — this client's or a collaborator's — can remove something that is
+   * selected here. Prune in one place rather than at every delete site;
+   * `pruneSelection` returns the same object when nothing went, so this cannot
+   * loop.
+   */
+  useEffect(
+    () => setSelection((current) => pruneSelection(schema, current)),
+    [schema],
+  );
 
   /** Which collaborator, if any, has a given table selected — drives its ring colour. */
   const peerSelection = useMemo(
     () =>
       new Map(
-        peers
-          .filter((peer) => peer.selectedId)
-          .map((peer) => [peer.selectedId as string, peer]),
+        peers.flatMap((peer) =>
+          peer.selectedIds.map((id) => [id, peer] as const),
+        ),
       ),
     [peers],
   );
 
   /**
+   * Everything travelling under the current multi-selection drag. Sets, so a
+   * card that is both selected outright and a member of a selected group is
+   * offset once; empty while no such drag is in flight, which is the common case.
+   */
+  const movingSet = useMemo(
+    () =>
+      dragSelection
+        ? movingEntities(schema, selection)
+        : { tables: new Set<string>(), memos: new Set<string>(), groups: new Set<string>() },
+    [dragSelection, schema, selection],
+  );
+
+  /**
+   * The box drawn around a multi-selection. Only for two or more: one card
+   * already says what it is with its own accent border, and a frame around it
+   * would just be a second outline.
+   */
+  const multiFrame = useMemo(() => {
+    if (selectionCount(selection) < 2) return null;
+    const bounds = selectionBounds(schema, selection);
+    if (!bounds) return null;
+    return dragSelection
+      ? {
+          ...bounds,
+          x: bounds.x + dragSelection.dx,
+          y: bounds.y + dragSelection.dy,
+        }
+      : bounds;
+  }, [dragSelection, schema, selection]);
+
+  /**
    * A table's on-screen position: the in-flight one while it moves, else its
-   * committed one shifted by the drag of the group it belongs to.
+   * committed one shifted by the drag of the group it belongs to or the
+   * selection it is part of.
    */
   const livePosition = useCallback(
     (table: Table) => {
@@ -711,9 +821,11 @@ export default function Designer({
           x: table.x + dragGroupPosition.dx,
           y: table.y + dragGroupPosition.dy,
         };
+      if (dragSelection && movingSet.tables.has(table.id))
+        return { x: table.x + dragSelection.dx, y: table.y + dragSelection.dy };
       return { x: table.x, y: table.y };
     },
-    [dragGroupPosition, dragPosition],
+    [dragGroupPosition, dragPosition, dragSelection, movingSet],
   );
   const livePositionRef = useRef(livePosition);
   livePositionRef.current = livePosition;
@@ -740,28 +852,36 @@ export default function Designer({
         dragMemoPosition?.id !== memo.id &&
         dragGroupPosition &&
         memo.schemaId === dragGroupPosition.id;
+      const swept = dragSelection && movingSet.memos.has(memo.id);
       return {
-        x: position.x + (rides ? dragGroupPosition.dx : 0),
-        y: position.y + (rides ? dragGroupPosition.dy : 0),
+        x:
+          position.x +
+          (rides ? dragGroupPosition.dx : 0) +
+          (swept ? dragSelection.dx : 0),
+        y:
+          position.y +
+          (rides ? dragGroupPosition.dy : 0) +
+          (swept ? dragSelection.dy : 0),
         width: size.width,
         height: size.height,
       };
     },
-    [dragGroupPosition, dragMemoPosition, resizeMemo],
+    [dragGroupPosition, dragMemoPosition, dragSelection, movingSet, resizeMemo],
   );
   const liveGroup = useCallback(
     (group: SchemaGroup) => {
       const position =
         dragGroupPosition?.id === group.id ? dragGroupPosition : group;
       const size = resizeGroup?.id === group.id ? resizeGroup : group;
+      const swept = dragSelection && movingSet.groups.has(group.id);
       return {
-        x: position.x,
-        y: position.y,
+        x: position.x + (swept ? dragSelection.dx : 0),
+        y: position.y + (swept ? dragSelection.dy : 0),
         width: size.width,
         height: size.height,
       };
     },
-    [dragGroupPosition, resizeGroup],
+    [dragGroupPosition, dragSelection, movingSet, resizeGroup],
   );
   const liveGroupRef = useRef(liveGroup);
   liveGroupRef.current = liveGroup;
@@ -1183,7 +1303,6 @@ export default function Designer({
             })),
         }),
       );
-      setSelectedId((current) => (current === id ? null : current));
     },
     [commitWith],
   );
@@ -1195,7 +1314,7 @@ export default function Designer({
       schema.tables.length,
     );
     commit({ ...schema, tables: [...schema.tables, table] });
-    setSelectedId(table.id);
+    selectTable(table.id);
   };
   const addColumn = useCallback(
     (tableId: string) => {
@@ -1798,6 +1917,56 @@ export default function Designer({
       }
 
       const rect = canvasRect();
+      if (gesture.mode === "marquee" || gesture.mode === "selection") {
+        if (!rect) return;
+        const point = {
+          x: (event.clientX - rect.left - panRef.current.x) / zoomRef.current,
+          y: (event.clientY - rect.top - panRef.current.y) / zoomRef.current,
+        };
+        if (gesture.mode === "marquee") {
+          const swept = rectFromPoints(
+            gesture.originX,
+            gesture.originY,
+            point.x,
+            point.y,
+          );
+          // Recompute the hit set every frame rather than on release: cards
+          // that light up as the rectangle crosses them are how the user knows
+          // what they are about to get.
+          const next = marqueeSelection(
+            schemaRef.current,
+            swept,
+            gesture.base ?? EMPTY_SELECTION,
+          );
+          scheduleMove(() => {
+            setMarquee(swept);
+            setSelection(next);
+          });
+          return;
+        }
+        const bounds = selectionDragBounds(
+          schemaRef.current,
+          selectionRef.current,
+          worldRef.current,
+        );
+        const next = {
+          dx: rubberClamp(
+            point.x - gesture.grabX,
+            bounds.minDx,
+            bounds.maxDx,
+            worldRef.current.width,
+          ),
+          dy: rubberClamp(
+            point.y - gesture.grabY,
+            bounds.minDy,
+            bounds.maxDy,
+            worldRef.current.height,
+          ),
+        };
+        gesture.tracker.add(next.dx, next.dy, now);
+        scheduleMove(() => setDragSelection(next));
+        return;
+      }
       const group = schemaRef.current.groups?.find(
         (item) => item.id === gesture.groupId,
       );
@@ -1955,6 +2124,70 @@ export default function Designer({
         return;
       }
 
+      if (gesture.mode === "marquee") {
+        setMarquee(null);
+        // A sweep that never passed the threshold is a click on empty canvas,
+        // which is how the selection is cleared.
+        if (!gesture.moved) setSelection(gesture.base ?? EMPTY_SELECTION);
+        return;
+      }
+
+      if (gesture.mode === "selection") {
+        const live = dragSelectionRef.current;
+        if (!gesture.moved || !live) {
+          setDragSelection(null);
+          return;
+        }
+        const selected = selectionRef.current;
+        const bounds = selectionDragBounds(
+          schemaRef.current,
+          selected,
+          worldRef.current,
+        );
+        const target = {
+          x: Math.max(
+            bounds.minDx,
+            Math.min(bounds.maxDx, live.dx + project(velocity.x)),
+          ),
+          y: Math.max(
+            bounds.minDy,
+            Math.min(bounds.maxDy, live.dy + project(velocity.y)),
+          ),
+        };
+        const flicked = Math.hypot(velocity.x, velocity.y) > 60;
+        // Commit on release, spring afterwards — the same invariant the single
+        // table drag documents below.
+        commitWith((current) =>
+          moveSelection(current, selected, target.x, target.y),
+        );
+        animateTo(
+          { x: live.dx, y: live.dy },
+          target,
+          velocity,
+          flicked ? FLICK_SPRING : SETTLE_SPRING,
+          // The schema already holds the move, so the spring animates the
+          // *residual* — how far the cards still are from where they landed.
+          (value) =>
+            setDragSelection({ dx: value.x - target.x, dy: value.y - target.y }),
+          () => setDragSelection(null),
+        );
+        /*
+         * A residual left frozen by an interrupted settle would offset the whole
+         * set until the next selection drag, so hang the cleanup off the stop
+         * handle: grabbing, panning or zooming mid-flight now drops it and the
+         * cards sit where the schema already says they are. Wrapping *after*
+         * `animateTo` matters — it calls `stopAnimation` itself on the way in,
+         * and clearing there would snap the set home for a frame.
+         */
+        const stop = stopAnimationRef.current;
+        if (stop)
+          stopAnimationRef.current = () => {
+            stop();
+            setDragSelection(null);
+          };
+        return;
+      }
+
       const memo = schemaRef.current.memos?.find(
         (item) => item.id === gesture.memoId,
       );
@@ -2103,6 +2336,7 @@ export default function Designer({
     commitMemoPosition,
     commitMemoSize,
     commitTableWidth,
+    commitWith,
     writeTablePosition,
     groupBounds,
     memoBounds,
@@ -2255,14 +2489,90 @@ export default function Designer({
     };
   };
 
+  /** Seeds the rectangle sweep. Additive when Shift or ⌘/Ctrl is held. */
+  const startMarquee = (event: React.PointerEvent<HTMLDivElement>) => {
+    stopAnimation();
+    const rect = canvasRect();
+    if (!rect) return startPan(event);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const point = {
+      x: (event.clientX - rect.left - pan.x) / zoom,
+      y: (event.clientY - rect.top - pan.y) / zoom,
+    };
+    const base =
+      event.shiftKey || event.metaKey || event.ctrlKey
+        ? selectionRef.current
+        : EMPTY_SELECTION;
+    gestureRef.current = {
+      mode: "marquee",
+      pointerId: event.pointerId,
+      base,
+      grabX: point.x,
+      grabY: point.y,
+      originX: point.x,
+      originY: point.y,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+      tracker: new VelocityTracker(),
+    };
+  };
+
+  /**
+   * Pressing empty canvas sweeps a selection, the way it does on both desktops.
+   * Panning keeps every route it already had — hold Space, the hand tool, a
+   * middle-drag, and the wheel — so nothing is lost by giving the left button
+   * over to selection.
+   */
   const onCanvasDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) return;
-    setSelectedId(null);
-    setSelectedGroupId(null);
-    setSelectedMemoId(null);
     setEditingMemoId(null);
+    if (event.button === 0 && !panMode) return startMarquee(event);
     startPan(event);
   };
+
+  /**
+   * What a press on a card does to the selection, before any drag begins.
+   * Shift or ⌘/Ctrl toggles that one card in or out and starts nothing;
+   * pressing something already inside a multi-selection leaves the set intact
+   * so the whole thing can be dragged; anything else collapses to it.
+   */
+  const pressSelection = useCallback(
+    (event: React.PointerEvent<Element>, kind: SelectionKind, id: string) => {
+      const current = selectionRef.current;
+      if (event.shiftKey || event.metaKey || event.ctrlKey) {
+        setSelection(toggleSelected(current, kind, id));
+        return "toggled" as const;
+      }
+      if (selectionCount(current) > 1 && isSelected(current, kind, id))
+        return "set" as const;
+      setSelection(selectOnly(kind, id));
+      return "single" as const;
+    },
+    [],
+  );
+
+  /** Seeds a drag of everything selected. The pointer's canvas position is the origin. */
+  const startSelectionDrag = useCallback(
+    (event: React.PointerEvent<Element>) => {
+      const rect = canvasRect();
+      if (!rect) return;
+      setGrabbing(true);
+      gestureRef.current = {
+        mode: "selection",
+        pointerId: event.pointerId,
+        grabX: (event.clientX - rect.left - panRef.current.x) / zoomRef.current,
+        grabY: (event.clientY - rect.top - panRef.current.y) / zoomRef.current,
+        originX: 0,
+        originY: 0,
+        startX: event.clientX,
+        startY: event.clientY,
+        moved: false,
+        tracker: new VelocityTracker(),
+      };
+    },
+    [canvasRect],
+  );
 
   /**
    * Hand mode pans from anywhere, so it has to win before the cards do — they
@@ -2291,10 +2601,10 @@ export default function Designer({
       event.currentTarget.setPointerCapture(event.pointerId);
       const rect = canvasRect();
       if (!rect) return;
-      setSelectedId(tableId);
-      setSelectedGroupId(null);
-      setSelectedMemoId(null);
       setEditingMemoId(null);
+      const intent = pressSelection(event, "table", tableId);
+      if (intent === "toggled") return;
+      if (intent === "set") return startSelectionDrag(event);
       setGrabbing(true);
       const origin = livePositionRef.current(table);
       const tracker = new VelocityTracker();
@@ -2319,7 +2629,7 @@ export default function Designer({
         tracker,
       };
     },
-    [canvasRect, stopAnimation],
+    [canvasRect, pressSelection, startSelectionDrag, stopAnimation],
   );
 
   /**
@@ -2339,9 +2649,7 @@ export default function Designer({
       const rect = canvasRect();
       if (!rect) return;
       event.currentTarget.setPointerCapture(event.pointerId);
-      setSelectedId(tableId);
-      setSelectedGroupId(null);
-      setSelectedMemoId(null);
+      setSelection(selectOnly("table", tableId));
       setEditingMemoId(null);
       setGrabbing(true);
       gestureRef.current = {
@@ -2371,9 +2679,9 @@ export default function Designer({
     const rect = canvasRect();
     if (!rect) return;
     const position = liveMemo(memo);
-    setSelectedId(null);
-    setSelectedGroupId(null);
-    setSelectedMemoId(memo.id);
+    const intent = pressSelection(event, "memo", memo.id);
+    if (intent === "toggled") return;
+    if (intent === "set") return startSelectionDrag(event);
     setGrabbing(true);
     gestureRef.current = {
       mode: "memo",
@@ -2404,8 +2712,7 @@ export default function Designer({
       x: (event.clientX - rect.left - pan.x) / zoom,
       y: (event.clientY - rect.top - pan.y) / zoom,
     };
-    setSelectedId(null);
-    setSelectedMemoId(memo.id);
+    setSelection(selectOnly("memo", memo.id));
     setGrabbing(true);
     event.currentTarget.setPointerCapture(event.pointerId);
     gestureRef.current = {
@@ -2437,9 +2744,9 @@ export default function Designer({
     const rect = canvasRect();
     if (!rect) return;
     const position = liveGroup(group);
-    setSelectedGroupId(group.id);
-    setSelectedId(null);
-    setSelectedMemoId(null);
+    const intent = pressSelection(event, "group", group.id);
+    if (intent === "toggled") return;
+    if (intent === "set") return startSelectionDrag(event);
     setGrabbing(true);
     gestureRef.current = {
       mode: "group",
@@ -2471,8 +2778,7 @@ export default function Designer({
       x: (event.clientX - rect.left - pan.x) / zoom,
       y: (event.clientY - rect.top - pan.y) / zoom,
     };
-    setSelectedGroupId(group.id);
-    setSelectedId(null);
+    setSelection(selectOnly("group", group.id));
     setGrabbing(true);
     event.currentTarget.setPointerCapture(event.pointerId);
     gestureRef.current = {
@@ -2501,8 +2807,7 @@ export default function Designer({
       "yellow",
     );
     commit({ ...schema, memos: [...(schema.memos ?? []), memo] });
-    setSelectedId(null);
-    setSelectedMemoId(memo.id);
+    setSelection(selectOnly("memo", memo.id));
     setEditingMemoId(memo.id);
   };
 
@@ -2515,9 +2820,7 @@ export default function Designer({
       index,
     );
     commit({ ...schema, groups: [...(schema.groups ?? []), group] });
-    setSelectedGroupId(group.id);
-    setSelectedId(null);
-    setSelectedMemoId(null);
+    setSelection(selectOnly("group", group.id));
   };
 
   const patchGroup = (id: string, patch: Partial<SchemaGroup>) => {
@@ -2539,7 +2842,6 @@ export default function Designer({
         table.schemaId === id ? { ...table, schemaId: undefined } : table,
       ),
     });
-    if (selectedGroupId === id) setSelectedGroupId(null);
   };
 
   const assignTableToGroup = (tableId: string, schemaId: string) => {
@@ -2567,7 +2869,6 @@ export default function Designer({
       ...schema,
       memos: (schema.memos ?? []).filter((memo) => memo.id !== id),
     });
-    if (selectedMemoId === id) setSelectedMemoId(null);
     if (editingMemoId === id) setEditingMemoId(null);
   };
 
@@ -2642,25 +2943,29 @@ export default function Designer({
           tables: [...current.tables, junction],
         }),
       );
-      setSelectedId(junction.id);
+      selectTable(junction.id);
     },
     [commitWith],
   );
 
-  const copyShareText = useCallback(async (value: string) => {
-    try {
-      await navigator.clipboard.writeText(value);
-      toast.success("Link copied.");
-    } catch {
-      setShareError(
-        "Clipboard access failed. Select and copy the link manually.",
-      );
-    }
-  }, []);
+  const copyText = useCallback(
+    async (value: string, message = "Link copied.") => {
+      try {
+        await navigator.clipboard.writeText(value);
+        toast.success(message);
+      } catch {
+        setShareError(
+          "Clipboard access failed. Select and copy the link manually.",
+        );
+        toast.error("Clipboard access failed.");
+      }
+    },
+    [],
+  );
 
   /** Card context-menu actions. Stable, so a card can memoize on its props. */
   const editTableInPanel = useCallback((tableId: string) => {
-    setSelectedId(tableId);
+    selectTable(tableId);
     setPanelTab("tables");
     setSidebarOpen(true);
   }, []);
@@ -2672,11 +2977,11 @@ export default function Designer({
       );
       // Relationships to tables outside this subset are dropped by normalization.
       if (table)
-        void copyShareText(
+        void copyText(
           generateDDL({ ...schemaRef.current, tables: [table] }),
         );
     },
-    [copyShareText],
+    [copyText],
   );
 
   const generateShareLink = async () => {
@@ -2693,7 +2998,7 @@ export default function Designer({
       if (!response.ok || !body.url)
         throw new Error(body.error || "Could not create project link.");
       setShareLink(body.url);
-      await copyShareText(body.url);
+      await copyText(body.url);
     } catch (error) {
       setShareError(
         error instanceof Error
@@ -2724,7 +3029,7 @@ export default function Designer({
         );
       const url = `${window.location.origin}/invite/${result.data.id}`;
       setWorkspaceInviteLink(url);
-      await copyShareText(url);
+      await copyText(url);
     } catch (error) {
       setShareError(
         error instanceof Error
@@ -2746,7 +3051,7 @@ export default function Designer({
       text: `${result.schema.tables.length} table(s) imported.${result.warnings.length ? ` ${result.warnings.length} warning(s).` : ""}`,
     });
     commit(result.schema);
-    setSelectedId(result.schema.tables[0]?.id ?? null);
+    selectTable(result.schema.tables[0]?.id ?? null);
   };
   /**
    * The other half of import: keep the diagram and land the script's tables
@@ -2764,7 +3069,7 @@ export default function Designer({
       text: `${result.added.length} table(s) added.${result.skipped.length ? ` Already in this project: ${result.skipped.join(", ")}.` : ""}${result.warnings.length ? ` ${result.warnings.length} warning(s).` : ""}`,
     });
     commit(result.schema);
-    setSelectedId(result.added[0]?.id ?? null);
+    selectTable(result.added[0]?.id ?? null);
     revealTables(result.added);
   };
   /**
@@ -2783,7 +3088,7 @@ export default function Designer({
       text: `${result.schema.tables.length} table(s) imported.${result.warnings.length ? ` ${result.warnings.length} warning(s).` : ""}`,
     });
     commit({ ...result.schema, id: schema.id, revision: schema.revision });
-    setSelectedId(result.schema.tables[0]?.id ?? null);
+    selectTable(result.schema.tables[0]?.id ?? null);
   };
   const appendJson = (text: string) => {
     const result = mergeSchemaJson(schema, text);
@@ -2796,7 +3101,7 @@ export default function Designer({
       text: `${result.added.length} table(s) added.${result.skipped.length ? ` Already in this project: ${result.skipped.join(", ")}.` : ""}${result.warnings.length ? ` ${result.warnings.length} warning(s).` : ""}`,
     });
     commit(result.schema);
-    setSelectedId(result.added[0]?.id ?? null);
+    selectTable(result.added[0]?.id ?? null);
     revealTables(result.added);
   };
   const clearInvalidForeignKeys = () => {
@@ -2857,12 +3162,88 @@ export default function Designer({
     }
   };
 
-  /** Whatever the canvas selection currently is, remove it. */
+  /**
+   * Whatever the canvas selection currently is, remove it — in one commit, so
+   * a swept-up cluster comes back on a single ⌘Z rather than one card at a time.
+   */
   const deleteSelection = () => {
-    if (selectedId) deleteTable(selectedId);
-    else if (selectedGroupId) deleteGroup(selectedGroupId);
-    else if (selectedMemoId) deleteMemo(selectedMemoId);
+    if (readOnly || !selectionCount(selection)) return;
+    commit(removeSelection(schema, selection));
+    setSelection(EMPTY_SELECTION);
   };
+
+  /**
+   * Copying is the same narrowing either way; only the format differs. DDL is
+   * what you paste into a SQL client, JSON is what you paste into another
+   * project — the envelope `mergeSchemaJson` reads on the way back in.
+   */
+  const copySelection = (format: "sql" | "json") => {
+    if (!selectionCount(selection)) {
+      toast.error("Nothing selected.");
+      return;
+    }
+    const subset = selectionSchema(schema, selection);
+    if (format === "sql" && !subset.tables.length) {
+      toast.error("Select a table — memos and empty schemas carry no SQL.");
+      return;
+    }
+    void copyText(
+      format === "sql" ? generateDDL(subset) : exportSchemaJson(subset),
+      format === "sql" ? "SQL copied." : "Copied as JSON.",
+    );
+  };
+
+  /**
+   * Paste rides the browser's own `paste` event rather than a ⌘V chord: it
+   * hands us the clipboard text outright, where reading it ourselves needs a
+   * permission prompt in Chrome and is refused in Firefox.
+   *
+   * `mergeSchemaJson` does the rest — it re-mints every id, rewires the foreign
+   * keys, brings the groups and memos, and lands the arrivals below whatever is
+   * already on the canvas. A table whose name the project already carries is
+   * skipped, which is also why pasting back into the project you copied from
+   * adds nothing; that is the import path's rule and the toast says so.
+   */
+  const pasteSelection = (text: string) => {
+    const result = mergeSchemaJson(schemaRef.current, text);
+    if (!result.schema) {
+      toast.error(result.errors.join(" "));
+      return;
+    }
+    commit(result.schema);
+    setSelection({
+      tables: result.added.map((table) => table.id),
+      memos: [],
+      groups: [],
+    });
+    revealTables(result.added);
+    toast.success(
+      `${result.added.length} table(s) pasted.${result.skipped.length ? ` Already here: ${result.skipped.join(", ")}.` : ""}`,
+    );
+  };
+
+  /**
+   * The listener below is bound once, so it reaches the current closures
+   * through refs rather than through its dependency array.
+   */
+  const pasteSelectionRef = useRef(pasteSelection);
+  pasteSelectionRef.current = pasteSelection;
+  const modalRef = useRef(modal);
+  modalRef.current = modal;
+
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      if (readOnly || isEditingTarget(event.target) || modalRef.current) return;
+      const text = event.clipboardData?.getData("text/plain")?.trim();
+      // Only claim the event for something that looks like our envelope;
+      // anything else belongs to whatever the user was really pasting into.
+      if (!text || !text.startsWith("{")) return;
+      event.preventDefault();
+      pasteSelectionRef.current(text);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [readOnly]);
 
   /** Every command a chord can reach. Ids without an entry here stay inert. */
   const shortcutActions: Partial<Record<ShortcutId, () => void>> = {
@@ -2877,6 +3258,9 @@ export default function Designer({
     addGroup,
     addMemo,
     junction: makeJunction,
+    selectAll: () => setSelection(selectAll(schema)),
+    copySelectionSql: () => copySelection("sql"),
+    copySelectionJson: () => copySelection("json"),
     deleteSelection,
     zoomIn: () => zoomBy(0.1),
     zoomOut: () => zoomBy(-0.1),
@@ -2916,9 +3300,7 @@ export default function Designer({
     if (event.key === "Escape") {
       // Overlays dismiss themselves; Escape only clears canvas selection.
       if (modal || openMenu || userMenuOpen || confirmRevoke) return;
-      if (selectedId) setSelectedId(null);
-      else if (selectedGroupId) setSelectedGroupId(null);
-      else if (selectedMemoId) setSelectedMemoId(null);
+      setSelection(EMPTY_SELECTION);
       return;
     }
     const id = matchShortcut(event, isMac);
@@ -3253,7 +3635,7 @@ export default function Designer({
       key={table.id}
       isExpanded={selectedId === table.id}
       onExpandedChange={(expanded) =>
-        setSelectedId(expanded ? table.id : null)
+        selectTable(expanded ? table.id : null)
       }
     >
       <CollapsibleTrigger className="entity-head">
@@ -4080,7 +4462,7 @@ export default function Designer({
                         className={`issue ${issue.severity}`}
                         key={`${issue.message}-${issue.columnId ?? issue.tableId ?? ""}`}
                         onClick={() =>
-                          issue.tableId && setSelectedId(issue.tableId)
+                          issue.tableId && selectTable(issue.tableId)
                         }
                       >
                         {issue.message}
@@ -4132,10 +4514,11 @@ export default function Designer({
               const position = liveGroup(group);
               const palette = GROUP_PALETTE[group.color];
               const selectedGroup = selectedGroupId === group.id;
+              const inSet = !single && isSelected(selection, "group", group.id);
               const moving = dragGroupPosition?.id === group.id;
               return (
                 <section
-                  className={`schema-group ${selectedGroup ? "selected" : ""} ${moving ? "moving" : ""}`}
+                  className={`schema-group ${selectedGroup ? "selected" : ""} ${inSet ? "multi-selected" : ""} ${moving ? "moving" : ""}`}
                   key={group.id}
                   role="group"
                   aria-label={`Schema group ${group.name}`}
@@ -4149,9 +4532,7 @@ export default function Designer({
                   }}
                   onPointerDown={(event) => {
                     event.stopPropagation();
-                    setSelectedGroupId(group.id);
-                    setSelectedId(null);
-                    setSelectedMemoId(null);
+                    pressSelection(event, "group", group.id);
                   }}
                 >
                   <div
@@ -4238,9 +4619,10 @@ export default function Designer({
                 MEMO_COLORS.find((item) => item.id === memo.color) ??
                 MEMO_COLORS[0];
               const selectedMemo = selectedMemoId === memo.id;
+              const inSet = !single && isSelected(selection, "memo", memo.id);
               return (
                 <article
-                  className={`memo-card ${selectedMemo ? "selected" : ""}`}
+                  className={`memo-card ${selectedMemo ? "selected" : ""} ${inSet ? "multi-selected" : ""}`}
                   key={memo.id}
                   role="group"
                   tabIndex={0}
@@ -4256,8 +4638,12 @@ export default function Designer({
                   onPointerDown={(event) => onMemoDown(event, memo)}
                   onClick={(event) => {
                     event.stopPropagation();
-                    setSelectedId(null);
-                    setSelectedMemoId(memo.id);
+                    // The pointerdown already decided this; re-running it here
+                    // would undo a Shift-click toggle a moment after it landed.
+                    if (event.shiftKey || event.metaKey || event.ctrlKey) return;
+                    if (isSelected(selectionRef.current, "memo", memo.id))
+                      return;
+                    setSelection(selectOnly("memo", memo.id));
                   }}
                   onKeyDown={(event) => {
                     if (
@@ -4324,8 +4710,7 @@ export default function Designer({
                     aria-label="Memo text"
                     placeholder="Write a memo..."
                     onFocus={() => {
-                      setSelectedId(null);
-                      setSelectedMemoId(memo.id);
+                      setSelection(selectOnly("memo", memo.id));
                       setEditingMemoId(memo.id);
                     }}
                     onChange={(event) =>
@@ -4407,6 +4792,9 @@ export default function Designer({
                   width={liveWidth(table)}
                   moving={moving}
                   selected={selectedId === table.id}
+                  multiSelected={
+                    !single && isSelected(selection, "table", table.id)
+                  }
                   resizing={resizeTable?.id === table.id}
                   hoverDisabled={moving || grabbing || linking !== null}
                   heldByName={heldBy?.user.name}
@@ -4418,7 +4806,7 @@ export default function Designer({
                   foreignKeyTarget={foreignKeyTarget}
                   readOnly={readOnly}
                   isMac={isMac}
-                  onSelect={setSelectedId}
+                  onSelect={selectTable}
                   onHeaderDown={onHeaderDown}
                   onResizeDown={onTableResizeDown}
                   onResetWidth={resetTableWidth}
@@ -4433,8 +4821,73 @@ export default function Designer({
                 />
               );
             })}
+            {multiFrame && (
+              <div
+                className="selection-frame"
+                aria-hidden="true"
+                style={{
+                  transform: `translate3d(${multiFrame.x}px, ${multiFrame.y}px, 0)`,
+                  width: multiFrame.width,
+                  height: multiFrame.height,
+                }}
+              />
+            )}
+            {marquee && (
+              <div
+                className="marquee"
+                aria-hidden="true"
+                style={{
+                  transform: `translate3d(${marquee.x}px, ${marquee.y}px, 0)`,
+                  width: marquee.width,
+                  height: marquee.height,
+                }}
+              />
+            )}
             <PeerCursors peers={peers} zoom={zoom} />
           </div>
+
+          {/*
+            Anchored to the frame but drawn in screen space and never scaled:
+            a toolbar that shrank with the zoom would be unreadable at the point
+            you most need it. Hidden mid-gesture — chrome that follows a drag is
+            noise, and the frame is doing the work of showing what is held.
+          */}
+          {multiFrame && !dragSelection && !marquee && (
+            <div
+              className="selection-toolbar"
+              style={{
+                transform: `translate3d(${pan.x + (multiFrame.x + multiFrame.width / 2) * zoom}px, ${pan.y + multiFrame.y * zoom}px, 0)`,
+              }}
+            >
+              <span className="selection-toolbar-count">
+                {selectionCount(selection)} selected
+              </span>
+              <button
+                type="button"
+                onClick={() => copySelection("sql")}
+                title={`Copy as SQL (${hint("copySelectionSql")})`}
+              >
+                Copy SQL
+              </button>
+              <button
+                type="button"
+                onClick={() => copySelection("json")}
+                title={`Copy as JSON (${hint("copySelectionJson")})`}
+              >
+                Copy JSON
+              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  className="selection-toolbar-danger"
+                  onClick={deleteSelection}
+                  title={`Delete (${hint("deleteSelection")})`}
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+          )}
 
           {linking && (
             <svg
@@ -4563,7 +5016,7 @@ export default function Designer({
                 />
                 <Button
                   variant="outline"
-                  onClick={() => void copyShareText(shareLink)}
+                  onClick={() => void copyText(shareLink)}
                 >
                   <HugeiconsIcon icon={Copy01Icon} data-icon="inline-start" />
                   Copy
@@ -4619,7 +5072,7 @@ export default function Designer({
                   />
                   <Button
                     variant="outline"
-                    onClick={() => void copyShareText(workspaceInviteLink)}
+                    onClick={() => void copyText(workspaceInviteLink)}
                   >
                     <HugeiconsIcon icon={Copy01Icon} data-icon="inline-start" />
                     Copy

@@ -7,7 +7,7 @@ import type { Schema } from "@/app/lib/schema";
 import { applySchemaToYDoc, isEmptyDoc, schemaFromYDoc, schemaRoot } from "./ydoc";
 
 export type CollabUser = { id: string; name: string; image?: string | null };
-export type Peer = { clientId: number; user: CollabUser; color: string; cursor: { x: number; y: number } | null; selectedId: string | null };
+export type Peer = { clientId: number; user: CollabUser; color: string; cursor: { x: number; y: number } | null; selectedIds: string[] };
 export type CollabStatus = "local" | "connecting" | "connected" | "disconnected";
 
 /** Peer colours are derived from the user id so everyone sees the same person in the same colour. */
@@ -142,8 +142,16 @@ export function useCollaborativeSchema({
         [...awareness.getStates().entries()]
           .filter(([clientId, state]) => clientId !== awareness.clientID && (state as Peer).user)
           .map(([clientId, state]) => {
-            const peer = state as Omit<Peer, "clientId">;
-            return { clientId, user: peer.user, color: peer.color ?? peerColor(peer.user.id), cursor: peer.cursor ?? null, selectedId: peer.selectedId ?? null };
+            const peer = state as Omit<Peer, "clientId"> & { selectedId?: string | null };
+            return {
+              clientId,
+              user: peer.user,
+              color: peer.color ?? peerColor(peer.user.id),
+              cursor: peer.cursor ?? null,
+              // A peer on a build that predates multi-selection still sends the
+              // single `selectedId`; read either shape rather than losing them.
+              selectedIds: Array.isArray(peer.selectedIds) ? peer.selectedIds : peer.selectedId ? [peer.selectedId] : [],
+            };
           }),
       );
     };
@@ -204,7 +212,7 @@ export function useCollaborativeSchema({
     });
   }, []);
 
-  const setSelection = useCallback((selectedId: string | null) => { providerRef.current?.setAwarenessField("selectedId", selectedId); }, []);
+  const setSelection = useCallback((selectedIds: string[]) => { providerRef.current?.setAwarenessField("selectedIds", selectedIds); }, []);
 
   useEffect(() => () => { if (cursorFrame.current !== null) cancelAnimationFrame(cursorFrame.current); }, []);
 

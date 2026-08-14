@@ -130,6 +130,7 @@ export const TableCard = memo(function TableCard({
   width,
   moving,
   selected,
+  multiSelected,
   resizing,
   hoverDisabled,
   heldByName,
@@ -159,6 +160,13 @@ export const TableCard = memo(function TableCard({
   width: number;
   moving: boolean;
   selected: boolean;
+  /**
+   * One of several things selected together. Kept apart from `selected` so the
+   * shared ring reads as "part of this set" rather than as the single-selection
+   * accent — the whole point of the ring is that it looks the same on a table,
+   * a memo and a group.
+   */
+  multiSelected: boolean;
   /**
    * True for the card whose width grip is in flight. Pointer capture takes the
    * pointer off the card, so hover cannot be what keeps the grip lit.
@@ -302,7 +310,7 @@ export const TableCard = memo(function TableCard({
   return (
     <ContextMenuTrigger onOpenChange={(open) => open && onSelect(table.id)}>
       <div
-        className={`table-card ${selected ? "selected" : ""} ${moving ? "moving" : ""} ${heldByName ? "peer-held" : ""}`}
+        className={`table-card ${selected ? "selected" : ""} ${multiSelected ? "multi-selected" : ""} ${moving ? "moving" : ""} ${heldByName ? "peer-held" : ""}`}
         role="button"
         tabIndex={0}
         aria-pressed={selected}

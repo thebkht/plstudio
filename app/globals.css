@@ -682,8 +682,96 @@ button {
 .canvas-wrap.gesturing .table-card,
 .canvas-wrap.gesturing .schema-group,
 .canvas-wrap.gesturing .memo-card,
+.canvas-wrap.gesturing .marquee,
+.canvas-wrap.gesturing .selection-frame,
 .canvas-wrap.gesturing .relationship-path {
   transition: none !important;
+}
+
+/*
+ * The swept rectangle. No transition and no animation anywhere near it: it is
+ * pinned to the pointer for the whole gesture, and anything that eased into
+ * place would read as the canvas lagging behind the hand.
+ */
+.marquee {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 6;
+  pointer-events: none;
+  border: 1px solid var(--primary);
+  border-radius: 3px;
+  background: color-mix(in oklch, var(--primary) 12%, transparent);
+}
+/*
+ * The box around a multi-selection. One shared frame is what makes several
+ * cards read as a single object, and it is what the toolbar anchors to.
+ */
+.selection-frame {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 5;
+  pointer-events: none;
+  border: 1px dashed color-mix(in oklch, var(--primary) 70%, transparent);
+  border-radius: 8px;
+  margin: -8px 0 0 -8px;
+  padding: 8px;
+  box-sizing: content-box;
+}
+/*
+ * The same ring on all three kinds, deliberately. A set that mixes tables,
+ * memos and a schema has to look like one thing, which it cannot do if each
+ * kind keeps its own selected treatment.
+ */
+.table-card.multi-selected,
+.memo-card.multi-selected,
+.schema-group.multi-selected {
+  outline: 2px solid color-mix(in oklch, var(--primary) 78%, transparent);
+  outline-offset: 2px;
+}
+.selection-toolbar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  /* Centred on the frame and lifted clear of its top edge. */
+  margin: -46px 0 0 0;
+  translate: -50% 0;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-0) 88%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+  box-shadow: var(--shadow-dock);
+  white-space: nowrap;
+}
+.selection-toolbar-count {
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+.selection-toolbar button {
+  padding: 5px 9px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-1);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+.selection-toolbar button:hover {
+  background: color-mix(in oklch, var(--primary) 12%, transparent);
+}
+.selection-toolbar-danger:hover {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
 }
 .edges {
   position: absolute;
@@ -1295,7 +1383,10 @@ button {
   /* The context menu is a blurred material; make it opaque and drop the blur. */
   [data-slot="context-menu-content"] { background: var(--popover); }
   [data-slot="context-menu-content"]::before { display: none; }
-  .dock { background: var(--surface-0); }
+  .dock, .selection-toolbar { background: var(--surface-0); }
+  .selection-toolbar { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  /* The fill is what carries the marquee here; keep the border and drop it. */
+  .marquee { background: transparent; border-width: 2px; }
   [data-slot="dialog-overlay"], [data-slot="alert-dialog-overlay"] { background: color-mix(in srgb, var(--surface-0) 92%, transparent); } }
 @media (prefers-contrast: more) { .table-card, [data-slot="dialog-content"], [data-slot="sidebar-container"], .dock { border-color: var(--ink-1); }
   [data-slot="context-menu-content"] { background: var(--popover); }
