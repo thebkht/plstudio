@@ -31,7 +31,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export default function ProjectCard({ projectId, href, name, tableCount, updatedAt, author, workspace, canDelete = true }: { projectId: string; href: string; name: string; tableCount: number; updatedAt: string; author?: string; workspace?: string; canDelete?: boolean }) {
+/* Equal-lightness hues, so no project's strip outweighs another's, keyed to the
+   id: four diagrams all called "Untitled" are otherwise identical at a glance. */
+const HUES = [28, 78, 148, 228, 288, 348];
+const hueOf = (id: string) => HUES[[...id].reduce((hash, character) => (hash * 31 + character.charCodeAt(0)) >>> 0, 7) % HUES.length];
+
+export default function ProjectCard({ projectId, href, name, tableCount, updatedAt, updatedLabel, author, workspace, canDelete = true }: { projectId: string; href: string; name: string; tableCount: number; updatedAt: string; updatedLabel: string; author?: string; workspace?: string; canDelete?: boolean }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const remove = async () => {
@@ -43,6 +48,7 @@ export default function ProjectCard({ projectId, href, name, tableCount, updated
   };
   return (
     <Card size="sm" className="project-card">
+      <span className="project-card-strip" style={{ color: `oklch(0.62 0.11 ${hueOf(projectId)})` }} aria-hidden="true" />
       <CardHeader>
         <CardTitle>
           <Link href={href} className="project-card-link">
@@ -71,7 +77,7 @@ export default function ProjectCard({ projectId, href, name, tableCount, updated
         )}
       </CardHeader>
       <CardFooter>
-        <small>{author ? `${author} · updated ${updatedAt}` : `Updated ${updatedAt}`}</small>
+        <small className="project-card-meta" title={updatedAt}>{author ? `${author} · ${updatedLabel}` : `Updated ${updatedLabel}`}</small>
       </CardFooter>
       <AlertDialog isOpen={confirming} onOpenChange={setConfirming}>
         <AlertDialogHeader>

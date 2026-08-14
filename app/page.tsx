@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import PendingInvitations from "@/app/components/pending-invitations";
 import ProjectCard from "@/app/components/project-card";
 import WorkspaceTopbar from "@/app/components/workspace-topbar";
-import { formatTimestamp } from "@/app/lib/format";
+import { formatRelative, formatTimestamp } from "@/app/lib/format";
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
   Empty,
@@ -30,15 +30,15 @@ export default async function Page() {
         workspaces={workspaces}
         current={null}
         links={[
-          { href: "/", label: "Personal projects" },
+          { href: "/", label: "Personal projects", current: true },
           { href: "/templates", label: "Templates" },
         ]}
-        account={{ href: "/onboarding", label: "New workspace" }}
         user={{ name: session.user.name, email: session.user.email, image: session.user.image }}
       />
       <header className="dashboard-header">
         <div>
-          <p className="eyebrow">Personal space</p>
+          {/* No eyebrow here: the switcher two rows up already says which space
+              this is, and repeating it makes the label read as decoration. */}
           <h1>Your projects</h1>
         </div>
         <div className="dashboard-actions">
@@ -66,7 +66,9 @@ export default async function Page() {
         <section className="project-grid">
           {personalProjects.map((project) => {
             const schema = project.schemaJson as { tables?: unknown[] };
-            return <ProjectCard key={project.id} projectId={project.id} href={`/project/${project.id}`} name={project.name} tableCount={schema.tables?.length || 0} updatedAt={formatTimestamp(project.updatedAt)} author={session.user.name} />;
+            /* No author here: every project in the personal space is yours, so
+               the name would be the same string on every card. */
+            return <ProjectCard key={project.id} projectId={project.id} href={`/project/${project.id}`} name={project.name} tableCount={schema.tables?.length || 0} updatedAt={formatTimestamp(project.updatedAt)} updatedLabel={formatRelative(project.updatedAt)} />;
           })}
         </section>
       ) : (

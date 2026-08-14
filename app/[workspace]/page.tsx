@@ -4,7 +4,7 @@ import { listUserWorkspaces, lookupUserNames, requireWorkspace } from "@/app/lib
 import NewProjectButton from "@/app/components/new-project-button";
 import ProjectCard from "@/app/components/project-card";
 import WorkspaceTopbar from "@/app/components/workspace-topbar";
-import { formatTimestamp } from "@/app/lib/format";
+import { formatRelative, formatTimestamp } from "@/app/lib/format";
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
   Empty,
@@ -26,11 +26,10 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
         workspaces={workspaces}
         current={workspace}
         links={[
-          { href: `/${workspace}`, label: "Projects" },
+          { href: `/${workspace}`, label: "Projects", current: true },
           { href: "/templates", label: "Templates" },
           { href: `/${workspace}/settings`, label: "Settings" },
         ]}
-        account={{ href: `/${workspace}/settings`, label: `${organization.name} · workspace` }}
         user={{ name: session.user.name, email: session.user.email, image: session.user.image }}
       />
       <header className="dashboard-header">
@@ -48,7 +47,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
         <section className="project-grid">
           {rows.map((project) => {
             const schema = project.schemaJson as { tables?: unknown[] };
-            return <ProjectCard key={project.id} projectId={project.id} href={`/${workspace}/${project.id}`} name={project.name} tableCount={schema.tables?.length || 0} updatedAt={formatTimestamp(project.updatedAt)} author={project.createdBy ? authors.get(project.createdBy) : undefined} workspace={workspace} />;
+            return <ProjectCard key={project.id} projectId={project.id} href={`/${workspace}/${project.id}`} name={project.name} tableCount={schema.tables?.length || 0} updatedAt={formatTimestamp(project.updatedAt)} updatedLabel={formatRelative(project.updatedAt)} author={project.createdBy ? authors.get(project.createdBy) : undefined} workspace={workspace} />;
           })}
         </section>
       ) : (

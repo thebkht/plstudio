@@ -14,8 +14,10 @@ import { Separator } from "@/components/ui/separator";
  * of the one on screen (null in the personal space); the switcher is what makes
  * the others reachable, so pass them on every page that has a session.
  *
- * `account` is navigation (new workspace, workspace settings); `user` is the
- * account menu proper — pass the session user on every page that has one.
+ * `account` is navigation (workspace settings); `user` is the account menu
+ * proper — pass the session user on every page that has one. Omit `account`
+ * when the page already offers that destination: the same action twice in one
+ * viewport means neither reads as the way to do it.
  */
 export default function WorkspaceTopbar({
   links,
@@ -24,8 +26,8 @@ export default function WorkspaceTopbar({
   current,
   user,
 }: {
-  links: { href: string; label: string }[];
-  account: { href: string; label: string };
+  links: { href: string; label: string; current?: boolean }[];
+  account?: { href: string; label: string };
   workspaces?: SwitchableWorkspace[];
   current?: string | null;
   user?: NavUserAccount | null;
@@ -43,6 +45,7 @@ export default function WorkspaceTopbar({
             data-slot="button"
             key={link.href}
             href={link.href}
+            aria-current={link.current ? "page" : undefined}
             className={buttonVariants({ variant: "ghost", size: "sm" })}
           >
             {link.label}
@@ -50,13 +53,15 @@ export default function WorkspaceTopbar({
         ))}
       </nav>
       <div className="ml-auto flex items-center gap-2">
-        <Link
-          data-slot="button"
-          href={account.href}
-          className={buttonVariants({ variant: "outline", size: "sm" })}
-        >
-          {account.label}
-        </Link>
+        {account && (
+          <Link
+            data-slot="button"
+            href={account.href}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            {account.label}
+          </Link>
+        )}
         {user && <NavUser user={user} />}
       </div>
     </header>
