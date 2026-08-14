@@ -42,9 +42,20 @@ An Oracle 12.2+ schema designer: a PLStudio-style canvas where you draw tables, 
 
 ### UI
 
-`app/components/designer.tsx` is the whole client app — it owns schema state, selection, undo/redo history stacks, pointer-based drag/pan, zoom, and the export/import modals. `app/page.tsx` just mounts it. The spec assigns it sole ownership of state and command actions; sidebar/editor/canvas are presentation sections within it. Memoized presentation pieces live under `app/components/designer/` (for example `table-card.tsx`, `column-editor.tsx`, `relationship-edge.tsx`, and `primitives.tsx`); they do not own schema state or commands.
+The editor is laid out like drawDB's: a provider-only entry point, a shell, and one directory per screen region.
 
-Canvas geometry (`TABLE_WIDTH`, `TABLE_COLOR_STRIP_HEIGHT`, `TABLE_HEADER_HEIGHT`, `TABLE_FIELD_HEIGHT`) is defined once in `app/lib/schema.ts` alongside `tableHeight()`, and imported by `Designer.tsx`. Relationship anchors are derived from these — if the card's visual layout changes, update the constants rather than hardcoding new offsets.
+- `app/components/designer.tsx` — mounts the provider stack and nothing else (drawDB's `pages/Editor.jsx`).
+- `app/components/designer/workspace.tsx` — the shell (drawDB's `components/Workspace.jsx`). It still owns the canvas gesture layer, the position commits, the menu tree, the save pipeline and the two per-row renderers the side panel takes as render props.
+- `editor-header/` — `control-panel.tsx` (the appbar) and `modal/`, whose `modal.tsx` switches on the modal union the way drawDB switches on its `MODAL` enum.
+- `editor-canvas/` — one file per drawable: `table-card`, `schema-group`, `memo-card`, `relationship-edge`, plus `dock` and `selection-toolbar`.
+- `editor-side-panel/` — `side-panel.tsx` (shell), `code-view`, `issues`, and a folder per tab (`tables-tab/`, `relationships-tab/`).
+- `designer/constants.ts` and `designer/geometry.ts` — the canvas constants and the pure helpers, dependency-free.
+
+State lives in `designer/context/`, each context paired 1:1 with a hook re-exported from `app/hooks/index.ts` — so components read `useSchema()`, `useSelect()`, `useLayout()`, `useTransform()`, `useSaveState()`, `useDesignerSettings()` rather than taking twenty props. `SchemaProvider` wraps `useCollaborativeSchema` and owns the structural mutations and the derived `tablesById`/`issues`/`ddl`; provider order in `designer.tsx` is a dependency order, since `SchemaProvider` reads the panel mode and marks the document dirty.
+
+**High-frequency gesture state (`dragPosition`, `marquee`, the resize values) is deliberately not in a tree-wide context** — it stays in `workspace.tsx` and belongs with the canvas. Hoisting it above the appbar and side panel would re-render them on every `pointermove`. Keep the `xRef.current = x` mirrors too: the long-lived pointer/key listeners read them so they never re-subscribe mid-gesture.
+
+Canvas geometry (`TABLE_WIDTH`, `TABLE_COLOR_STRIP_HEIGHT`, `TABLE_HEADER_HEIGHT`, `TABLE_FIELD_HEIGHT`) is defined once in `app/lib/schema.ts` alongside `tableHeight()`; `designer/constants.ts` re-derives `HEADER_HEIGHT`/`ROW_HEIGHT` from it. Relationship anchors are derived from these — if the card's visual layout changes, update the constants rather than hardcoding new offsets.
 
 Undo/redo: `commit(next)` pushes the _previous_ schema onto `history` (capped at 50) and clears `future`.
 
@@ -102,7 +113,7 @@ Every write goes through `app/lib/save-queue.ts` (`createSaveQueue`, tested in `
 ## Conventions
 
 - Path alias `@/*` maps to the repo root, configured in both `tsconfig.json` and `vitest.config.ts`.
-- Application component filenames use kebab-case (`designer.tsx`, `collab-presence.tsx`, and so on). Component identifiers remain PascalCase. Shadcn components under `components/ui` are already kebab-case and are left as generated.
+- Application component filenames use kebab-case (`designer.tsx`, `collab-presence.tsx`, and so on), directories too (`editor-canvas/`, `tables-tab/`). Component identifiers remain PascalCase. This is where we depart from drawDB, which uses PascalCase for both — only the directory _shape_ is borrowed. Shadcn components under `components/ui` are already kebab-case and are left as generated.
 - UI components come from shadcn with the `aria-vega` style and Base UI / react-aria-components underneath (`components.json`). Icon library is configured as `hugeicons`, but `Designer.tsx` currently imports from `lucide-react`.
 - Tests live in `tests/` and target the pure domain layer (generators, parser, validation) — not the React tree.
 - Code style is dense: single-line arrow functions and chained array methods over intermediate variables. Match it.

@@ -12,14 +12,9 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowDown01Icon,
   ArrowRight01Icon,
-  DatabaseIcon,
   Delete02Icon,
-  FingerPrintIcon,
-  GitMergeIcon,
-  Key01Icon,
   Link01Icon,
   PlusSignIcon,
-  Search01Icon,
 } from "@hugeicons/core-free-icons";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -47,10 +42,7 @@ import {
   FieldLegend,
   FieldSet,
 } from "@/components/ui/field";
-import {
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Input } from "@/components/ui/input";
 import { generateDDL } from "@/app/lib/generators";
 import {
