@@ -186,17 +186,13 @@ import {
   type Vec,
 } from "@/app/lib/motion";
 import {
-  cloneSchema,
   groupPrefix,
   GROUP_PALETTE,
   makeColumn,
   makeMemo,
   makeSchemaGroup,
   makeTable,
-  normalizeMemos,
-  normalizeGroups,
   normalizeRelationships,
-  normalizeTables,
   clampTableWidth,
   nextId,
   prefixTableName,
@@ -208,9 +204,6 @@ import {
   tableWidth,
   typeSizePlaceholder,
   typeUsesSize,
-  TABLE_COLOR_STRIP_HEIGHT,
-  TABLE_HEADER_HEIGHT,
-  TABLE_FIELD_HEIGHT,
   type Schema,
   type Table,
   type Column,
@@ -244,232 +237,41 @@ import {
   type ImportMessage,
 } from "@/app/components/designer/import-modal";
 import { TableCard } from "./designer/table-card";
-
-/** Header offset for row anchors: the colour strip sits above the title bar. */
-const HEADER_HEIGHT = TABLE_COLOR_STRIP_HEIGHT + TABLE_HEADER_HEIGHT;
-const ROW_HEIGHT = TABLE_FIELD_HEIGHT;
-/**
- * There is no world. Coordinates are unbounded in every direction, negatives
- * included, and nothing is clamped: the camera is free and cards rest wherever
- * they are dropped. `.canvas` carries no width or height for the same reason —
- * a sized element is a wall, and a wall is what a diagram grows into.
- *
- * The grid is drawn from these two, matching drawDB's `gridSize` and
- * `gridCircleRadius`, and is anchored to canvas coordinates rather than to the
- * viewport, so the lattice tiles forever without an element to size.
- */
-const GRID_SIZE = 24;
-const GRID_DOT_RADIUS = 0.85;
-/**
- * Below `GRID_FADE_END` a 24px lattice is denser than the pixels available to
- * draw it and reads as a grey wash, so it fades out instead. Nothing to see
- * out here is the honest signal — not a smeared texture.
- */
-const GRID_FADE_START = 0.35;
-const GRID_FADE_END = 0.15;
-/**
- * The floor is low because the canvas has no ceiling: a diagram can outgrow any
- * particular framing, and `fitView` has to be able to frame it.
- */
-const MIN_ZOOM = 0.05;
-const MAX_ZOOM = 1.8;
-/**
- * Wheel deltas arrive in three units (pixels, lines, pages) and at wildly
- * different magnitudes: a trackpad pinch reports a few pixels per event, one
- * mouse notch reports 100 at once. Both are normalised to pixels, then a single
- * event's contribution is capped at `ZOOM_STEP_LIMIT` so a notch scales by a
- * smooth ~13% instead of jumping by `exp(1)`.
- */
-const WHEEL_LINE_HEIGHT = 16;
-const WHEEL_PAGE_HEIGHT = 400;
-const ZOOM_SENSITIVITY = 0.005;
-const ZOOM_STEP_LIMIT = 24;
-/** Pixels per unit of a wheel event's delta, whichever unit the device reports. */
-const wheelScale = (event: WheelEvent) =>
-  event.deltaMode === 1
-    ? WHEEL_LINE_HEIGHT
-    : event.deltaMode === 2
-      ? WHEEL_PAGE_HEIGHT
-      : 1;
-/** Movement before a press is treated as a drag rather than a tap. */
-const DRAG_THRESHOLD = 4;
-/** Arrow-key nudge for keyboard positioning. */
-const NUDGE = 8;
-const MEMO_MIN_WIDTH = 180;
-const MEMO_MIN_HEIGHT = 100;
-const MEMO_MAX_WIDTH = 560;
-const MEMO_MAX_HEIGHT = 520;
-const GROUP_MIN_WIDTH = 360;
-const GROUP_MIN_HEIGHT = 260;
-const GROUP_HEADER_HEIGHT = 42;
-/** Clearance kept between two table cards when a drop is resolved. */
-const TABLE_GAP = 18;
-/** How far an edge runs straight out of its anchor before it may turn. Long
- *  enough to clear the cardinality marker that sits on that run. */
-const MEMO_COLORS: {
-  id: MemoColor;
-  label: string;
-  background: string;
-  border: string;
-}[] = [
-  {
-    id: "yellow",
-    label: "Yellow",
-    background: "var(--memo-yellow-surface)",
-    border: "var(--memo-yellow-edge)",
-  },
-  {
-    id: "blue",
-    label: "Blue",
-    background: "var(--memo-blue-surface)",
-    border: "var(--memo-blue-edge)",
-  },
-  {
-    id: "green",
-    label: "Green",
-    background: "var(--memo-green-surface)",
-    border: "var(--memo-green-edge)",
-  },
-  {
-    id: "pink",
-    label: "Pink",
-    background: "var(--memo-pink-surface)",
-    border: "var(--memo-pink-edge)",
-  },
-];
-
-/** How far one arrow-key press resizes a handle; Shift takes a coarse step. */
-const RESIZE_STEP = 8;
-const RESIZE_STEP_COARSE = 32;
-/** Arrow-key deltas for the resize handles, which are otherwise pointer-only. */
-const resizeDelta = (event: React.KeyboardEvent) => {
-  const step = event.shiftKey ? RESIZE_STEP_COARSE : RESIZE_STEP;
-  const deltas: Record<string, [number, number]> = {
-    ArrowLeft: [-step, 0],
-    ArrowRight: [step, 0],
-    ArrowUp: [0, -step],
-    ArrowDown: [0, step],
-  };
-  return deltas[event.key] ?? null;
-};
-
-/**
- * Whether a dropped card's centre lands inside a group. The header strip is
- * excluded: that band is how the group itself is grabbed, so a card resting
- * over it belongs to the canvas, not to the group.
- */
-const enclosedBy = (
-  rect: { x: number; y: number; width: number; height: number },
-  x: number,
-  y: number,
-) =>
-  x >= rect.x &&
-  x <= rect.x + rect.width &&
-  y >= rect.y + GROUP_HEADER_HEIGHT &&
-  y <= rect.y + rect.height;
-
-/**
- * `MLL` out of `MLL -- MULTI LANGUAGE TOOLS`. Only a short leading token that
- * is actually set off by a separator counts, so `Schema 1` suggests nothing
- * rather than suggesting `SCHEMA`. A placeholder only — never written.
- */
-const keywordHint = (name: string) =>
-  name
-    .trim()
-    .match(/^([A-Za-z0-9]{1,8})\s*(?:--|[-–—:_])/)?.[1]
-    .toUpperCase() ?? "KEY";
-
-/**
- * Where the `index`-th card of a group lands: stacked down from the corner
- * below the header, kept clear of the borders, and centred instead when the
- * card is too wide or tall to sit inside with margins. Centring is the part
- * that matters — `enclosedBy` tests the card's *centre*, so a card placed
- * anywhere else would be evicted from the group by the next resize.
- */
-const insideGroup = (
-  rect: { x: number; y: number; width: number; height: number },
-  table: Table,
-  index: number,
-) => {
-  const place = (start: number, span: number, size: number, offset: number) => {
-    const low = start + 12;
-    const high = start + span - size - 12;
-    return Math.round(
-      high < low
-        ? start + (span - size) / 2
-        : Math.max(low, Math.min(high, low + offset)),
-    );
-  };
-  return {
-    x: place(rect.x, rect.width, tableWidth(table), 12 + (index % 3) * 40),
-    y: place(
-      rect.y + GROUP_HEADER_HEIGHT,
-      rect.height - GROUP_HEADER_HEIGHT,
-      tableHeight(table),
-      6 + (index % 4) * 40,
-    ),
-  };
-};
-
-function repairInitialLayout(schema: Schema): Schema {
-  const next = cloneSchema(schema);
-  const gap = 24;
-  const overlaps = (table: Table, x: number, y: number) =>
-    next.tables.some((other) => {
-      if (other.id === table.id) return false;
-      const width = tableWidth(table);
-      const otherWidth = tableWidth(other);
-      return (
-        x < other.x + otherWidth + gap &&
-        x + width + gap > other.x &&
-        y < other.y + tableHeight(other) + gap &&
-        y + tableHeight(table) + gap > other.y
-      );
-    });
-  next.tables.forEach((table, index) => {
-    if (index === 0 || !overlaps(table, table.x, table.y)) return;
-    const startX = table.x;
-    const startY = table.y;
-    for (let ring = 1; ring <= 24; ring += 1) {
-      const step = 48 * ring;
-      const candidates = [
-        { x: startX + step, y: startY },
-        { x: startX - step, y: startY },
-        { x: startX, y: startY + step },
-        { x: startX, y: startY - step },
-        { x: startX + step, y: startY + step },
-        { x: startX - step, y: startY + step },
-        { x: startX + step, y: startY - step },
-        { x: startX - step, y: startY - step },
-      ];
-      // Every ring is legal, negatives included: there is no edge to fall off.
-      const free = candidates.find(
-        (candidate) => !overlaps(table, candidate.x, candidate.y),
-      );
-      if (free) {
-        table.x = free.x;
-        table.y = free.y;
-        break;
-      }
-    }
-  });
-  return next;
-}
-
-function prepareCanvasSchema(schema: Schema): Schema {
-  const next = repairInitialLayout(
-    normalizeTables(normalizeGroups(normalizeRelationships(schema))),
-  );
-  next.memos = normalizeMemos(next.memos);
-  return next;
-}
-
-type PanelTab = "tables" | "relationships";
-type PanelMode = "structure" | "code";
-
-/** Select needs a real key for "no selection", since null renders the placeholder. */
-const NO_GROUP = "__ungrouped__";
-const NO_REFERENCE = "__no_reference__";
+import {
+  DRAG_THRESHOLD,
+  GRID_DOT_RADIUS,
+  GRID_FADE_END,
+  GRID_FADE_START,
+  GRID_SIZE,
+  GROUP_HEADER_HEIGHT,
+  GROUP_MIN_HEIGHT,
+  GROUP_MIN_WIDTH,
+  HEADER_HEIGHT,
+  MAX_ZOOM,
+  MEMO_COLORS,
+  MEMO_MAX_HEIGHT,
+  MEMO_MAX_WIDTH,
+  MEMO_MIN_HEIGHT,
+  MEMO_MIN_WIDTH,
+  MIN_ZOOM,
+  NO_GROUP,
+  NO_REFERENCE,
+  NUDGE,
+  ROW_HEIGHT,
+  TABLE_GAP,
+  ZOOM_SENSITIVITY,
+  ZOOM_STEP_LIMIT,
+  type PanelMode,
+  type PanelTab,
+} from "./designer/constants";
+import {
+  enclosedBy,
+  insideGroup,
+  keywordHint,
+  prepareCanvasSchema,
+  resizeDelta,
+  wheelScale,
+} from "./designer/geometry";
 
 export default function Designer({
   initialSchema,
