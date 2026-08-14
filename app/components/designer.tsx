@@ -698,6 +698,7 @@ export default function Designer({
   const [relationSettings, setRelationSettings] = useState({
     showCardinality: true,
     showRelationshipLabels: true,
+    autoSave: false,
   });
   const [issuesOpen, setIssuesOpen] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -3367,14 +3368,20 @@ export default function Designer({
   const saveQueue = saveQueueRef.current;
 
   /**
-   * Manual save feedback.
+   * Saving to the project file. An autosave says nothing when it works (the
+   * appbar badge already reports state), whereas manual saves toast on success.
    */
+  const [explicitSave, setExplicitSave] = useState(false);
   announceSaveRef.current = (result) => {
     if (result.status === "saved") {
       setDirty(false);
-      toast.success("Project saved.");
+      if (explicitSave || !relationSettings.autoSave) {
+        toast.success("Project saved.");
+      }
+      setExplicitSave(false);
       return;
     }
+    setExplicitSave(false);
     if (result.status === "conflict") {
       toast.error("This project changed elsewhere.", {
         description: "Saving now would overwrite the other changes.",
@@ -3388,23 +3395,49 @@ export default function Designer({
 
   const save = (overwrite = false) => {
     if (readOnly) return Promise.resolve();
+    setExplicitSave(true);
     return saveQueue.flush(schemaRef.current, { overwrite });
   };
+
+  /**
+   * The autosave itself: when enabled in settings, every edit of this client's
+   * re-arms the debounce, so a burst of typing writes once when it stops.
+   * Gated on `dirty` and `relationSettings.autoSave`.
+   */
+  useEffect(() => {
+    if (readOnly || !dirty || !relationSettings.autoSave) return;
+    saveQueue.push(schema);
+  }, [dirty, readOnly, relationSettings.autoSave, saveQueue, schema]);
 
   useEffect(() => () => saveQueue.cancel(), [saveQueue]);
 
   /**
-   * Warn before closing the tab or navigating away if there are unsaved changes.
+   * When autosave is enabled: a tab closed mid-debounce flushes the edits.
    */
   useEffect(() => {
-    if (!dirty || readOnly) return;
+    if (readOnly || !relationSettings.autoSave) return;
+    const onHide = () => {
+      if (document.visibilityState !== "hidden") return;
+      if (saveQueue.state !== "pending") return;
+      void saveQueue.flush(schemaRef.current);
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => document.removeEventListener("visibilitychange", onHide);
+  }, [readOnly, relationSettings.autoSave, saveQueue]);
+
+  /**
+   * When autosave is disabled (default): warn before closing the tab or
+   * navigating away if there are unsaved changes.
+   */
+  useEffect(() => {
+    if (!dirty || readOnly || relationSettings.autoSave) return;
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [dirty, readOnly]);
+  }, [dirty, readOnly, relationSettings.autoSave]);
 
   /**
    * Whatever the canvas selection currently is, remove it — in one commit, so
@@ -3855,6 +3888,15 @@ export default function Designer({
           ...current,
           showRelationshipLabels: !current.showRelationshipLabels,
         })),
+    },
+    {
+      label: `${relationSettings.autoSave ? "Turn off" : "Turn on"} auto-save`,
+      onSelect: () =>
+        setRelationSettings((current) => {
+          const next = !current.autoSave;
+          toast.success(next ? "Auto-save turned on." : "Auto-save turned off.");
+          return { ...current, autoSave: next };
+        }),
     },
     { separator: true },
     { label: "Clear invalid references", onSelect: clearInvalidForeignKeys },
