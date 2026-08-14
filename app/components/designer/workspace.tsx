@@ -25,7 +25,6 @@ import {
   PlusSignIcon,
   Search01Icon,
   SourceCodeIcon,
-  StickyNote01Icon,
   Table01Icon,
   Tag01Icon,
 } from "@hugeicons/core-free-icons";
@@ -195,6 +194,8 @@ import {
 import { ControlPanel } from "./editor-header/control-panel";
 import { Modals } from "./editor-header/modal/modal";
 import { Dock } from "./editor-canvas/dock";
+import { SelectionToolbar } from "./editor-canvas/selection-toolbar";
+import { MemoCard } from "./editor-canvas/memo-card";
 import {
   DRAG_THRESHOLD,
   GRID_DOT_RADIUS,
@@ -206,7 +207,6 @@ import {
   GROUP_MIN_WIDTH,
   HEADER_HEIGHT,
   MAX_ZOOM,
-  MEMO_COLORS,
   MEMO_MAX_HEIGHT,
   MEMO_MAX_WIDTH,
   MEMO_MIN_HEIGHT,
@@ -4211,143 +4211,48 @@ export default function Workspace({
             })}
             {(schema.memos ?? []).map((memo) => {
               const position = liveMemo(memo);
-              const color =
-                MEMO_COLORS.find((item) => item.id === memo.color) ??
-                MEMO_COLORS[0];
-              const selectedMemo = selectedMemoId === memo.id;
-              const inSet = !single && isSelected(selection, "memo", memo.id);
               return (
-                <article
-                  className={`memo-card ${selectedMemo ? "selected" : ""} ${inSet ? "multi-selected" : ""}`}
+                <MemoCard
                   key={memo.id}
-                  role="group"
-                  tabIndex={0}
-                  aria-label="Memo"
-                  style={{
-                    transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
-                    width: position.width,
-                    height: position.height,
-                    background: color.background,
-                    borderColor: color.border,
-                    zIndex: selectedMemo ? 4 : 1,
-                  }}
-                  onPointerDown={(event) => onMemoDown(event, memo)}
+                  memo={memo}
+                  position={position}
+                  isSelected={selectedMemoId === memo.id}
+                  inMultiSelection={
+                    !single && isSelected(selection, "memo", memo.id)
+                  }
+                  isEditing={editingMemoId === memo.id}
+                  onPointerDown={onMemoDown}
+                  onResizePointerDown={onMemoResizeDown}
+                  onSelect={() => setSelection(selectOnly("memo", memo.id))}
                   onClick={(event) => {
                     event.stopPropagation();
                     // The pointerdown already decided this; re-running it here
                     // would undo a Shift-click toggle a moment after it landed.
-                    if (event.shiftKey || event.metaKey || event.ctrlKey)
-                      return;
+                    if (event.shiftKey || event.metaKey || event.ctrlKey) return;
                     if (isSelected(selectionRef.current, "memo", memo.id))
                       return;
                     setSelection(selectOnly("memo", memo.id));
                   }}
-                  onKeyDown={(event) => {
-                    if (
-                      (event.key === "Delete" || event.key === "Backspace") &&
-                      document.activeElement?.tagName !== "TEXTAREA"
-                    ) {
-                      event.preventDefault();
-                      // The window handler would delete it a second time and split the undo step.
-                      event.stopPropagation();
-                      deleteMemo(memo.id);
-                    }
+                  onPatch={patchMemo}
+                  onDelete={deleteMemo}
+                  onResizeCommit={commitMemoSize}
+                  onFocusText={() => {
+                    setSelection(selectOnly("memo", memo.id));
+                    setEditingMemoId(memo.id);
+                    if (memo.text.trim()) memoHadText.current.add(memo.id);
                   }}
-                >
-                  <div
-                    className="memo-toolbar"
-                    onPointerDown={(event) => onMemoDown(event, memo)}
-                  >
-                    <HugeiconsIcon
-                      icon={StickyNote01Icon}
-                      size={14}
-                      aria-hidden="true"
-                    />
-                    <div
-                      className="memo-actions"
-                      onPointerDown={(event) => event.stopPropagation()}
-                    >
-                      <ToggleGroup
-                        aria-label="Memo color"
-                        selectionMode="single"
-                        disallowEmptySelection
-                        selectedKeys={[memo.color]}
-                        onSelectionChange={(keys) => {
-                          const [key] = [...keys];
-                          if (key)
-                            patchMemo(memo.id, { color: key as MemoColor });
-                        }}
-                      >
-                        {MEMO_COLORS.map((option) => (
-                          <ToggleGroupItem
-                            key={option.id}
-                            id={option.id}
-                            className={`memo-color memo-color-${option.id}`}
-                            aria-label={`Use ${option.label} memo color`}
-                          />
-                        ))}
-                      </ToggleGroup>
-                      <TooltipTrigger>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="Delete memo"
-                          onClick={() => deleteMemo(memo.id)}
-                        >
-                          <HugeiconsIcon icon={Delete02Icon} />
-                        </Button>
-                        <Tooltip>Delete memo</Tooltip>
-                      </TooltipTrigger>
-                    </div>
-                  </div>
-                  <textarea
-                    className="memo-text"
-                    value={memo.text}
-                    aria-label="Memo text"
-                    placeholder="Write a memo..."
-                    onFocus={() => {
-                      setSelection(selectOnly("memo", memo.id));
-                      setEditingMemoId(memo.id);
-                      if (memo.text.trim()) memoHadText.current.add(memo.id);
-                    }}
-                    onChange={(event) => {
-                      if (event.target.value.trim())
-                        memoHadText.current.add(memo.id);
-                      patchMemo(memo.id, { text: event.target.value });
-                    }}
-                    onBlur={() => {
-                      setEditingMemoId((current) =>
-                        current === memo.id ? null : current,
-                      );
-                      if (
-                        !memo.text.trim() &&
-                        !memoHadText.current.has(memo.id)
-                      )
-                        deleteMemo(memo.id);
-                    }}
-                    onPointerDown={(event) => event.stopPropagation()}
-                  />
-                  <button
-                    type="button"
-                    className="memo-resize"
-                    aria-label="Resize memo. Arrow keys resize, Shift for larger steps."
-                    onPointerDown={(event) => onMemoResizeDown(event, memo)}
-                    onKeyDown={(event) => {
-                      const delta = resizeDelta(event);
-                      if (!delta) return;
-                      event.preventDefault();
-                      event.stopPropagation();
-                      commitMemoSize(
-                        memo.id,
-                        position.width + delta[0],
-                        position.height + delta[1],
-                      );
-                    }}
-                  />
-                  {editingMemoId === memo.id && (
-                    <span className="memo-edit-hint">Editing</span>
-                  )}
-                </article>
+                  onChangeText={(value) => {
+                    if (value.trim()) memoHadText.current.add(memo.id);
+                    patchMemo(memo.id, { text: value });
+                  }}
+                  onBlurText={() => {
+                    setEditingMemoId((current) =>
+                      current === memo.id ? null : current,
+                    );
+                    if (!memo.text.trim() && !memoHadText.current.has(memo.id))
+                      deleteMemo(memo.id);
+                  }}
+                />
               );
             })}
             {/*
@@ -4468,40 +4373,13 @@ export default function Workspace({
             noise, and the frame is doing the work of showing what is held.
           */}
           {multiFrame && !dragSelection && !marquee && (
-            <div
-              className="selection-toolbar"
-              style={{
-                transform: `translate3d(${pan.x + (multiFrame.x + multiFrame.width / 2) * zoom}px, ${pan.y + multiFrame.y * zoom}px, 0)`,
-              }}
-            >
-              <span className="selection-toolbar-count">
-                {selectionCount(selection)} selected
-              </span>
-              <button
-                type="button"
-                onClick={() => copySelection("sql")}
-                title={`Copy as SQL (${hint("copySelectionSql")})`}
-              >
-                Copy SQL
-              </button>
-              <button
-                type="button"
-                onClick={() => copySelection("json")}
-                title={`Copy as JSON (${hint("copySelectionJson")})`}
-              >
-                Copy JSON
-              </button>
-              {!readOnly && (
-                <button
-                  type="button"
-                  className="selection-toolbar-danger"
-                  onClick={deleteSelection}
-                  title={`Delete (${hint("deleteSelection")})`}
-                >
-                  Delete
-                </button>
-              )}
-            </div>
+            <SelectionToolbar
+              frame={multiFrame}
+              readOnly={readOnly}
+              hint={hint}
+              onCopy={copySelection}
+              onDelete={deleteSelection}
+            />
           )}
 
           {linking && (
