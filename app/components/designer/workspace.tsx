@@ -166,11 +166,10 @@ import {
   TableSummaryCard,
   type MenuItem,
 } from "@/app/components/designer/primitives";
-import { RelationshipEdge } from "@/app/components/designer/relationship-edge";
-import { ColumnList } from "@/app/components/designer/column-list";
-import { highlightSql } from "@/app/components/designer/highlight";
+import { RelationshipEdge } from "./editor-canvas/relationship-edge";
+import { ColumnList } from "./editor-side-panel/tables-tab/column-list";
 import type { ImportMessage } from "@/app/components/designer/import-modal";
-import { TableCard } from "./table-card";
+import { TableCard } from "./editor-canvas/table-card";
 import {
   useDesignerSettings,
   useLayout,
@@ -185,6 +184,7 @@ import { Dock } from "./editor-canvas/dock";
 import { SelectionToolbar } from "./editor-canvas/selection-toolbar";
 import { MemoCard } from "./editor-canvas/memo-card";
 import { SchemaGroupCard } from "./editor-canvas/schema-group";
+import { CodeView } from "./editor-side-panel/code-view";
 import {
   DRAG_THRESHOLD,
   GRID_DOT_RADIUS,
@@ -264,7 +264,6 @@ export default function Workspace({
     groupsById,
     issues,
     errors,
-    ddl,
   } = useSchema();
   const {
     selection,
@@ -3382,11 +3381,7 @@ export default function Workspace({
 
           <SidebarContent>
             {panelMode === "code" ? (
-              <ScrollArea className="panel-code">
-                <pre>
-                  <code>{highlightSql(ddl)}</code>
-                </pre>
-              </ScrollArea>
+              <CodeView />
             ) : panelTab === "tables" ? (
               <>
                 <div className="panel-toolbar">

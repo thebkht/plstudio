@@ -39,7 +39,7 @@ import {
 import { HoverCard } from "@/components/ui/hover-card";
 import { TABLE_FIELD_HEIGHT, tableHeight, typeString, type Column, type SchemaGroup, type Table } from "@/app/lib/schema";
 import { typeColorVar } from "@/app/lib/datatype-color";
-import { ColumnCard, ShortcutKeys, TableSummaryCard } from "./primitives";
+import { ColumnCard, ShortcutKeys, TableSummaryCard } from "../primitives";
 
 type ForeignKeyTarget = (column: Column) => { table: Table; column: Column } | undefined;
 

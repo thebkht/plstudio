@@ -8,7 +8,7 @@ import { FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ColumnFlag } from "./primitives";
+import { ColumnFlag } from "../../primitives";
 import { ORACLE_TYPES, type Column, type Table, typeUsesSize, typeSizePlaceholder } from "@/app/lib/schema";
 
 const NO_REFERENCE = "__no_reference__";
