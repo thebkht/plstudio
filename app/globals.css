@@ -692,6 +692,18 @@ button {
   background: color-mix(in oklch, var(--primary) 88%, black);
   color: var(--primary-foreground);
 }
+/*
+ * Soft-disabled: `aria-disabled` rather than the `disabled` attribute, so the
+ * control still hovers and still tabs and can therefore say what it is waiting
+ * for. Unpressable is enforced by not wiring a press handler, not by CSS.
+ */
+.dock-disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.dock-disabled:hover { background: transparent; }
+/* The reason sits under the name, so the tooltip reads as label-then-detail. */
+.dock-tip-reason { color: color-mix(in oklch, var(--background) 65%, transparent); }
 .dock-zoom {
   min-width: 52px;
   text-align: center;

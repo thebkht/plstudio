@@ -11,8 +11,10 @@
 
 import { createContext, Fragment, memo, useCallback, useContext, useRef, useState } from "react";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import { Focusable } from "react-aria-components";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import {
   DropdownMenu,
   DropdownMenuGroup,
@@ -153,21 +155,73 @@ export const ColumnCard = memo(function ColumnCard({
   );
 });
 
-/** Dock controls are icon-only, so each one carries its label as a tooltip. */
+/**
+ * Dock controls are icon-only, so each one carries its name as a tooltip — a
+ * name, not a sentence. The chord rides along as keycaps from the one shortcut
+ * table, which is both shorter to read and impossible to let drift from the key
+ * that actually fires.
+ *
+ * The label is also the accessible name, so it must never carry state: a toggle
+ * says so through `aria-pressed`, and spelling it into the name as well makes a
+ * screen reader announce the state twice.
+ */
 export const DockButton = memo(function DockButton({
   label,
   icon,
+  shortcut,
+  isMac,
   isActive,
   isDisabled,
+  disabledReason,
   onClick,
 }: {
   label: string;
   icon: IconSvgElement;
+  shortcut?: ShortcutId;
+  isMac?: boolean;
   /** Toggles rather than commands: renders pressed and announces its state. */
   isActive?: boolean;
   isDisabled?: boolean;
+  /** What the control is waiting for. Replaces the chord while disabled. */
+  disabledReason?: string;
   onClick: () => void;
 }) {
+  const tooltip = (
+    <Tooltip>
+      {label}
+      {isDisabled
+        ? disabledReason && (
+            <span className="dock-tip-reason">{disabledReason}</span>
+          )
+        : shortcut && <ShortcutKeys id={shortcut} isMac={!!isMac} />}
+    </Tooltip>
+  );
+  /*
+   * A `disabled` button receives no pointer events, so its tooltip can never
+   * open and the greyed control cannot say what it is waiting for. Soft-disable
+   * instead: `aria-disabled` on a focusable wrapper keeps it hoverable and
+   * tabbable — and therefore able to explain itself — while staying unpressable.
+   */
+  if (isDisabled)
+    return (
+      <TooltipTrigger>
+        <Focusable>
+          <span
+            role="button"
+            aria-disabled="true"
+            aria-label={label}
+            className={buttonVariants({
+              variant: "ghost",
+              size: "icon",
+              className: "dock-disabled",
+            })}
+          >
+            <HugeiconsIcon icon={icon} />
+          </span>
+        </Focusable>
+        {tooltip}
+      </TooltipTrigger>
+    );
   return (
     <TooltipTrigger>
       <Button
@@ -175,12 +229,11 @@ export const DockButton = memo(function DockButton({
         size="icon"
         aria-label={label}
         aria-pressed={isActive}
-        isDisabled={isDisabled}
         onClick={onClick}
       >
         <HugeiconsIcon icon={icon} />
       </Button>
-      <Tooltip>{label}</Tooltip>
+      {tooltip}
     </TooltipTrigger>
   );
 });

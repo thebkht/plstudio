@@ -10,7 +10,10 @@ import {
 import { cn } from "@/lib/utils"
 
 function TooltipTrigger({
-  delay = 0,
+  // A beat before the first tooltip, so sweeping the pointer across a row of
+  // icon buttons does not fire one bubble per button. React Aria keeps a global
+  // warmup, so once any tooltip has opened its neighbours still appear at once.
+  delay = 500,
   children,
   ...props
 }: React.ComponentProps<typeof TooltipTriggerPrimitive>) {

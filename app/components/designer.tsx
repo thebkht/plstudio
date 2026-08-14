@@ -26,6 +26,7 @@ import {
   GridViewIcon,
   HandGrabIcon,
   Key01Icon,
+  Layers01Icon,
   Link01Icon,
   Maximize01Icon,
   PanelLeftOpenIcon,
@@ -639,6 +640,17 @@ export default function Designer({
    */
   const [isMac, setIsMac] = useState(false);
   useEffect(() => setIsMac(isMacPlatform()), []);
+
+  /**
+   * The zoom level a screen reader hears. Continuous zoom changes many times a
+   * second, so the announcement waits for the gesture to stop rather than
+   * narrating every frame of it.
+   */
+  const [settledZoom, setSettledZoom] = useState(100);
+  useEffect(() => {
+    const timer = setTimeout(() => setSettledZoom(Math.round(zoom * 100)), 400);
+    return () => clearTimeout(timer);
+  }, [zoom]);
   const [shareLink, setShareLink] = useState("");
   const [shareBusy, setShareBusy] = useState(false);
   const [shareError, setShareError] = useState("");
@@ -3564,6 +3576,13 @@ export default function Designer({
   /** Every command a chord can reach. Ids without an entry here stay inert. */
   const shortcutActions: Partial<Record<ShortcutId, () => void>> = {
     save: () => void save(),
+    /*
+     * Overwrite only once the server has already said there is a conflict and
+     * the toast has reported it — pressing this then is the keyboard equivalent
+     * of its Overwrite action. With nothing in contention it is a plain save,
+     * so the chord can never discard a peer's work unannounced.
+     */
+    forceSave: () => void save(saveState === "conflict"),
     export: () => setModal("export"),
     import: () => setModal("import"),
     share: () => setModal("share"),
@@ -3854,6 +3873,14 @@ export default function Designer({
     { label: "Export…", onSelect: run("export"), hint: hint("export") },
     { separator: true },
     { label: "Save to database", onSelect: run("save"), hint: hint("save") },
+    {
+      label: "Force save",
+      onSelect: run("forceSave"),
+      // Only ever different from Save while a conflict is outstanding, so it
+      // stays out of the way until it has something to offer.
+      disabled: saveState !== "conflict",
+      hint: hint("forceSave"),
+    },
   ];
   const editMenu: MenuItem[] = [
     {
@@ -5375,88 +5402,124 @@ export default function Designer({
             </svg>
           )}
 
+          {/*
+            Grouped by what each control changes: the viewport, then history,
+            then what the diagram contains, then the document as a whole.
+            Proximity is a claim about relationship, so a command that moves the
+            camera cannot sit among the ones that add tables.
+          */}
           <ButtonGroup className="dock" aria-label="Canvas controls">
             <DockButton
-              label={
-                panMode
-                  ? "Hand tool — on (H, or hold Space)"
-                  : "Hand tool — pan canvas (H, or hold Space)"
-              }
+              label="Hand tool"
               icon={HandGrabIcon}
+              shortcut="toggleHand"
+              isMac={isMac}
               isActive={panMode}
               onClick={() => setHandMode((on) => !on)}
             />
             <DockButton
-              label="Tidy up layout"
-              icon={GridViewIcon}
-              onClick={autoLayout}
-            />
-            <Separator orientation="vertical" />
-            <DockButton
               label="Zoom out"
               icon={ZoomOutAreaIcon}
+              shortcut="zoomOut"
+              isMac={isMac}
               onClick={() => zoomBy(-0.1)}
             />
-            <span className="dock-zoom" aria-live="polite" aria-atomic="true">
-              {Math.round(zoom * 100)}%
-            </span>
+            <span className="dock-zoom">{Math.round(zoom * 100)}%</span>
             <DockButton
               label="Zoom in"
               icon={ZoomInAreaIcon}
+              shortcut="zoomIn"
+              isMac={isMac}
               onClick={() => zoomBy(0.1)}
+            />
+            <DockButton
+              label="Fit to screen"
+              icon={Maximize01Icon}
+              shortcut="fitView"
+              isMac={isMac}
+              onClick={fitView}
             />
             <Separator orientation="vertical" />
             <DockButton
               label="Undo"
               icon={ArrowTurnBackwardIcon}
+              shortcut="undo"
+              isMac={isMac}
               isDisabled={!canUndo}
+              disabledReason="Nothing to undo yet"
               onClick={undo}
             />
             <DockButton
               label="Redo"
               icon={ArrowTurnForwardIcon}
+              shortcut="redo"
+              isMac={isMac}
               isDisabled={!canRedo}
+              disabledReason="Nothing to redo"
               onClick={redo}
             />
             <Separator orientation="vertical" />
             <DockButton
               label="Add table"
               icon={Table01Icon}
+              shortcut="addTable"
+              isMac={isMac}
               onClick={() => addTable()}
             />
             <DockButton
               label="Add schema group"
-              icon={DatabaseIcon}
+              icon={Layers01Icon}
+              shortcut="addGroup"
+              isMac={isMac}
               onClick={addGroup}
             />
             <DockButton
               label="Add memo"
               icon={StickyNote01Icon}
+              shortcut="addMemo"
+              isMac={isMac}
               onClick={addMemo}
             />
             <DockButton
               label="Add junction table"
               icon={Link01Icon}
+              shortcut="junction"
+              isMac={isMac}
               isDisabled={!selected}
+              disabledReason="Select a table first"
               onClick={makeJunction}
-            />
-            <DockButton
-              label="Fit to screen"
-              icon={Maximize01Icon}
-              onClick={fitView}
             />
             <Separator orientation="vertical" />
             <DockButton
+              label="Tidy up layout"
+              icon={GridViewIcon}
+              shortcut="tidyLayout"
+              isMac={isMac}
+              onClick={autoLayout}
+            />
+            <DockButton
               label="Save to database"
               icon={FloppyDiskIcon}
+              shortcut="save"
+              isMac={isMac}
               onClick={() => void save()}
             />
             <DockButton
               label="Export"
               icon={Download04Icon}
+              shortcut="export"
+              isMac={isMac}
               onClick={() => setModal("export")}
             />
           </ButtonGroup>
+          {/*
+            The zoom readout is not itself a live region: it changes on every
+            frame of a ctrl-scroll, which would announce a flood. This settles
+            first and announces the number the gesture landed on.
+          */}
+          <span className="sr-only" aria-live="polite" aria-atomic="true">
+            {settledZoom}% zoom
+          </span>
         </div>
       </SidebarProvider>
 
