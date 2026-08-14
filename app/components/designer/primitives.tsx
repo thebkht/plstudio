@@ -9,7 +9,15 @@
  * Nothing here holds state or reads the schema — props in, markup out.
  */
 
-import { createContext, Fragment, memo, useCallback, useContext, useRef, useState } from "react";
+import {
+  createContext,
+  Fragment,
+  memo,
+  useCallback,
+  useContext,
+  useRef,
+  useState,
+} from "react";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { Focusable } from "react-aria-components";
 import { Badge } from "@/components/ui/badge";
@@ -118,7 +126,9 @@ export const ColumnCard = memo(function ColumnCard({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-3">
-        <strong className="min-w-0 truncate">{column.name.toUpperCase()}</strong>
+        <strong className="min-w-0 truncate">
+          {column.name.toUpperCase()}
+        </strong>
         <span
           className="shrink-0 font-mono text-xs"
           style={{ color: typeColorVar(column.type) }}
@@ -343,7 +353,9 @@ export function Menubar({
     (index: number) => {
       const wrapped = (index + count) % count;
       setActive(wrapped);
-      ref.current?.querySelectorAll<HTMLElement>("[data-menubar-item]")[wrapped]?.focus();
+      ref.current
+        ?.querySelectorAll<HTMLElement>("[data-menubar-item]")
+        [wrapped]?.focus();
     },
     [count],
   );
@@ -351,12 +363,13 @@ export function Menubar({
     <MenubarContext.Provider value={{ active, setActive }}>
       <div
         ref={ref}
-        className="menubar"
+        className="menubar -mx-4"
         role="toolbar"
         aria-orientation="horizontal"
         aria-label={label}
         onKeyDown={(event) => {
-          const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+          const step =
+            event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
           /* Up/down belong to the open menu's own items; only the horizontal
              axis is the bar's to claim. */
           if (step) isOpen ? onStepOpen(step) : focusItem(active + step);
@@ -372,7 +385,10 @@ export function Menubar({
   );
 }
 
-const MenubarContext = createContext<{ active: number; setActive: (index: number) => void } | null>(null);
+const MenubarContext = createContext<{
+  active: number;
+  setActive: (index: number) => void;
+} | null>(null);
 
 export const Menu = memo(function Menu({
   name,
