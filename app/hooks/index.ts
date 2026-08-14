@@ -5,3 +5,4 @@
  */
 export { useDesignerSettings } from "./use-designer-settings";
 export { useLayout } from "./use-layout";
+export { useSelect } from "./use-select";

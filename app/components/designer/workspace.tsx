@@ -236,7 +236,7 @@ import {
   type ImportMessage,
 } from "@/app/components/designer/import-modal";
 import { TableCard } from "./table-card";
-import { useDesignerSettings, useLayout } from "@/app/hooks";
+import { useDesignerSettings, useLayout, useSelect } from "@/app/hooks";
 import {
   DRAG_THRESHOLD,
   GRID_DOT_RADIUS,
@@ -323,32 +323,18 @@ export default function Workspace({
     shareToken,
     workspaceSlug,
   });
-  /**
-   * One selection for the whole canvas. The three ids below are *derived* from
-   * it rather than stored beside it: everything that acts on "the selected
-   * table" — the side panel, ⌘↵, the junction command, the context menus — means
-   * exactly one thing selected, which is what `single` says. Two sources of
-   * truth here would drift within a release.
-   */
-  const [selection, setSelection] = useState<CanvasSelection>(EMPTY_SELECTION);
-  const selectionRef = useRef(selection);
-  selectionRef.current = selection;
-  const single = selectionCount(selection) === 1;
-  const selectedId = single ? (selection.tables[0] ?? null) : null;
-  const selectedGroupId = single ? (selection.groups[0] ?? null) : null;
-  const selectedMemoId = single ? (selection.memos[0] ?? null) : null;
-  const selectedIdRef = useRef(selectedId);
-  selectedIdRef.current = selectedId;
-  /** Replace the selection with one thing. Stable, so cards can memoize on it. */
-  const selectSingle = useCallback(
-    (kind: SelectionKind, id: string | null) =>
-      setSelection(id ? selectOnly(kind, id) : EMPTY_SELECTION),
-    [],
-  );
-  const selectTable = useCallback(
-    (id: string | null) => selectSingle("table", id),
-    [selectSingle],
-  );
+  const {
+    selection,
+    setSelection,
+    selectionRef,
+    single,
+    selectedId,
+    selectedGroupId,
+    selectedMemoId,
+    selectedIdRef,
+    selectSingle,
+    selectTable,
+  } = useSelect();
   const [editingMemoId, setEditingMemoId] = useState<string | null>(null);
   /**
    * Memos that have held text at some point. A memo left blank was never really

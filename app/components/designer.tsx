@@ -5,6 +5,7 @@ import Workspace, {
 } from "@/app/components/designer/workspace";
 import { SettingsProvider } from "@/app/components/designer/context/settings-context";
 import { LayoutProvider } from "@/app/components/designer/context/layout-context";
+import { SelectProvider } from "@/app/components/designer/context/select-context";
 
 /**
  * The editor's entry point. This file is deliberately thin: it exists to mount
@@ -18,7 +19,9 @@ export default function Designer(props: DesignerProps) {
   return (
     <SettingsProvider>
       <LayoutProvider>
-        <Workspace {...props} />
+        <SelectProvider>
+          <Workspace {...props} />
+        </SelectProvider>
       </LayoutProvider>
     </SettingsProvider>
   );
