@@ -42,6 +42,15 @@ describe("schemaFromYDoc / applySchemaToYDoc", () => {
     expect(read(ydoc, schema).tables[0].comment).toBeUndefined();
   });
 
+  it("round-trips a group keyword and clears it when it is emptied", () => {
+    const group = makeSchemaGroup("Multi Language Tools");
+    const schema = { ...makeDemoSchema(), groups: [group] };
+    const ydoc = seed({ ...schema, groups: [{ ...group, keyword: "MLL" }] });
+    expect(read(ydoc, schema).groups?.[0].keyword).toBe("MLL");
+    applySchemaToYDoc(ydoc, schema);
+    expect(read(ydoc, schema).groups?.[0].keyword).toBeUndefined();
+  });
+
   it("round-trips a manual table width and clears it on reset", () => {
     const schema = makeDemoSchema();
     const sized = { ...schema, tables: schema.tables.map((table) => ({ ...table, width: 480 })) };

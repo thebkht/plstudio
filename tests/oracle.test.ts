@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateDDL, generateDML } from "@/app/lib/generators";
 import { appendCreateTable, parseCreateTable } from "@/app/lib/parser";
-import { groupDragBounds, makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, normalizeMemos, normalizeGroups, normalizeRelationships, normalizeTables, SCHEMA_FORMAT_VERSION, tableHeight, tableWidth, typeString } from "@/app/lib/schema";
+import { groupDragBounds, groupPrefix, makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, normalizeMemos, normalizeGroups, normalizeRelationships, normalizeTables, prefixTableName, SCHEMA_FORMAT_VERSION, stripTablePrefix, tableHeight, tableWidth, typeString } from "@/app/lib/schema";
 import { validateCheckExpression, validateSchema, validateTypeSpec } from "@/app/lib/validation";
 
 describe("Oracle schema model", () => {
@@ -129,6 +129,17 @@ describe("Oracle schema model", () => {
     expect(schema.tables[0].color).toEqual(originalColor);
   });
 
+  it("names tablespaces after the keyword, since the group's name is prose", () => {
+    const schema = makeDemoSchema();
+    const group = { ...makeSchemaGroup("MLL -- Multi Language Tools", 40, 40, 0), keyword: "mll" };
+    schema.groups = [group];
+    schema.tables[0].schemaId = group.id;
+    const ddl = generateDDL(schema);
+    expect(ddl).toContain(") tablespace mll_data;");
+    expect(ddl).toContain("using index tablespace mll_index;");
+    expect(ddl).not.toContain("mll___multi_language_tools_data");
+  });
+
   it("omits tablespaces for ungrouped tables", () => {
     const ddl = generateDDL(makeDemoSchema());
     expect(ddl).not.toContain("tablespace core_data");
@@ -137,13 +148,48 @@ describe("Oracle schema model", () => {
     expect(ddl).toContain("using index;");
   });
 
+  it("derives a table prefix from a group's keyword, however it was typed", () => {
+    expect(groupPrefix({ keyword: "MLL" })).toBe("MLL_");
+    expect(groupPrefix({ keyword: " mll " })).toBe("MLL_");
+    expect(groupPrefix({ keyword: "MLL_" })).toBe("MLL_");
+    // Nothing usable is left after normalization, so no prefix rather than "_".
+    expect(groupPrefix({ keyword: "--" })).toBe("");
+    expect(groupPrefix({ keyword: "" })).toBe("");
+    expect(groupPrefix(undefined)).toBe("");
+  });
+
+  it("stamps a prefix onto a table name at most once", () => {
+    expect(prefixTableName("LABEL_CODES", "MLL_")).toBe("MLL_LABEL_CODES");
+    expect(prefixTableName("MLL_LABEL_CODES", "MLL_")).toBe("MLL_LABEL_CODES");
+    expect(prefixTableName("mll_label_codes", "MLL_")).toBe("mll_label_codes");
+    expect(prefixTableName("LABEL_CODES", "")).toBe("LABEL_CODES");
+  });
+
+  it("takes a prefix back off, and leaves a name that never carried it alone", () => {
+    expect(stripTablePrefix("MLL_LABEL_CODES", "MLL_")).toBe("LABEL_CODES");
+    expect(stripTablePrefix("MLT_LANGUAGES", "MLL_")).toBe("MLT_LANGUAGES");
+    expect(stripTablePrefix("LABEL_CODES", "")).toBe("LABEL_CODES");
+    /*
+     * `normalizeIdentifier` would prepend `T_` to a digit-leading name and the
+     * prefix would then appear to match, slicing two characters out of the
+     * middle of it. The comparison must preserve length.
+     */
+    expect(stripTablePrefix("1ABC", "T_")).toBe("1ABC");
+    expect(prefixTableName("1ABC", "T_")).toBe("T_1ABC");
+  });
+
   it("normalizes invalid group references and legacy group values", () => {
     const schema = makeDemoSchema();
     schema.tables[0].schemaId = "missing";
-    const normalized = normalizeGroups({ ...schema, groups: [{ id: "group-1", name: "  Library  ", x: -4, y: -2, width: 10, height: 10, color: "invalid" as never }] });
+    const normalized = normalizeGroups({ ...schema, groups: [{ id: "group-1", name: "  Library  ", keyword: "  LIB  ", x: -4, y: -2, width: 10, height: 10, color: "invalid" as never }] });
     expect(normalized.schemaFormatVersion).toBe(SCHEMA_FORMAT_VERSION);
-    expect(normalized.groups?.[0]).toMatchObject({ name: "Library", x: 0, y: 0, width: 360, height: 260, color: "orange" });
+    expect(normalized.groups?.[0]).toMatchObject({ name: "Library", keyword: "LIB", x: 0, y: 0, width: 360, height: 260, color: "orange" });
     expect(normalized.tables[0].schemaId).toBeUndefined();
+  });
+
+  it("drops a keyword that is only whitespace", () => {
+    const group = { ...makeSchemaGroup("Library", 40, 40, 0), keyword: "   " };
+    expect(normalizeGroups({ ...makeDemoSchema(), groups: [group] }).groups?.[0].keyword).toBeUndefined();
   });
 
   it("drops a memo's reference to a group that no longer exists", () => {
