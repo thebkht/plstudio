@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { EXPORT_APP, EXPORT_FORMAT_VERSION, exportSchemaJson, mergeSchemaJson, parseSchemaJson } from "@/app/lib/schema-json";
 import { APPEND_GAP, contentEdges, makeColumn, makeDemoSchema, makeEmptySchema, makeMemo, makeSchemaGroup, makeTable, normalizeRelationships, SCHEMA_FORMAT_VERSION, type Schema } from "@/app/lib/schema";
+import { selectionSchema } from "@/app/lib/selection";
 
 /** The demo schema with its `column.fk` migrated into real relationships. */
 const demo = () => normalizeRelationships(makeDemoSchema());
@@ -238,6 +239,45 @@ describe("Schema JSON merge", () => {
     expect(result.schema).toBeNull();
     expect(result.added).toEqual([]);
     expect(result.errors[0]).toMatch(/not valid json/i);
+  });
+
+  /**
+   * The canvas copy-paste path: a selection is narrowed, written as an
+   * envelope, and merged into a second project. Nothing about it is
+   * paste-specific — that is the point of reusing the import merge.
+   */
+  it("carries a copied selection into another project, ids re-minted and keys intact", () => {
+    const source = demo();
+    // Two tables joined by a relationship, plus a memo, lifted out together.
+    const relationship = source.relationships![0];
+    const pair = selectionSchema(source, {
+      tables: [relationship.startTableId, relationship.endTableId],
+      memos: [],
+      groups: [],
+    });
+    expect(pair.relationships).toHaveLength(1);
+
+    const target = { ...makeEmptySchema("Other project"), tables: [makeTable("UNRELATED", 40, 40, 0)] };
+    const result = mergeSchemaJson(target, exportSchemaJson(pair));
+    expect(result.errors).toEqual([]);
+    expect(result.added).toHaveLength(2);
+    expect(result.schema!.tables.map((table) => table.name)).toEqual(["UNRELATED", ...pair.tables.map((table) => table.name)]);
+
+    // Every id is new, so pasting into the project it came from cannot collide.
+    expect(ids(result.schema!).some((id) => ids(pair).includes(id))).toBe(false);
+    // The edge between the two survives, rewired onto the minted ids.
+    const carried = result.schema!.relationships!;
+    expect(carried).toHaveLength(1);
+    const added = new Set(result.added.map((table) => table.id));
+    expect(added.has(carried[0].startTableId) && added.has(carried[0].endTableId)).toBe(true);
+  });
+
+  it("skips a pasted table the project already has by name", () => {
+    const source = demo();
+    const one = selectionSchema(source, { tables: [source.tables[0].id], memos: [], groups: [] });
+    const result = mergeSchemaJson(source, exportSchemaJson(one));
+    expect(result.schema).toBeNull();
+    expect(result.skipped).toEqual([source.tables[0].name]);
   });
 
   it("carries a column's comment and manual width through a merge", () => {
