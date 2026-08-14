@@ -961,13 +961,13 @@ button {
   cursor: grabbing;
 }
 /*
- * No unconditional `will-change: transform` here. The canvas is as large as the
- * world -- 4800x3600 at minimum, more once the schema grows -- so promoting it
- * permanently pins a compositor layer of that size for the whole session, which
- * is felt as memory pressure on low-end devices long before it is felt as
- * smoothness. The `.gesturing` rule below promotes it for the duration of a
- * gesture instead; that class is set on pointerdown, before the first move, so
- * promotion still happens ahead of the frames that need it.
+ * No unconditional `will-change: transform` here. The element carries no size
+ * of its own, so a promoted layer is sized by the paint bounds of everything on
+ * the canvas -- which on a large diagram is very large indeed. Pinning one for
+ * the whole session is felt as memory pressure on low-end devices long before
+ * it is felt as smoothness. The `.gesturing` rule below promotes it for the
+ * duration of a gesture instead; that class is set on pointerdown, before the
+ * first move, so promotion still happens ahead of the frames that need it.
  */
 .canvas {
   position: absolute;

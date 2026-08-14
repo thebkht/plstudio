@@ -158,7 +158,6 @@ import {
   selectOnly,
   selectionBounds,
   selectionCount,
-  selectionDragBounds,
   selectionSchema,
   toggleSelected,
   type CanvasSelection,
@@ -183,13 +182,11 @@ import {
   VelocityTracker,
   prefersReducedMotion,
   project,
-  rubberClamp,
   runFrameLoop,
   type Vec,
 } from "@/app/lib/motion";
 import {
   cloneSchema,
-  groupDragBounds,
   groupPrefix,
   GROUP_PALETTE,
   makeColumn,
@@ -252,16 +249,29 @@ import { TableCard } from "./designer/table-card";
 const HEADER_HEIGHT = TABLE_COLOR_STRIP_HEIGHT + TABLE_HEADER_HEIGHT;
 const ROW_HEIGHT = TABLE_FIELD_HEIGHT;
 /**
- * The world is not fixed. A constant box pins cards against a wall as soon as
- * the diagram fills it — `resolveTablePosition` then has nowhere to push a drop
- * to, so releases near an edge get flung across the canvas. These are floors;
- * `canvasExtent` grows the world to stay `CANVAS_MARGIN` ahead of the content.
+ * There is no world. Coordinates are unbounded in every direction, negatives
+ * included, and nothing is clamped: the camera is free and cards rest wherever
+ * they are dropped. `.canvas` carries no width or height for the same reason —
+ * a sized element is a wall, and a wall is what a diagram grows into.
+ *
+ * The grid is drawn from these two, matching drawDB's `gridSize` and
+ * `gridCircleRadius`, and is anchored to canvas coordinates rather than to the
+ * viewport, so the lattice tiles forever without an element to size.
  */
-const CANVAS_MIN_WIDTH = 4800;
-const CANVAS_MIN_HEIGHT = 3600;
-/** Room kept beyond the furthest content, so dragging outward never hits a wall. */
-const CANVAS_MARGIN = 2400;
-const MIN_ZOOM = 0.1;
+const GRID_SIZE = 24;
+const GRID_DOT_RADIUS = 0.85;
+/**
+ * Below `GRID_FADE_END` a 24px lattice is denser than the pixels available to
+ * draw it and reads as a grey wash, so it fades out instead. Nothing to see
+ * out here is the honest signal — not a smeared texture.
+ */
+const GRID_FADE_START = 0.35;
+const GRID_FADE_END = 0.15;
+/**
+ * The floor is low because the canvas has no ceiling: a diagram can outgrow any
+ * particular framing, and `fitView` has to be able to frame it.
+ */
+const MIN_ZOOM = 0.05;
 const MAX_ZOOM = 1.8;
 /**
  * Wheel deltas arrive in three units (pixels, lines, pages) and at wildly
@@ -401,37 +411,8 @@ const insideGroup = (
   };
 };
 
-/** Extent of the drawable world: everything on it, plus a margin to grow into. */
-function canvasExtent(schema: Schema) {
-  const far = [
-    ...schema.tables.map((table) => ({
-      x: table.x + tableWidth(table),
-      y: table.y + tableHeight(table),
-    })),
-    ...(schema.groups ?? []).map((group) => ({
-      x: group.x + group.width,
-      y: group.y + group.height,
-    })),
-    ...(schema.memos ?? []).map((memo) => ({
-      x: memo.x + memo.width,
-      y: memo.y + memo.height,
-    })),
-  ];
-  return {
-    width: Math.max(
-      CANVAS_MIN_WIDTH,
-      Math.ceil(Math.max(0, ...far.map((point) => point.x)) + CANVAS_MARGIN),
-    ),
-    height: Math.max(
-      CANVAS_MIN_HEIGHT,
-      Math.ceil(Math.max(0, ...far.map((point) => point.y)) + CANVAS_MARGIN),
-    ),
-  };
-}
-
 function repairInitialLayout(schema: Schema): Schema {
   const next = cloneSchema(schema);
-  const world = canvasExtent(next);
   const gap = 24;
   const overlaps = (table: Table, x: number, y: number) =>
     next.tables.some((other) => {
@@ -461,13 +442,9 @@ function repairInitialLayout(schema: Schema): Schema {
         { x: startX + step, y: startY - step },
         { x: startX - step, y: startY - step },
       ];
+      // Every ring is legal, negatives included: there is no edge to fall off.
       const free = candidates.find(
-        (candidate) =>
-          candidate.x >= 0 &&
-          candidate.y >= 0 &&
-          candidate.x <= world.width - tableWidth(table) &&
-          candidate.y <= world.height - tableHeight(table) &&
-          !overlaps(table, candidate.x, candidate.y),
+        (candidate) => !overlaps(table, candidate.x, candidate.y),
       );
       if (free) {
         table.x = free.x;
@@ -813,15 +790,9 @@ export default function Designer({
   } | null>(null);
   const springsRef = useRef<{ x: Spring; y: Spring } | null>(null);
   const stopAnimationRef = useRef<(() => void) | null>(null);
-  /**
-   * Memoized on `schema`, so the world never resizes mid-gesture — bounds that
-   * moved under a live drag would fight the pointer.
-   */
-  const world = useMemo(() => canvasExtent(schema), [schema]);
   const panRef = useRef(pan);
   const zoomRef = useRef(zoom);
   const schemaRef = useRef(schema);
-  const worldRef = useRef(world);
   const dragPositionRef = useRef(dragPosition);
   /**
    * The release handler needs the live gesture values, but reading them from
@@ -839,7 +810,6 @@ export default function Designer({
   panRef.current = pan;
   zoomRef.current = zoom;
   schemaRef.current = schema;
-  worldRef.current = world;
   dragGroupPositionRef.current = dragGroupPosition;
   resizeGroupRef.current = resizeGroup;
   dragMemoPositionRef.current = dragMemoPosition;
@@ -1629,26 +1599,14 @@ export default function Designer({
     });
   };
 
-  /** Where a table may rest, in canvas coordinates. */
-  const tableBounds = useCallback(
-    (table: Table) => ({
-      minX: 0,
-      maxX: worldRef.current.width - tableWidth(table),
-      minY: 0,
-      maxY: worldRef.current.height - tableHeight(table),
-    }),
-    [],
-  );
-
   const resolveTablePosition = useCallback(
     (id: string, x: number, y: number) => {
       const tables = schemaRef.current.tables;
       const table = tables.find((candidate) => candidate.id === id);
       if (!table) return { x, y };
-      const bounds = tableBounds(table);
-      const clamp = (value: Vec) => ({
-        x: Math.max(bounds.minX, Math.min(bounds.maxX, Math.round(value.x))),
-        y: Math.max(bounds.minY, Math.min(bounds.maxY, Math.round(value.y))),
+      const settle = (value: Vec) => ({
+        x: Math.round(value.x),
+        y: Math.round(value.y),
       });
       const hits = (position: Vec, other: Table) =>
         position.x < other.x + tableWidth(other) + TABLE_GAP &&
@@ -1676,36 +1634,18 @@ export default function Designer({
             : best,
         );
       };
-      let position = clamp({ x, y });
+      let position = settle({ x, y });
       // Each push can land on a different neighbour; a handful of passes settles
-      // any realistic cluster, and the cap keeps a packed canvas from spinning.
+      // any realistic cluster, and the cap is what guarantees termination now
+      // that no edge can stop the walk early.
       for (let pass = 0; pass < 8; pass += 1) {
         const other = overlapping(position);
         if (!other) return position;
-        const next = clamp(pushOut(position, other));
-        if (next.x === position.x && next.y === position.y) break; // clamped against an edge
-        position = next;
+        position = settle(pushOut(position, other));
       }
       return position;
     },
-    [tableBounds],
-  );
-
-  /** Pan limits that always keep some of the diagram on screen. */
-  const panBounds = useCallback(
-    (scale: number) => {
-      const rect = canvasRect();
-      const slack = 160;
-      const width = rect?.width ?? 0;
-      const height = rect?.height ?? 0;
-      return {
-        minX: Math.min(0, width - worldRef.current.width * scale) - slack,
-        maxX: slack,
-        minY: Math.min(0, height - worldRef.current.height * scale) - slack,
-        maxY: slack,
-      };
-    },
-    [canvasRect],
+    [],
   );
 
   /**
@@ -1830,48 +1770,20 @@ export default function Designer({
     [stopAnimation],
   );
 
-  /**
-   * Bounds and commit helpers for groups and memos. These live above the
-   * pointer effect and read `worldRef` rather than `world` so their identity
-   * never changes — they are dependencies of the window listeners below, and an
-   * unstable one re-attaches those listeners on every frame of every gesture.
-   */
-  const memoBounds = useCallback((memo: Memo) => {
-    const world = worldRef.current;
-    return {
-      minX: 0,
-      maxX: world.width - memo.width,
-      minY: 0,
-      maxY: world.height - memo.height,
-    };
-  }, []);
-
-  const groupBounds = useCallback(
-    (group: SchemaGroup) =>
-      groupDragBounds(schemaRef.current, group, worldRef.current),
-    [],
-  );
-
   const commitGroupPosition = useCallback(
     (id: string, x: number, y: number) => {
       if (readOnly) return;
       /*
-       * Clamp inside the updater, against the schema being committed: a remote
-       * edit can land between pointerup and here, and the delta the members
-       * move by has to be measured from the same origin the group lands on.
+       * Resolve inside the updater, against the schema being committed: a
+       * remote edit can land between pointerup and here, and the delta the
+       * members move by has to be measured from the same origin the group
+       * lands on.
        */
       commitWith((next) => {
         const group = (next.groups ?? []).find((item) => item.id === id);
         if (!group) return next;
-        const bounds = groupDragBounds(next, group, worldRef.current);
-        const nextX = Math.max(
-          bounds.minX,
-          Math.min(bounds.maxX, Math.round(x)),
-        );
-        const nextY = Math.max(
-          bounds.minY,
-          Math.min(bounds.maxY, Math.round(y)),
-        );
+        const nextX = Math.round(x);
+        const nextY = Math.round(y);
         const dx = nextX - group.x;
         const dy = nextY - group.y;
         return {
@@ -1904,19 +1816,14 @@ export default function Designer({
   const commitGroupSize = useCallback(
     (id: string, width: number, height: number) => {
       if (readOnly) return;
-      const world = worldRef.current;
       const current = schemaRef.current;
       if (!current.groups?.some((item) => item.id === id)) return;
       const group = current.groups.find((item) => item.id === id);
       if (!group) return;
-      const nextWidth = Math.max(
-        GROUP_MIN_WIDTH,
-        Math.min(world.width - group.x, Math.round(width)),
-      );
-      const nextHeight = Math.max(
-        GROUP_MIN_HEIGHT,
-        Math.min(world.height - group.y, Math.round(height)),
-      );
+      // Only a floor. A group may grow as far to the right and down as the
+      // person dragging it wants to take it.
+      const nextWidth = Math.max(GROUP_MIN_WIDTH, Math.round(width));
+      const nextHeight = Math.max(GROUP_MIN_HEIGHT, Math.round(height));
       commitWith((next) => ({
         ...next,
         groups: (next.groups ?? []).map((item) =>
@@ -1959,15 +1866,14 @@ export default function Designer({
       const current = schemaRef.current;
       const memo = current.memos?.find((item) => item.id === id);
       if (!memo) return;
-      const bounds = memoBounds(memo);
       commitWith((next) => ({
         ...next,
         memos: (next.memos ?? []).map((item) =>
           item.id === id
             ? {
                 ...item,
-                x: Math.max(bounds.minX, Math.min(bounds.maxX, Math.round(x))),
-                y: Math.max(bounds.minY, Math.min(bounds.maxY, Math.round(y))),
+                x: Math.round(x),
+                y: Math.round(y),
                 schemaId:
                   schemaId === undefined
                     ? item.schemaId
@@ -1978,7 +1884,7 @@ export default function Designer({
       }));
       setDragMemoPosition(null);
     },
-    [commitWith, memoBounds, readOnly],
+    [commitWith, readOnly],
   );
 
   const commitMemoSize = useCallback(
@@ -2055,12 +1961,11 @@ export default function Designer({
       gesture.moved = true;
 
       if (gesture.mode === "pan") {
-        const bounds = panBounds(zoomRef.current);
-        const rawX = gesture.originX + event.clientX - gesture.startX;
-        const rawY = gesture.originY + event.clientY - gesture.startY;
+        // Straight 1:1 with the pointer. There is no edge to resist against,
+        // so there is nothing for a rubber band to mean.
         const next = {
-          x: rubberClamp(rawX, bounds.minX, bounds.maxX, window.innerWidth),
-          y: rubberClamp(rawY, bounds.minY, bounds.maxY, window.innerHeight),
+          x: gesture.originX + event.clientX - gesture.startX,
+          y: gesture.originY + event.clientY - gesture.startY,
         };
         gesture.tracker.add(next.x, next.y, now);
         scheduleMove(() => setPan(next));
@@ -2095,24 +2000,9 @@ export default function Designer({
           });
           return;
         }
-        const bounds = selectionDragBounds(
-          schemaRef.current,
-          selectionRef.current,
-          worldRef.current,
-        );
         const next = {
-          dx: rubberClamp(
-            point.x - gesture.grabX,
-            bounds.minDx,
-            bounds.maxDx,
-            worldRef.current.width,
-          ),
-          dy: rubberClamp(
-            point.y - gesture.grabY,
-            bounds.minDy,
-            bounds.maxDy,
-            worldRef.current.height,
-          ),
+          dx: point.x - gesture.grabX,
+          dy: point.y - gesture.grabY,
         };
         gesture.tracker.add(next.dx, next.dy, now);
         scheduleMove(() => setDragSelection(next));
@@ -2128,15 +2018,8 @@ export default function Designer({
           y: (event.clientY - rect.top - panRef.current.y) / zoomRef.current,
         };
         if (gesture.mode === "group") {
-          const bounds = groupBounds(group);
-          const x = Math.max(
-            bounds.minX,
-            Math.min(bounds.maxX, point.x - gesture.grabX),
-          );
-          const y = Math.max(
-            bounds.minY,
-            Math.min(bounds.maxY, point.y - gesture.grabY),
-          );
+          const x = point.x - gesture.grabX;
+          const y = point.y - gesture.grabY;
           const nextGroup = {
             id: group.id,
             x,
@@ -2150,17 +2033,11 @@ export default function Designer({
             id: group.id,
             width: Math.max(
               GROUP_MIN_WIDTH,
-              Math.min(
-                worldRef.current.width - group.x,
-                gesture.originWidth! + point.x - gesture.grabX,
-              ),
+              gesture.originWidth! + point.x - gesture.grabX,
             ),
             height: Math.max(
               GROUP_MIN_HEIGHT,
-              Math.min(
-                worldRef.current.height - group.y,
-                gesture.originHeight! + point.y - gesture.grabY,
-              ),
+              gesture.originHeight! + point.y - gesture.grabY,
             ),
           };
           scheduleMove(() => setResizeGroup(nextResize));
@@ -2177,17 +2054,10 @@ export default function Designer({
           y: (event.clientY - rect.top - panRef.current.y) / zoomRef.current,
         };
         if (gesture.mode === "memo") {
-          const bounds = memoBounds(memo);
           const nextMemo = {
             id: memo.id,
-            x: Math.max(
-              bounds.minX,
-              Math.min(bounds.maxX, point.x - gesture.grabX),
-            ),
-            y: Math.max(
-              bounds.minY,
-              Math.min(bounds.maxY, point.y - gesture.grabY),
-            ),
+            x: point.x - gesture.grabX,
+            y: point.y - gesture.grabY,
           };
           scheduleMove(() => setDragMemoPosition(nextMemo));
         } else {
@@ -2228,16 +2098,13 @@ export default function Designer({
         return;
       }
 
-      const bounds = tableBounds(table);
-      const rawX =
-        (event.clientX - rect.left - panRef.current.x) / zoomRef.current -
-        gesture.grabX;
-      const rawY =
-        (event.clientY - rect.top - panRef.current.y) / zoomRef.current -
-        gesture.grabY;
       const next = {
-        x: rubberClamp(rawX, bounds.minX, bounds.maxX, worldRef.current.width),
-        y: rubberClamp(rawY, bounds.minY, bounds.maxY, worldRef.current.height),
+        x:
+          (event.clientX - rect.left - panRef.current.x) / zoomRef.current -
+          gesture.grabX,
+        y:
+          (event.clientY - rect.top - panRef.current.y) / zoomRef.current -
+          gesture.grabY,
       };
       gesture.tracker.add(next.x, next.y, now);
       scheduleMove(() => setDragPosition({ id: table.id, ...next }));
@@ -2254,15 +2121,11 @@ export default function Designer({
 
       if (gesture.mode === "pan") {
         if (!gesture.moved) return;
-        const bounds = panBounds(zoomRef.current);
         const current = panRef.current;
-        const projected = {
+        // Where the flick is going, not where a wall would have stopped it.
+        const target = {
           x: current.x + project(velocity.x),
           y: current.y + project(velocity.y),
-        };
-        const target = {
-          x: Math.max(bounds.minX, Math.min(bounds.maxX, projected.x)),
-          y: Math.max(bounds.minY, Math.min(bounds.maxY, projected.y)),
         };
         const flicked = Math.hypot(velocity.x, velocity.y) > 60;
         animateTo(
@@ -2290,20 +2153,9 @@ export default function Designer({
           return;
         }
         const selected = selectionRef.current;
-        const bounds = selectionDragBounds(
-          schemaRef.current,
-          selected,
-          worldRef.current,
-        );
         const target = {
-          x: Math.max(
-            bounds.minDx,
-            Math.min(bounds.maxDx, live.dx + project(velocity.x)),
-          ),
-          y: Math.max(
-            bounds.minDy,
-            Math.min(bounds.maxDy, live.dy + project(velocity.y)),
-          ),
+          x: live.dx + project(velocity.x),
+          y: live.dy + project(velocity.y),
         };
         const flicked = Math.hypot(velocity.x, velocity.y) > 60;
         // Commit on release, spring afterwards — the same invariant the single
@@ -2365,13 +2217,7 @@ export default function Designer({
       if (gesture.mode === "memo" && memo) {
         const live = dragMemoPositionRef.current;
         if (gesture.moved && live?.id === memo.id) {
-          // Membership is read off where the memo lands, not where it was let
-          // go, so a drop clamped by the world edge cannot join the wrong group.
-          const bounds = memoBounds(memo);
-          const landing = {
-            x: Math.max(bounds.minX, Math.min(bounds.maxX, live.x)),
-            y: Math.max(bounds.minY, Math.min(bounds.maxY, live.y)),
-          };
+          const landing = { x: live.x, y: live.y };
           const targetGroup = (schemaRef.current.groups ?? []).find((group) =>
             enclosedBy(
               liveGroupRef.current(group),
@@ -2419,7 +2265,6 @@ export default function Designer({
         setDragPosition(null);
         return; // a tap, not a drag — selection already happened on pointerdown
       }
-      const bounds = tableBounds(table);
       const current = {
         x: gesture.originX,
         y: gesture.originY,
@@ -2431,14 +2276,10 @@ export default function Designer({
         x: from.x + project(velocity.x),
         y: from.y + project(velocity.y),
       };
-      const projectedTarget = {
-        x: Math.max(bounds.minX, Math.min(bounds.maxX, projected.x)),
-        y: Math.max(bounds.minY, Math.min(bounds.maxY, projected.y)),
-      };
       const target = resolveTablePosition(
         table.id,
-        projectedTarget.x,
-        projectedTarget.y,
+        projected.x,
+        projected.y,
       );
       const tableCenter = {
         x: target.x + tableWidth(table) / 2,
@@ -2492,11 +2333,7 @@ export default function Designer({
     commitTableWidth,
     commitWith,
     writeTablePosition,
-    groupBounds,
-    memoBounds,
-    panBounds,
     resolveTablePosition,
-    tableBounds,
   ]);
 
   /**
@@ -2545,16 +2382,9 @@ export default function Designer({
         }
       }
       if (panDelta.x !== 0 || panDelta.y !== 0) {
-        const bounds = panBounds(nextZoom);
         nextPan = {
-          x: Math.max(
-            bounds.minX,
-            Math.min(bounds.maxX, nextPan.x - panDelta.x),
-          ),
-          y: Math.max(
-            bounds.minY,
-            Math.min(bounds.maxY, nextPan.y - panDelta.y),
-          ),
+          x: nextPan.x - panDelta.x,
+          y: nextPan.y - panDelta.y,
         };
         panDelta = { x: 0, y: 0 };
       }
@@ -2606,7 +2436,7 @@ export default function Designer({
       flushWheel();
       element.removeEventListener("wheel", onWheel);
     };
-  }, [canvasRect, panBounds, stopAnimation]);
+  }, [canvasRect, stopAnimation]);
 
   /** Zoom around the viewport centre, for the HUD buttons and keyboard. */
   const zoomBy = useCallback(
@@ -3116,14 +2946,13 @@ export default function Designer({
       if (!table) return;
       event.preventDefault();
       const step = NUDGE * (event.shiftKey ? 3 : 1);
-      const bounds = tableBounds(table);
       commitPosition(
         tableId,
-        Math.max(bounds.minX, Math.min(bounds.maxX, table.x + delta.x * step)),
-        Math.max(bounds.minY, Math.min(bounds.maxY, table.y + delta.y * step)),
+        table.x + delta.x * step,
+        table.y + delta.y * step,
       );
     },
-    [commitPosition, tableBounds],
+    [commitPosition],
   );
 
   /** `tableId` comes from a card's context menu; the menubar and shortcut use the selection. */
@@ -4942,8 +4771,6 @@ export default function Designer({
             className="canvas"
             style={{
               transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
-              width: world.width,
-              height: world.height,
               willChange: grabbing || dragPosition ? "transform" : undefined,
             }}
           >
@@ -5256,12 +5083,12 @@ export default function Designer({
                 </article>
               );
             })}
-            <svg
-              className="edges"
-              width={world.width}
-              height={world.height}
-              aria-hidden="true"
-            >
+            {/*
+              No width or height: the overlay is pinned to the canvas origin
+              and paints outside its own box (`overflow: visible`), so an edge
+              between two cards a long way out still draws.
+            */}
+            <svg className="edges" aria-hidden="true">
               {relationships.map((relationship) => {
                 const from = relationshipPoint(
                   relationship.from,
@@ -5413,8 +5240,6 @@ export default function Designer({
           {linking && (
             <svg
               className="linking-overlay"
-              width={world.width}
-              height={world.height}
               style={{
                 transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
               }}
