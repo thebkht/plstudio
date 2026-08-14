@@ -722,11 +722,17 @@ button {
  * Hand mode owns the cursor over the cards too. Their own affordances --
  * `move` on a table head, `crosshair` on a row grip -- advertise gestures that
  * the capture-phase pan handler has already swallowed, so they must not show.
+ *
+ * Scoped to the canvas rather than the whole wrap: the dock and the selection
+ * toolbar float above it and stay clickable in hand mode, so a grab hand over
+ * them would promise a pan that pressing there does not perform.
  */
 .canvas-wrap.pan-mode,
-.canvas-wrap.pan-mode * { cursor: grab; }
+.canvas-wrap.pan-mode .canvas,
+.canvas-wrap.pan-mode .canvas * { cursor: grab; }
 .canvas-wrap.pan-mode.grabbing,
-.canvas-wrap.pan-mode.grabbing * { cursor: grabbing; }
+.canvas-wrap.pan-mode.grabbing .canvas,
+.canvas-wrap.pan-mode.grabbing .canvas * { cursor: grabbing; }
 /*
  * No unconditional `will-change: transform` here. The canvas is as large as the
  * world -- 4800x3600 at minimum, more once the schema grows -- so promoting it
