@@ -1791,6 +1791,14 @@ button {
 .fk-dot {
   color: #2f68ad;
 }
+/* A column's own unique, and one that is a member of a multi-column
+   constraint: the same glyph, told apart by tint rather than by shape. */
+.uk-dot {
+  color: #8a6d1f;
+}
+.uk-group {
+  color: #7a4fb5;
+}
 
 .danger {
   color: var(--destructive) !important;

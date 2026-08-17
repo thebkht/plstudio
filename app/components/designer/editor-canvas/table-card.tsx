@@ -14,13 +14,14 @@
  * the record would defeat the memo it is here to enable.
  */
 
-import { memo, useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ColumnInsertIcon,
   Copy01Icon,
   Delete02Icon,
   DragDropVerticalIcon,
+  FingerPrintIcon,
   GitMergeIcon,
   HorizontalResizeIcon,
   Key01Icon,
@@ -37,7 +38,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { HoverCard } from "@/components/ui/hover-card";
-import { TABLE_FIELD_HEIGHT, tableHeight, typeString, type Column, type SchemaGroup, type Table } from "@/app/lib/schema";
+import { TABLE_FIELD_HEIGHT, tableHeight, typeString, uniqueGroupColumnIds, type Column, type SchemaGroup, type Table } from "@/app/lib/schema";
 import { typeColorVar } from "@/app/lib/datatype-color";
 import { ColumnCard, ShortcutKeys, TableSummaryCard } from "../primitives";
 
@@ -53,6 +54,7 @@ const ColumnRow = memo(function ColumnRow({
   column,
   columnIndex,
   totalColumns,
+  inUniqueGroup,
   hoverDisabled,
   readOnly,
   foreignKeyTarget,
@@ -64,6 +66,8 @@ const ColumnRow = memo(function ColumnRow({
   column: Column;
   columnIndex: number;
   totalColumns: number;
+  /** Whether one of the table's multi-column unique constraints names it. */
+  inUniqueGroup: boolean;
   hoverDisabled: boolean;
   readOnly: boolean;
   foreignKeyTarget: ForeignKeyTarget;
@@ -98,6 +102,16 @@ const ColumnRow = memo(function ColumnRow({
         {column.pk && <HugeiconsIcon icon={Key01Icon} size={13} aria-hidden="true" />}
         {column.fk && (
           <HugeiconsIcon icon={Link01Icon} size={13} className="fk-dot" aria-hidden="true" />
+        )}
+        {/* The same glyph the side panel's Unique flag uses; the tint is what
+            separates a column's own unique from one inside a group. */}
+        {(column.unique || inUniqueGroup) && !column.pk && (
+          <HugeiconsIcon
+            icon={FingerPrintIcon}
+            size={13}
+            className={inUniqueGroup ? "uk-group" : "uk-dot"}
+            aria-hidden="true"
+          />
         )}
         {!column.notNull && !column.pk && (
           <span className="row-nullable">
@@ -198,6 +212,9 @@ export const TableCard = memo(function TableCard({
 }) {
   const [draggingColumnId, setDraggingColumnId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
+  // Built once per card rather than scanned per row: a card is redrawn on every
+  // drag frame and the constraints change about once a session.
+  const uniqueGroups = useMemo(() => uniqueGroupColumnIds(table), [table]);
   const rowSlotsRef = useRef(new Map<string, HTMLDivElement>());
   const gestureRef = useRef<{
     pointerId: number;
@@ -370,6 +387,7 @@ export const TableCard = memo(function TableCard({
               column={column}
               columnIndex={columnIndex}
               totalColumns={table.columns.length}
+              inUniqueGroup={uniqueGroups.has(column.id)}
               hoverDisabled={hoverDisabled || draggingColumnId !== null}
               readOnly={readOnly}
               foreignKeyTarget={foreignKeyTarget}
