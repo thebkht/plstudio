@@ -704,6 +704,54 @@ button {
 .column-card-row .input {
   flex: 0 0 96px;
 }
+.unique-constraints {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+.unique-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--surface-0);
+}
+.unique-columns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+/* Reads as the constraint's column list, so the chips lead and the select trails. */
+.unique-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px 3px 9px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: var(--surface-1, transparent);
+  font-size: 12px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  white-space: nowrap;
+}
+.unique-chip button {
+  display: flex;
+  align-items: center;
+  color: var(--text-muted, currentColor);
+  opacity: 0.6;
+  transition: opacity 0.15s ease;
+}
+.unique-chip button:hover {
+  opacity: 1;
+}
+.unique-columns .select {
+  flex: 0 0 auto;
+  min-width: 132px;
+}
 .relationship-row {
   width: 100%;
   display: flex;

@@ -13,6 +13,7 @@ import {
 } from "@/app/lib/collab/useCollaborativeSchema";
 import {
   makeColumn,
+  makeUniqueConstraint,
   nextId,
   normalizeRelationships,
   typeUsesSize,
@@ -20,6 +21,7 @@ import {
   type Schema,
   type SchemaGroup,
   type Table,
+  type UniqueConstraint,
 } from "@/app/lib/schema";
 import { generateDDL } from "@/app/lib/generators";
 import { validateSchema } from "@/app/lib/validation";
@@ -63,6 +65,13 @@ export type SchemaContextValue = {
   deleteColumn: (tableId: string, columnId: string) => void;
   addColumn: (tableId: string) => void;
   reorderColumns: (tableId: string, from: number, to: number) => void;
+  addUnique: (tableId: string) => void;
+  patchUnique: (
+    tableId: string,
+    uniqueId: string,
+    patch: Partial<UniqueConstraint>,
+  ) => void;
+  deleteUnique: (tableId: string, uniqueId: string) => void;
   tablesById: Map<string, Table>;
   groupsById: Map<string, SchemaGroup>;
   issues: ValidationIssue[];
@@ -71,6 +80,18 @@ export type SchemaContextValue = {
 };
 
 export const SchemaContext = createContext<SchemaContextValue | null>(null);
+
+/** Shrink every constraint that names `columnId`, dropping the ones left empty. */
+const dropColumnFromUniques = (
+  uniques: UniqueConstraint[] | undefined,
+  columnId: string,
+) =>
+  uniques
+    ?.map((constraint) => ({
+      ...constraint,
+      columnIds: constraint.columnIds.filter((id) => id !== columnId),
+    }))
+    .filter((constraint) => constraint.columnIds.length);
 
 export function SchemaProvider({
   initialSchema,
@@ -255,6 +276,13 @@ export function SchemaProvider({
                   columns: table.columns.filter(
                     (column) => column.id !== columnId,
                   ),
+                  /*
+                   * `normalizeTables` would prune this on the next load, but
+                   * the live schema must not carry an id nothing answers to:
+                   * the editor renders a chip per member and the generator
+                   * drops a constraint it cannot fully resolve.
+                   */
+                  uniques: dropColumnFromUniques(table.uniques, columnId),
                 }
               : {
                   ...table,
@@ -309,6 +337,41 @@ export function SchemaProvider({
     [commitWith],
   );
 
+  /** Every mutation below rewrites `uniques` whole — see `dropColumnFromUniques`. */
+  const withUniques = useCallback(
+    (tableId: string, mutate: (uniques: UniqueConstraint[]) => UniqueConstraint[]) =>
+      commitWith((current) => ({
+        ...current,
+        tables: current.tables.map((table) =>
+          table.id === tableId
+            ? { ...table, uniques: mutate(table.uniques ?? []) }
+            : table,
+        ),
+      })),
+    [commitWith],
+  );
+
+  const addUnique = useCallback(
+    (tableId: string) => withUniques(tableId, (uniques) => [...uniques, makeUniqueConstraint()]),
+    [withUniques],
+  );
+
+  const patchUnique = useCallback(
+    (tableId: string, uniqueId: string, patch: Partial<UniqueConstraint>) =>
+      withUniques(tableId, (uniques) =>
+        uniques.map((constraint) =>
+          constraint.id === uniqueId ? { ...constraint, ...patch } : constraint,
+        ),
+      ),
+    [withUniques],
+  );
+
+  const deleteUnique = useCallback(
+    (tableId: string, uniqueId: string) =>
+      withUniques(tableId, (uniques) => uniques.filter((constraint) => constraint.id !== uniqueId)),
+    [withUniques],
+  );
+
   const tablesById = useMemo(
     () => new Map(schema.tables.map((table) => [table.id, table])),
     [schema.tables],
@@ -355,6 +418,9 @@ export function SchemaProvider({
       deleteColumn,
       addColumn,
       reorderColumns,
+      addUnique,
+      patchUnique,
+      deleteUnique,
       tablesById,
       groupsById,
       issues,
@@ -380,6 +446,9 @@ export function SchemaProvider({
       deleteColumn,
       addColumn,
       reorderColumns,
+      addUnique,
+      patchUnique,
+      deleteUnique,
       tablesById,
       groupsById,
       issues,

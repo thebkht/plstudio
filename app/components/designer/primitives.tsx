@@ -123,6 +123,7 @@ export const ColumnCard = memo(function ColumnCard({
   column: Column;
   reference?: { table: Table; column: Column };
 }) {
+  const inUniqueGroup = (table.uniques ?? []).some((constraint) => constraint.columnIds.includes(column.id));
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-3">
@@ -136,11 +137,12 @@ export const ColumnCard = memo(function ColumnCard({
           {typeString(column)}
         </span>
       </div>
-      {(column.pk || column.unique || column.notNull || column.fk) && (
+      {(column.pk || column.unique || column.notNull || column.fk || inUniqueGroup) && (
         <div className="flex flex-wrap gap-1">
           {column.pk && <Badge variant="secondary">Primary key</Badge>}
           {column.fk && <Badge variant="secondary">Foreign key</Badge>}
           {column.unique && <Badge variant="secondary">Unique</Badge>}
+          {inUniqueGroup && <Badge variant="secondary">Unique group</Badge>}
           {column.notNull && <Badge variant="secondary">Not null</Badge>}
         </div>
       )}

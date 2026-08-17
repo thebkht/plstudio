@@ -85,6 +85,7 @@ import {
 } from "@/app/lib/schema";
 import { type MenuItem } from "@/app/components/designer/primitives";
 import { ColumnList } from "./editor-side-panel/tables-tab/column-list";
+import { UniqueConstraints } from "./editor-side-panel/tables-tab/unique-constraints";
 import type { ImportMessage } from "./editor-header/modal/import";
 import {
   useDesignerSettings,
@@ -155,6 +156,9 @@ export default function Workspace({
     deleteColumn,
     addColumn,
     reorderColumns,
+    addUnique,
+    patchUnique,
+    deleteUnique,
     tablesById,
     groupsById,
     issues,
@@ -1189,6 +1193,14 @@ export default function Workspace({
             deleteColumn={deleteColumn}
             reorderColumns={reorderColumns}
             compatibleForeignKeyTargets={compatibleForeignKeyTargets}
+          />
+
+          <UniqueConstraints
+            table={table}
+            readOnly={readOnly}
+            addUnique={addUnique}
+            patchUnique={patchUnique}
+            deleteUnique={deleteUnique}
           />
 
           <ButtonGroup>
