@@ -1,11 +1,25 @@
 "use client";
 
-import type {
-  ComponentProps,
-  CSSProperties,
-  PointerEvent as ReactPointerEvent,
-  RefObject,
-} from "react";
+import { useRef, type ComponentProps, type CSSProperties, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
+import { toast } from "sonner";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  ClipboardIcon,
+  DatabaseIcon,
+  FullScreenIcon,
+  GridIcon,
+  CursorRectangleSelectionIcon,
+  StickyNote01Icon,
+  Table01Icon,
+} from "@hugeicons/core-free-icons";
+import {
+  ContextMenu,
+  ContextMenuGroup,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { PeerCursors } from "@/app/components/collab-presence";
 import type {
   Column,
@@ -18,6 +32,7 @@ import type { Rect } from "@/app/lib/selection";
 import { isSelected, selectOnly } from "@/app/lib/selection";
 import type { ShortcutId } from "@/app/lib/shortcuts";
 import { relationshipCardinalities } from "../geometry";
+import { ShortcutKeys } from "../primitives";
 import {
   useDesignerSettings,
   useSchema,
@@ -134,21 +149,27 @@ export type CanvasGestures = {
   relationshipCounts: Map<string, number>;
   foreignKeyTarget: TableCardProps["foreignKeyTarget"];
 
-  addTable: (groupId?: string) => void;
+  /** `at` is canvas space — where a context menu was opened. */
+  addTable: (groupId?: string, at?: Point) => void;
   editTableInPanel: (tableId: string) => void;
   copyTableDDL: (tableId: string) => void;
   makeJunction: () => void;
 
   zoomBy: (delta: number) => void;
   fitView: () => void;
-  addGroup: () => void;
-  addMemo: () => void;
+  addGroup: (at?: Point) => void;
+  addMemo: (at?: Point, schemaId?: string) => void;
   autoLayout: () => void;
   onToggleHand: () => void;
 
   hint: (id: ShortcutId) => string;
+  /** Fires the same closure the chord does, so a menu row cannot drift from it. */
+  runShortcut: (id: ShortcutId) => void;
   copySelection: (format: "sql" | "json") => void;
   deleteSelection: () => void;
+  selectGroupMembers: (groupId: string) => void;
+  canvasPoint: (event: { clientX: number; clientY: number }) => Point;
+  pasteSelection: (text: string) => void;
 };
 
 export type CanvasProps = {
@@ -178,6 +199,22 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
   } = useSelect();
   const { pan, zoom } = useTransform();
   const { settings, isMac } = useDesignerSettings();
+  /** Where the background menu was opened, in canvas space. */
+  const contextPointRef = useRef<Point>({ x: 0, y: 0 });
+
+  /*
+   * The ⌘V path rides the window's `paste` event, which carries the clipboard
+   * with it. A menu item has no such event, so it has to ask -- and the ask can
+   * be refused, which is the one case worth telling the user about.
+   */
+  const pasteFromClipboard = async () => {
+    try {
+      const text = (await navigator.clipboard.readText()).trim();
+      if (text) g.pasteSelection(text);
+    } catch {
+      toast.error("Clipboard access was blocked. Press ⌘V instead.");
+    }
+  };
 
   return (
     <div
@@ -189,8 +226,16 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
       onPointerLeave={g.onPointerLeave}
       onPointerUp={g.finishLinking}
       onPointerCancel={g.onPointerCancel}
+      /*
+       * Captured, so the point is recorded before the trigger below opens the
+       * menu — and in canvas space, since that is where a new card is placed.
+       */
+      onContextMenuCapture={(event) => {
+        contextPointRef.current = g.canvasPoint(event);
+      }}
       style={g.gridStyle}
     >
+      <ContextMenuTrigger>
       <div
         className="canvas"
         style={{
@@ -220,6 +265,8 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
             onPatch={g.patchGroup}
             onDelete={g.deleteGroup}
             onAddTable={g.addTable}
+            onAddMemo={(groupId) => g.addMemo(contextPointRef.current, groupId)}
+            onSelectMembers={g.selectGroupMembers}
             onApplyKeyword={g.applyGroupKeyword}
             onResizeCommit={g.commitGroupSize}
           />
@@ -398,19 +445,101 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
         Proximity is a claim about relationship, so a command that moves the
         camera cannot sit among the ones that add tables.
       */}
+      {/*
+        The add commands are called, never passed: they take an optional canvas
+        point, and a click handler would hand them the DOM event as one.
+      */}
       <Dock
         panMode={g.panMode}
         onToggleHand={g.onToggleHand}
         zoomBy={g.zoomBy}
         fitView={g.fitView}
         addTable={() => g.addTable()}
-        addGroup={g.addGroup}
-        addMemo={g.addMemo}
+        addGroup={() => g.addGroup()}
+        addMemo={() => g.addMemo()}
         makeJunction={g.makeJunction}
         hasSelectedTable={Boolean(selectedId)}
         autoLayout={g.autoLayout}
         save={save}
       />
+      <ContextMenu className="w-auto">
+        <ContextMenuGroup>
+          <ContextMenuItem
+            isDisabled={readOnly}
+            onAction={() => g.addTable(undefined, contextPointRef.current)}
+          >
+            <HugeiconsIcon icon={Table01Icon} />
+            Add table here
+            <ContextMenuShortcut>
+              <ShortcutKeys id="addTable" isMac={isMac} />
+            </ContextMenuShortcut>
+          </ContextMenuItem>
+          <ContextMenuItem
+            isDisabled={readOnly}
+            onAction={() => g.addGroup(contextPointRef.current)}
+          >
+            <HugeiconsIcon icon={DatabaseIcon} />
+            Add schema group here
+            <ContextMenuShortcut>
+              <ShortcutKeys id="addGroup" isMac={isMac} />
+            </ContextMenuShortcut>
+          </ContextMenuItem>
+          <ContextMenuItem
+            isDisabled={readOnly}
+            onAction={() => g.addMemo(contextPointRef.current)}
+          >
+            <HugeiconsIcon icon={StickyNote01Icon} />
+            Add memo here
+            <ContextMenuShortcut>
+              <ShortcutKeys id="addMemo" isMac={isMac} />
+            </ContextMenuShortcut>
+          </ContextMenuItem>
+        </ContextMenuGroup>
+        <ContextMenuSeparator />
+        <ContextMenuGroup>
+          <ContextMenuItem
+            isDisabled={readOnly}
+            onAction={() => void pasteFromClipboard()}
+          >
+            <HugeiconsIcon icon={ClipboardIcon} />
+            Paste
+            <ContextMenuShortcut>
+              <ShortcutKeys id="pasteSelection" isMac={isMac} />
+            </ContextMenuShortcut>
+          </ContextMenuItem>
+          <ContextMenuItem
+            isDisabled={!schema.tables.length && !(schema.groups ?? []).length && !(schema.memos ?? []).length}
+            onAction={() => g.runShortcut("selectAll")}
+          >
+            <HugeiconsIcon icon={CursorRectangleSelectionIcon} />
+            Select all
+            <ContextMenuShortcut>
+              <ShortcutKeys id="selectAll" isMac={isMac} />
+            </ContextMenuShortcut>
+          </ContextMenuItem>
+        </ContextMenuGroup>
+        <ContextMenuSeparator />
+        <ContextMenuGroup>
+          <ContextMenuItem onAction={g.fitView}>
+            <HugeiconsIcon icon={FullScreenIcon} />
+            Fit to screen
+            <ContextMenuShortcut>
+              <ShortcutKeys id="fitView" isMac={isMac} />
+            </ContextMenuShortcut>
+          </ContextMenuItem>
+          <ContextMenuItem
+            isDisabled={readOnly || !schema.tables.length}
+            onAction={() => g.runShortcut("tidyLayout")}
+          >
+            <HugeiconsIcon icon={GridIcon} />
+            Tidy up layout
+            <ContextMenuShortcut>
+              <ShortcutKeys id="tidyLayout" isMac={isMac} />
+            </ContextMenuShortcut>
+          </ContextMenuItem>
+        </ContextMenuGroup>
+      </ContextMenu>
+      </ContextMenuTrigger>
     </div>
   );
 }

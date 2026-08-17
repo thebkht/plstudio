@@ -3,8 +3,11 @@
 import { memo as reactMemo, type PointerEvent as ReactPointerEvent } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
+  CursorRectangleSelectionIcon,
   DatabaseIcon,
   Delete02Icon,
+  PaintBoardIcon,
+  StickyNote01Icon,
   Table01Icon,
   Tag01Icon,
 } from "@hugeicons/core-free-icons";
@@ -15,6 +18,9 @@ import {
   ContextMenuItem,
   ContextMenuLabel,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
@@ -45,6 +51,8 @@ export type SchemaGroupCardProps = {
   onPatch: (id: string, patch: Partial<SchemaGroup>) => void;
   onDelete: (id: string) => void;
   onAddTable: (groupId: string) => void;
+  onAddMemo: (groupId: string) => void;
+  onSelectMembers: (groupId: string) => void;
   onApplyKeyword: (groupId: string) => void;
   onResizeCommit: (id: string, width: number, height: number) => void;
 };
@@ -64,6 +72,8 @@ function SchemaGroupCardComponent({
   onPatch,
   onDelete,
   onAddTable,
+  onAddMemo,
+  onSelectMembers,
   onApplyKeyword,
   onResizeCommit,
 }: SchemaGroupCardProps) {
@@ -168,6 +178,40 @@ function SchemaGroupCardComponent({
               <HugeiconsIcon icon={Table01Icon} />
               Add table to this schema
             </ContextMenuItem>
+            <ContextMenuItem
+              isDisabled={readOnly}
+              onAction={() => onAddMemo(group.id)}
+            >
+              <HugeiconsIcon icon={StickyNote01Icon} />
+              Add memo to this schema
+            </ContextMenuItem>
+            <ContextMenuItem onAction={() => onSelectMembers(group.id)}>
+              <HugeiconsIcon icon={CursorRectangleSelectionIcon} />
+              Select this schema&rsquo;s tables
+            </ContextMenuItem>
+            {/* The same `onPatch` the header's swatches drive — one code path,
+                two ways in, so the two can never disagree. */}
+            <ContextMenuSub>
+              <ContextMenuSubTrigger isDisabled={readOnly}>
+                <HugeiconsIcon icon={PaintBoardIcon} />
+                Colour
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent>
+                {Object.entries(GROUP_PALETTE).map(([color, option]) => (
+                  <ContextMenuItem
+                    key={color}
+                    onAction={() => onPatch(group.id, { color: color as SchemaGroup["color"] })}
+                  >
+                    <span
+                      className="schema-group-color-dot"
+                      style={{ background: option.border }}
+                      aria-hidden="true"
+                    />
+                    {color[0].toUpperCase()}{color.slice(1)}
+                  </ContextMenuItem>
+                ))}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
             <ContextMenuItem
               isDisabled={readOnly || !pendingPrefix}
               onAction={() => onApplyKeyword(group.id)}

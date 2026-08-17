@@ -105,6 +105,9 @@ function ContextMenuTrigger({
         data-slot="context-menu-trigger"
         className={cn("contents select-none", className)}
         onContextMenu={(e) => {
+          // A nested trigger has already claimed this event -- without this,
+          // right-clicking a card inside a context-menu surface opens both.
+          if (e.defaultPrevented) return
           e.preventDefault()
           const wasOpen = position !== null
           setPosition({

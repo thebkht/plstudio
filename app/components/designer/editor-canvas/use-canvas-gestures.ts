@@ -95,6 +95,9 @@ import {
 } from "../geometry";
 
 
+/** Canvas space, never screen space — the same coordinates `canvasPoint` returns. */
+type Point = { x: number; y: number };
+
 /**
  * Everything the canvas does: its gesture state, the pointer and wheel
  * handling, the camera, and the commands that add, move, resize and delete
@@ -634,7 +637,12 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
   );
 
 
-  const addTable = (groupId?: string) => {
+  /**
+   * `at` is the canvas-space point a context menu was opened at: an object
+   * created from the menu belongs where the user right-clicked, not in the
+   * staggered slot the keyboard shortcut uses.
+   */
+  const addTable = (groupId?: string, at?: Point) => {
     const target = (schema.groups ?? []).find(
       (group) =>
         group.id ===
@@ -645,8 +653,8 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
     const index = schema.tables.length;
     const base = makeTable(
       prefixTableName(`TABLE_${index + 1}`, groupPrefix(target)),
-      90 + (index % 4) * 70,
-      100 + (index % 3) * 75,
+      at?.x ?? 90 + (index % 4) * 70,
+      at?.y ?? 100 + (index % 3) * 75,
       index,
     );
     const table = target
@@ -657,6 +665,7 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
             target,
             base,
             schema.tables.filter((item) => item.schemaId === target.id).length,
+            at,
           ),
         }
       : base;
@@ -1920,25 +1929,28 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
     };
   };
 
-  const addMemo = () => {
+  const addMemo = (at?: Point, schemaId?: string) => {
     const index = schema.memos?.length ?? 0;
-    const memo = makeMemo(
-      "",
-      120 + (index % 4) * 70,
-      100 + (index % 3) * 70,
-      "yellow",
-    );
+    const memo = {
+      ...makeMemo(
+        "",
+        at?.x ?? 120 + (index % 4) * 70,
+        at?.y ?? 100 + (index % 3) * 70,
+        "yellow",
+      ),
+      schemaId,
+    };
     commit({ ...schema, memos: [...(schema.memos ?? []), memo] });
     setSelection(selectOnly("memo", memo.id));
     setEditingMemoId(memo.id);
   };
 
-  const addGroup = () => {
+  const addGroup = (at?: Point) => {
     const index = schema.groups?.length ?? 0;
     const group = makeSchemaGroup(
       `Schema ${index + 1}`,
-      90 + (index % 3) * 120,
-      80 + (index % 2) * 120,
+      at?.x ?? 90 + (index % 3) * 120,
+      at?.y ?? 80 + (index % 2) * 120,
       index,
     );
     commit({ ...schema, groups: [...(schema.groups ?? []), group] });

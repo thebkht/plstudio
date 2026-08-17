@@ -61,6 +61,7 @@ import {
 import {
   EMPTY_SELECTION,
   selectAll,
+  selectGroupWithMembers,
 } from "@/app/lib/selection";
 import {
   isEditingTarget,
@@ -719,6 +720,8 @@ export default function Workspace({
   };
   /** Menu items fire the same closures as the chords, so the two can never diverge. */
   const run = (id: ShortcutId) => () => shortcutActions[id]?.();
+  const selectGroupMembers = (groupId: string) =>
+    setSelection(selectGroupWithMembers(schema, groupId));
   const hint = (id: ShortcutId) => shortcutHint(id, isMac);
 
   /**
@@ -1650,8 +1653,12 @@ export default function Workspace({
             autoLayout,
             onToggleHand: () => setHandMode((on) => !on),
             hint,
+            runShortcut: (id: ShortcutId) => shortcutActions[id]?.(),
             copySelection,
             deleteSelection,
+            selectGroupMembers,
+            canvasPoint,
+            pasteSelection,
           }}
         />
       </SidebarProvider>

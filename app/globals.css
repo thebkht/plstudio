@@ -1260,6 +1260,13 @@ button {
   border: 1px solid rgb(0 0 0 / 16%);
   border-radius: 50%;
 }
+/* The menu's stand-in for a swatch, sized like the icons it sits among. */
+.schema-group-color-dot {
+  width: 14px;
+  height: 14px;
+  border: 1px solid rgb(0 0 0 / 16%);
+  border-radius: 50%;
+}
 .schema-group-color[data-selected] {
   box-shadow:
     0 0 0 2px #fff,

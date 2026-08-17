@@ -70,11 +70,16 @@ export const keywordHint = (name: string) =>
  * card is too wide or tall to sit inside with margins. Centring is the part
  * that matters — `enclosedBy` tests the card's *centre*, so a card placed
  * anywhere else would be evicted from the group by the next resize.
+ *
+ * `at` asks for a specific point instead of the stack -- the place a context
+ * menu was opened at -- and goes through the same clamp, so a card dropped near
+ * an edge still lands inside the group rather than half out of it.
  */
 export const insideGroup = (
   rect: { x: number; y: number; width: number; height: number },
   table: Table,
   index: number,
+  at?: { x: number; y: number },
 ) => {
   const place = (start: number, span: number, size: number, offset: number) => {
     const low = start + 12;
@@ -86,12 +91,12 @@ export const insideGroup = (
     );
   };
   return {
-    x: place(rect.x, rect.width, tableWidth(table), 12 + (index % 3) * 40),
+    x: place(rect.x, rect.width, tableWidth(table), at ? at.x - rect.x - 12 : 12 + (index % 3) * 40),
     y: place(
       rect.y + GROUP_HEADER_HEIGHT,
       rect.height - GROUP_HEADER_HEIGHT,
       tableHeight(table),
-      6 + (index % 4) * 40,
+      at ? at.y - rect.y - GROUP_HEADER_HEIGHT - 12 : 6 + (index % 4) * 40,
     ),
   };
 };

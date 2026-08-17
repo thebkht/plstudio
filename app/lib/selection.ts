@@ -37,6 +37,20 @@ export function toggleSelected(selection: CanvasSelection, kind: SelectionKind, 
   };
 }
 
+/**
+ * A group and everything inside it. The group itself is included so the result
+ * reads as "this schema", and so a drag of the selection carries the rectangle
+ * along with its contents rather than sliding the cards out from under it.
+ */
+export const selectGroupWithMembers = (schema: Schema, groupId: string): CanvasSelection => {
+  const members = groupMembers(schema, groupId);
+  return {
+    tables: members.tables.map((table) => table.id),
+    memos: members.memos.map((memo) => memo.id),
+    groups: [groupId],
+  };
+};
+
 export const selectAll = (schema: Schema): CanvasSelection => ({
   tables: schema.tables.map((table) => table.id),
   memos: (schema.memos ?? []).map((memo) => memo.id),
