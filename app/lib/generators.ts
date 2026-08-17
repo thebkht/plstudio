@@ -128,16 +128,32 @@ export function generateDDL(schema: Schema) {
         `  using index${indexTablespace};`,
         "--",
       );
-    table.columns
-      .filter((column) => column.unique)
-      .forEach((column, index) =>
-        out.push(
-          `alter table ${tableName}`,
-          `  add constraint ${shorten(`${tableName}_u${index + 1}`, usedNames)} unique (${sqlIdentifier(column.name)})`,
-          `  using index${indexTablespace};`,
-          "--",
-        ),
+    const columnUniques = table.columns.filter((column) => column.unique);
+    columnUniques.forEach((column, index) =>
+      out.push(
+        `alter table ${tableName}`,
+        `  add constraint ${shorten(`${tableName}_u${index + 1}`, usedNames)} unique (${sqlIdentifier(column.name)})`,
+        `  using index${indexTablespace};`,
+        "--",
+      ),
+    );
+    /*
+     * Numbered on from the single-column ones so a diagram that has none of
+     * these generates byte-identical DDL to the build before they existed.
+     */
+    (table.uniques ?? []).forEach((constraint, index) => {
+      const columns = constraint.columnIds
+        .map((columnId) => table.columns.find((column) => column.id === columnId))
+        .filter((column): column is Column => Boolean(column));
+      if (columns.length !== constraint.columnIds.length) return;
+      const name = constraint.name?.trim() || `${tableName}_u${columnUniques.length + index + 1}`;
+      out.push(
+        `alter table ${tableName}`,
+        `  add constraint ${shorten(name, usedNames)} unique (${columns.map((column) => sqlIdentifier(column.name)).join(", ")})`,
+        `  using index${indexTablespace};`,
+        "--",
       );
+    });
     table.columns
       .filter((column) => column.check.trim())
       .forEach((column, index) =>

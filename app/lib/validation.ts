@@ -81,6 +81,15 @@ export function validateSchema(schema: Schema): ValidationIssue[] {
     if (table.keyStrategy !== "none" && !(pk.length === 1 && pk[0].type === "NUMBER")) {
       issues.push({ severity: "warning", message: `${table.name}: generated key strategy requires exactly one numeric PK; use manual key generation.`, tableId: table.id });
     }
+    const pkIds = new Set(pk.map((column) => column.id));
+    (table.uniques ?? []).forEach((constraint, index) => {
+      const label = constraint.name?.trim() || `unique constraint ${index + 1}`;
+      if (constraint.name?.trim()) issues.push(...identifierIssues(constraint.name, `Constraint ${table.name}.${constraint.name}`).map((issue) => ({ ...issue, tableId: table.id })));
+      // Normalization prunes these; a hand-edited file is the only way in.
+      if (!constraint.columnIds.length) issues.push({ severity: "error", message: `${table.name}: ${label} has no columns.`, tableId: table.id });
+      else if (constraint.columnIds.length === 1) issues.push({ severity: "warning", message: `${table.name}: ${label} covers one column; use the column's Unique flag instead.`, tableId: table.id });
+      else if (constraint.columnIds.length === pkIds.size && constraint.columnIds.every((columnId) => pkIds.has(columnId))) issues.push({ severity: "warning", message: `${table.name}: ${label} repeats the primary key, which already enforces it.`, tableId: table.id });
+    });
     table.columns.forEach((column) => {
       issues.push(...identifierIssues(column.name, `Column ${table.name}.${column.name}`).map((issue) => ({ ...issue, tableId: table.id, columnId: column.id })));
       const checkIssue = validateCheckExpression(column.check);

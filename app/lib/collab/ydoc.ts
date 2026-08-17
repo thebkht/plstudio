@@ -97,6 +97,9 @@ function writeTable(map: Y.Map<unknown>, table: Table) {
   writeFields(map, {
     id: table.id, name: table.name, x: table.x, y: table.y, color: table.color,
     keyStrategy: table.keyStrategy, schemaId: table.schemaId, comment: table.comment, width: table.width,
+    // Plain JSON like `relationship.fields`: a unique constraint is added,
+    // emptied or deleted whole, so per-field granularity would buy nothing.
+    uniques: table.uniques,
   });
   if (!(map.get("columns") instanceof Y.Array)) map.set("columns", new Y.Array<Y.Map<unknown>>());
   reconcileList(map.get("columns") as Y.Array<Y.Map<unknown>>, table.columns, writeColumn);
@@ -143,7 +146,7 @@ const readRecord = <T>(map: Y.Map<unknown>, keys: readonly (keyof T & string)[])
   }, {} as T);
 
 const COLUMN_KEYS = ["id", "name", "type", "size", "notNull", "pk", "unique", "defaultValue", "check", "comment"] as const;
-const TABLE_KEYS = ["id", "name", "x", "y", "color", "keyStrategy", "schemaId", "comment", "width"] as const;
+const TABLE_KEYS = ["id", "name", "x", "y", "color", "keyStrategy", "schemaId", "comment", "width", "uniques"] as const;
 const RELATIONSHIP_KEYS = ["id", "startTableId", "startFieldId", "endTableId", "endFieldId", "fields", "name", "cardinality", "manyLabel", "updateConstraint", "deleteConstraint"] as const;
 const GROUP_KEYS = ["id", "name", "keyword", "x", "y", "width", "height", "color"] as const;
 const MEMO_KEYS = ["id", "text", "x", "y", "width", "height", "color", "schemaId"] as const;

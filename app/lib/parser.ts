@@ -1,4 +1,4 @@
-import { APPEND_GAP, contentEdges, makeColumn, makeTable, nextId, normalizeIdentifier, normalizeRelationships, PALETTE, SCHEMA_FORMAT_VERSION, type Column, type ForeignKeyRef, type OracleType, type Schema, type Table } from "./schema";
+import { APPEND_GAP, contentEdges, makeColumn, makeTable, makeUniqueConstraint, nextId, normalizeIdentifier, normalizeRelationships, PALETTE, SCHEMA_FORMAT_VERSION, type Column, type ForeignKeyRef, type OracleType, type Schema, type Table } from "./schema";
 import { isMermaidER, parseMermaidER, appendMermaidER, generateMermaidER } from "./mermaid";
 
 export type ParseResult = { schema: Schema | null; warnings: string[]; errors: string[] };
@@ -122,7 +122,7 @@ type PendingForeignKey = { tableName: string; constraintName: string; columns: s
 
 type ParsedConstraint =
   | { kind: "pk"; columns: string[] }
-  | { kind: "unique"; columns: string[] }
+  | { kind: "unique"; name: string; columns: string[] }
   | { kind: "check"; expression: string }
   | { kind: "fk"; name: string; columns: string[]; targetName: string; targetColumns: string[]; deleteAction: string }
   | { kind: "unsupported" };
@@ -143,7 +143,7 @@ function parseConstraint(raw: string): ParsedConstraint {
   const inner = body.slice(open + 1, close);
   const keyword = keyed[1].toUpperCase().replace(/\s+/g, " ");
   if (keyword === "PRIMARY KEY") return { kind: "pk", columns: identList(inner) };
-  if (keyword === "UNIQUE") return { kind: "unique", columns: identList(inner) };
+  if (keyword === "UNIQUE") return { kind: "unique", name, columns: identList(inner) };
   if (keyword === "CHECK") return { kind: "check", expression: unquoteIdentifiers(inner).trim() };
   const ref = body.slice(close + 1).match(REFERENCES);
   if (!ref) return { kind: "unsupported" };
@@ -226,13 +226,19 @@ export function parseCreateTable(sql: string, options: ParseOptions = {}): Parse
   const tables: Table[] = [];
   const identityTables = new Set<string>();
   const foreignKeys: PendingForeignKey[] = [];
-  const applyUnique = (tableName: string, columns: string[]) => {
+  const applyUnique = (tableName: string, name: string, columns: string[]) => {
     const table = findTable(tables, tableName);
     if (!table) return;
-    if (columns.length > 1) { warnings.push(`${tableName}: skipped composite unique constraint: ${columns.join(", ")}`); return; }
-    const column = findColumn(table, columns[0]);
-    if (column) column.unique = true;
-    else errors.push(`${tableName}: unique column ${columns[0]} not found.`);
+    const resolved = columns.map((columnName) => {
+      const column = findColumn(table, columnName);
+      if (!column) errors.push(`${tableName}: unique column ${columnName} not found.`);
+      return column;
+    });
+    if (resolved.some((column) => !column)) return;
+    // A single column stays the column's own flag, so the DDL this generator
+    // emits parses back to the shape it was generated from.
+    if (resolved.length === 1) { resolved[0]!.unique = true; return; }
+    table.uniques = [...(table.uniques ?? []), makeUniqueConstraint(resolved.map((column) => column!.id), name)];
   };
   const applyPrimary = (tableName: string, columns: string[]) => {
     const table = findTable(tables, tableName);
@@ -279,7 +285,7 @@ export function parseCreateTable(sql: string, options: ParseOptions = {}): Parse
     inlineConstraints.forEach((raw) => {
       const constraint = parseConstraint(raw);
       if (constraint.kind === "pk") applyPrimary(tableName, constraint.columns);
-      else if (constraint.kind === "unique") applyUnique(tableName, constraint.columns);
+      else if (constraint.kind === "unique") applyUnique(tableName, constraint.name, constraint.columns);
       else if (constraint.kind === "check") applyCheck(tableName, constraint.expression);
       else if (constraint.kind === "fk") foreignKeys.push({ tableName, constraintName: constraint.name, columns: constraint.columns, targetName: constraint.targetName, targetColumns: constraint.targetColumns, deleteAction: constraint.deleteAction });
       else warnings.push(`${tableName}: skipped unsupported table constraint: ${raw}`);
@@ -304,7 +310,7 @@ export function parseCreateTable(sql: string, options: ParseOptions = {}): Parse
     if (!findTable(tables, tableName)) continue;
     const constraint = parseConstraint(raw);
     if (constraint.kind === "pk") applyPrimary(tableName, constraint.columns);
-    else if (constraint.kind === "unique") applyUnique(tableName, constraint.columns);
+    else if (constraint.kind === "unique") applyUnique(tableName, constraint.name, constraint.columns);
     else if (constraint.kind === "check") applyCheck(tableName, constraint.expression);
     else if (constraint.kind === "fk") foreignKeys.push({ tableName, constraintName: constraint.name, columns: constraint.columns, targetName: constraint.targetName, targetColumns: constraint.targetColumns, deleteAction: constraint.deleteAction });
     else warnings.push(`${tableName}: skipped unsupported table constraint: ${raw}`);

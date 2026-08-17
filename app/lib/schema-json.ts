@@ -1,5 +1,5 @@
 import { findColumn, findTable, type AppendResult, type ParseResult } from "./parser";
-import { APPEND_GAP, contentEdges, KEY_STRATEGIES, makeColumn, nextId, normalizeGroups, normalizeMemos, normalizeRelationships, normalizeTables, ORACLE_TYPES, PALETTE, SCHEMA_FORMAT_VERSION, type Column, type ForeignKeyRef, type KeyStrategy, type OracleType, type Relationship, type Schema, type SchemaGroup, type Table } from "./schema";
+import { APPEND_GAP, contentEdges, KEY_STRATEGIES, makeColumn, nextId, normalizeGroups, normalizeMemos, normalizeRelationships, normalizeTables, ORACLE_TYPES, PALETTE, SCHEMA_FORMAT_VERSION, type Column, type ForeignKeyRef, type KeyStrategy, type OracleType, type Relationship, type Schema, type SchemaGroup, type Table, type UniqueConstraint } from "./schema";
 
 /**
  * The lossless counterpart to `generateDDL`. DDL carries none of the canvas --
@@ -87,6 +87,21 @@ function readColumn(value: unknown, table: string, index: number, warnings: stri
   });
 }
 
+/** Shape-checked only; `normalizeTables` is what prunes members and empties. */
+function readUniques(value: unknown): UniqueConstraint[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const uniques = value.flatMap((item) => {
+    const raw = record(item);
+    if (!raw || typeof raw.id !== "string" || !raw.id || !Array.isArray(raw.columnIds)) return [];
+    return [{
+      id: raw.id,
+      name: typeof raw.name === "string" && raw.name.trim() ? raw.name.trim() : undefined,
+      columnIds: raw.columnIds.filter((columnId): columnId is string => typeof columnId === "string"),
+    }];
+  });
+  return uniques.length ? uniques : undefined;
+}
+
 function readTable(value: unknown, index: number, warnings: string[]): Table | null {
   const raw = record(value);
   if (!raw || typeof raw.id !== "string" || !raw.id) {
@@ -119,6 +134,7 @@ function readTable(value: unknown, index: number, warnings: string[]): Table | n
     // `normalizeTables` clamps whatever survives; anything unusable degrades to auto.
     width: typeof raw.width === "number" && Number.isFinite(raw.width) ? raw.width : undefined,
     columns,
+    uniques: readUniques(raw.uniques),
   };
 }
 
@@ -295,6 +311,13 @@ export function mergeSchemaJson(base: Schema, text: string): AppendResult {
     y: table.y + dy,
     schemaId: table.schemaId ? groupIds.get(table.schemaId) : undefined,
     columns: table.columns.map((column) => ({ ...column, id: columnIds.get(column.id) ?? column.id, fk: rewire(column.fk) })),
+    // Re-minted like every other id here; a constraint still holding the file's
+    // originals would name nothing and be pruned away on the next normalize.
+    uniques: table.uniques?.map((constraint) => ({
+      ...constraint,
+      id: nextId("uk"),
+      columnIds: constraint.columnIds.map((columnId) => columnIds.get(columnId) ?? columnId),
+    })),
   }));
   const addedGroups = groups.map((group) => ({ ...group, id: groupIds.get(group.id) ?? group.id, x: group.x + dx, y: group.y + dy }));
   const addedMemos = memos.map((memo) => ({ ...memo, id: nextId("memo"), x: memo.x + dx, y: memo.y + dy }));

@@ -10,6 +10,7 @@ import {
   normalizeRelationships,
   PALETTE,
   primaryKeyColumns,
+  uniqueGroupColumnIds,
   SCHEMA_FORMAT_VERSION,
   tableHeight,
   tableWidth,
@@ -1038,13 +1039,19 @@ export function generateMermaidER(schema: Schema): string {
   const lines: string[] = ["erDiagram", ""];
 
   canonical.tables.forEach((table) => {
+    /*
+     * Mermaid ER has no syntax for a multi-column constraint, so a composite
+     * unique can only be shown as a UK on each of its members -- lossy on the
+     * way out, and read back as one single-column unique per column.
+     */
+    const uniqueGroups = uniqueGroupColumnIds(table);
     lines.push(`    ${normalizeIdentifier(table.name)} {`);
     table.columns.forEach((column) => {
       const typeStr = column.size ? `${column.type}(${column.size})` : column.type;
       const keys: string[] = [];
       if (column.pk) keys.push("PK");
       if (column.fk) keys.push("FK");
-      if (column.unique && !column.pk) keys.push("UK");
+      if ((column.unique || uniqueGroups.has(column.id)) && !column.pk) keys.push("UK");
 
       const keyPart = keys.length ? ` ${keys.join(", ")}` : "";
       const commentPart = column.comment ? ` "${column.comment.replace(/"/g, '\\"')}"` : "";
