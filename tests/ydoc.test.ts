@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 import { applySchemaToYDoc, isEmptyDoc, schemaFromYDoc, schemaRoot } from "@/app/lib/collab/ydoc";
-import { makeColumn, makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, type Schema } from "@/app/lib/schema";
+import { makeColumn, makeDemoSchema, makeUniqueConstraint, makeMemo, makeSchemaGroup, makeTable, type Schema } from "@/app/lib/schema";
 
 const seed = (schema: Schema) => applySchemaToYDoc(new Y.Doc(), schema);
 const read = (ydoc: Y.Doc, schema: Schema) => schemaFromYDoc(ydoc, { id: schema.id, revision: schema.revision });
@@ -27,6 +27,13 @@ describe("schemaFromYDoc / applySchemaToYDoc", () => {
       updateConstraint: "No action", deleteConstraint: "Cascade",
     }];
     expect(read(seed(schema), schema)).toEqual(schema);
+  });
+
+  it("round-trips multi-column unique constraints", () => {
+    const schema = makeDemoSchema();
+    const enrollment = schema.tables[1];
+    enrollment.uniques = [makeUniqueConstraint([enrollment.columns[0].id, enrollment.columns[1].id], "UQ_ENROLLMENT")];
+    expect(read(seed(schema), schema).tables[1].uniques).toEqual(enrollment.uniques);
   });
 
   it("preserves optional fields that were absent", () => {

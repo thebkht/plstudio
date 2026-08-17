@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EXPORT_APP, EXPORT_FORMAT_VERSION, exportSchemaJson, mergeSchemaJson, parseSchemaJson } from "@/app/lib/schema-json";
-import { APPEND_GAP, contentEdges, makeColumn, makeDemoSchema, makeEmptySchema, makeMemo, makeSchemaGroup, makeTable, normalizeRelationships, SCHEMA_FORMAT_VERSION, type Schema } from "@/app/lib/schema";
+import { APPEND_GAP, contentEdges, makeColumn, makeDemoSchema, makeEmptySchema, makeMemo, makeSchemaGroup, makeTable, makeUniqueConstraint, normalizeRelationships, SCHEMA_FORMAT_VERSION, type Schema } from "@/app/lib/schema";
 import { selectionSchema } from "@/app/lib/selection";
 
 /** The demo schema with its `column.fk` migrated into real relationships. */
@@ -194,6 +194,17 @@ describe("Schema JSON merge", () => {
       tableId: base.tables[0].id,
       columnId: base.tables[0].columns[0].id,
     });
+  });
+
+  it("carries unique constraints across a merge, onto the re-minted column ids", () => {
+    const incoming = demo();
+    const enrollment = incoming.tables[1];
+    enrollment.uniques = [makeUniqueConstraint([enrollment.columns[0].id, enrollment.columns[1].id], "UQ_ENROLLMENT")];
+    const result = mergeSchemaJson(makeEmptySchema(), exportSchemaJson(incoming));
+    const added = result.added[1];
+    expect(added.uniques?.[0]).toMatchObject({ name: "UQ_ENROLLMENT" });
+    expect(added.uniques?.[0].columnIds).toEqual([added.columns[0].id, added.columns[1].id]);
+    expect(added.uniques?.[0].columnIds).not.toEqual(enrollment.uniques[0].columnIds);
   });
 
   it("carries groups and memos across, with each table following its group's new id", () => {

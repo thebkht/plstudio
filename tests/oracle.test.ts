@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateDDL, generateDML } from "@/app/lib/generators";
 import { appendCreateTable, parseCreateTable } from "@/app/lib/parser";
-import { groupPrefix, makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, normalizeMemos, normalizeGroups, normalizeRelationships, normalizeTables, prefixTableName, SCHEMA_FORMAT_VERSION, stripTablePrefix, tableHeight, tableWidth, typeString } from "@/app/lib/schema";
+import { groupPrefix, makeColumn, makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, makeUniqueConstraint, normalizeMemos, normalizeGroups, normalizeRelationships, normalizeTables, prefixTableName, SCHEMA_FORMAT_VERSION, stripTablePrefix, tableHeight, tableWidth, typeString } from "@/app/lib/schema";
 import { validateCheckExpression, validateSchema, validateTypeSpec } from "@/app/lib/validation";
 
 describe("Oracle schema model", () => {
@@ -115,6 +115,57 @@ describe("Oracle schema model", () => {
     expect(ddl).toContain("comment on table student is 'Student records';");
     expect(ddl).toContain("comment on column student.id is 'Primary identifier';");
     expect(ddl).not.toContain("status char(1) default 'A' not null unique");
+  });
+
+  it("emits one constraint per multi-column unique, numbered on from the single-column ones", () => {
+    const schema = makeDemoSchema();
+    const enrollment = schema.tables[1];
+    enrollment.columns[3].unique = true;
+    enrollment.uniques = [makeUniqueConstraint([enrollment.columns[0].id, enrollment.columns[1].id])];
+    const ddl = generateDDL(schema);
+    expect(ddl).toContain("add constraint enrollment_u1 unique (enrolled_on)");
+    expect(ddl).toContain("add constraint enrollment_u2 unique (student_id, course_code)");
+  });
+
+  it("names a unique constraint as asked, and skips one naming a column that is gone", () => {
+    const schema = makeDemoSchema();
+    const enrollment = schema.tables[1];
+    enrollment.uniques = [
+      makeUniqueConstraint([enrollment.columns[0].id, enrollment.columns[1].id], "UQ_ENROLLMENT_COURSE"),
+      makeUniqueConstraint([enrollment.columns[0].id, "col_gone"]),
+    ];
+    const ddl = generateDDL(schema);
+    expect(ddl).toContain("add constraint uq_enrollment_course unique (student_id, course_code)");
+    expect(ddl).not.toContain("enrollment_u2");
+  });
+
+  it("prunes unique constraints against the columns that survive", () => {
+    const table = makeTable("ENROLLMENT", 0, 0);
+    const [id] = table.columns;
+    const extra = makeColumn({ name: "CODE" });
+    table.columns = [id, extra];
+    table.uniques = [
+      makeUniqueConstraint([id.id, extra.id, "col_gone", id.id]),
+      // Same set as the first, which Oracle would reject as a duplicate index.
+      makeUniqueConstraint([id.id, extra.id]),
+      makeUniqueConstraint(["col_gone"]),
+    ];
+    const normalized = normalizeTables({ ...makeDemoSchema(), tables: [table] }).tables[0];
+    expect(normalized.uniques).toHaveLength(1);
+    expect(normalized.uniques?.[0].columnIds).toEqual([id.id, extra.id]);
+  });
+
+  it("drops a unique constraint left with no columns at all", () => {
+    const table = makeTable("ENROLLMENT", 0, 0);
+    table.uniques = [makeUniqueConstraint(["col_gone"])];
+    expect(normalizeTables({ ...makeDemoSchema(), tables: [table] }).tables[0].uniques).toBeUndefined();
+  });
+
+  it("warns about a unique constraint that only repeats the primary key", () => {
+    const table = makeTable("ENROLLMENT", 0, 0);
+    table.uniques = [makeUniqueConstraint([table.columns[0].id])];
+    const issues = validateSchema({ ...makeDemoSchema(), tables: [table] });
+    expect(issues.some((issue) => issue.severity === "warning" && /covers one column/.test(issue.message))).toBe(true);
   });
 
   it("uses each schema group's data and index tablespaces without changing table colors", () => {
@@ -251,6 +302,36 @@ describe("Oracle schema model", () => {
       tableId: result.schema?.tables[0].id,
       columnId: result.schema?.tables[0].columns[0].id,
     });
+  });
+
+  it("imports a composite unique from either a table body or an alter statement", () => {
+    const inline = parseCreateTable(`CREATE TABLE ENROLLMENT ( STUDENT_ID NUMBER NOT NULL, COURSE_CODE VARCHAR2(20) NOT NULL, CONSTRAINT UQ_ENROLLMENT UNIQUE (STUDENT_ID, COURSE_CODE) );`);
+    expect(inline.errors).toEqual([]);
+    expect(inline.warnings).toEqual([]);
+    expect(inline.schema?.tables[0].uniques).toHaveLength(1);
+    expect(inline.schema?.tables[0].uniques?.[0]).toMatchObject({ name: "UQ_ENROLLMENT" });
+
+    const altered = parseCreateTable(`CREATE TABLE ENROLLMENT ( STUDENT_ID NUMBER NOT NULL, COURSE_CODE VARCHAR2(20) NOT NULL ); ALTER TABLE ENROLLMENT ADD CONSTRAINT UQ_ENROLLMENT UNIQUE (STUDENT_ID, COURSE_CODE);`);
+    expect(altered.errors).toEqual([]);
+    const table = altered.schema?.tables[0];
+    expect(table?.uniques?.[0].columnIds).toEqual([table?.columns[0].id, table?.columns[1].id]);
+  });
+
+  it("round-trips a composite unique through generate and parse", () => {
+    const source = makeDemoSchema();
+    const enrollment = source.tables[1];
+    enrollment.uniques = [makeUniqueConstraint([enrollment.columns[0].id, enrollment.columns[1].id])];
+    const parsed = parseCreateTable(generateDDL(source)).schema?.tables[1];
+    expect(parsed?.uniques).toHaveLength(1);
+    expect(parsed?.uniques?.[0].columnIds.map((id) => parsed.columns.find((column) => column.id === id)?.name))
+      // Generated DDL is lowercase, and the parser keeps names as written.
+      .toEqual(["student_id", "course_code"]);
+  });
+
+  it("keeps a single-column unique on the column rather than making a constraint of it", () => {
+    const result = parseCreateTable(`CREATE TABLE STUDENT ( ID NUMBER NOT NULL, EMAIL VARCHAR2(120), CONSTRAINT UQ_STUDENT_EMAIL UNIQUE (EMAIL) );`);
+    expect(result.schema?.tables[0].uniques).toBeUndefined();
+    expect(result.schema?.tables[0].columns[1].unique).toBe(true);
   });
 
   it("imports relationship names, composite pairs, and delete actions", () => {
