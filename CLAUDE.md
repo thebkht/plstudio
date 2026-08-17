@@ -37,6 +37,7 @@ An Oracle 12.2+ schema designer: a PLStudio-style canvas where you draw tables, 
 **Deliberate v1 constraints** — do not "fix" these without being asked:
 
 - Foreign keys are single-column only. FKs targeting a composite-PK table are a validation error, and `generateDDL` silently skips them.
+- Uniqueness has two forms and they do not overlap: `Column.unique` is a single-column `UNIQUE`, and `Table.uniques` (`UniqueConstraint[]`) is the multi-column one. A composite constraint does *not* set the flag on its members — that would emit one constraint per column. `normalizeTables` prunes a constraint's `columnIds` against the columns that exist, so a deleted column shrinks its constraints rather than breaking them, and `generateDDL` numbers table-level constraints on from the single-column ones so older diagrams generate byte-identical DDL.
 - `keyStrategy` is per-table: `"none"` | `"sequence-trigger"` (emits `CREATE SEQUENCE` + a `BEFORE INSERT` trigger) | `"identity"` (emits `GENERATED ALWAYS AS IDENTITY`, no sequence/trigger). Generated strategies require exactly one `NUMBER` PK; otherwise `keyStrategyArtifacts` returns nothing and validation warns.
 - No table groups/categories in the domain model.
 
@@ -86,7 +87,7 @@ Three things Postgres used to do implicitly and the store now does explicitly �
 - **`writeAtomic`** — temp file + `rename`, so a reader never sees half-written JSON.
 - **`deleteProject`** — walks to the Yjs blob and the share file itself, replacing `ON DELETE CASCADE`. `ProjectRecord.shareTokenHash` is the back-pointer that replaces `project_share`'s unique foreign key.
 
-`PUT` implements optimistic concurrency: if the stored `revision` differs from the client's it returns **409 `REVISION_CONFLICT`** with the current record, unless `{ overwrite: true }` is passed. The new revision is `max(stored, incoming) + 1`. `SCHEMA_FORMAT_VERSION` (currently `3`) is stamped server-side on every write — bump it in `app/lib/schema.ts` when the JSON shape changes.
+`PUT` implements optimistic concurrency: if the stored `revision` differs from the client's it returns **409 `REVISION_CONFLICT`** with the current record, unless `{ overwrite: true }` is passed. The new revision is `max(stored, incoming) + 1`. `SCHEMA_FORMAT_VERSION` (currently `6`) is stamped server-side on every write — bump it in `app/lib/schema.ts` when the JSON shape changes.
 
 `scripts/migrate-from-neon.ts` imports an existing Postgres database into `DATA_DIR` (`DATABASE_URL=… pnpm tsx scripts/migrate-from-neon.ts`, `--force` to re-import). It reads only, so it can be re-run and verified before anything is dropped. `pg` is a devDependency for its sake alone. `scripts/migrate-storage-layout.ts` (`pnpm tsx scripts/migrate-storage-layout.ts`, `--force` to overwrite a taken destination) renames the older flat `projects/<projectId>.json` files into their owner directory; it only touches top-level `*.json`, so re-running it does nothing.
 
