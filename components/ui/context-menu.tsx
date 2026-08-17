@@ -248,7 +248,9 @@ function ContextMenuSubTrigger({
       data-inset={inset}
       textValue={typeof children === "string" ? children : props.textValue}
       className={cn(
-        "flex cursor-default items-center rounded-2xl px-3 py-2 text-sm font-medium outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-9.5 data-open:bg-accent data-open:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-[1.125rem]",
+        // Same gap, padding and radius as ContextMenuItem: a submenu row sits in
+        // the same list as the rows around it and has to line up with them.
+        "group/context-menu-item flex cursor-default items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-9.5 data-open:bg-accent data-open:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-[1.125rem]",
         className
       )}
       {...props}

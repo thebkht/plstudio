@@ -80,6 +80,13 @@ function SchemaGroupCardComponent({
   const palette = GROUP_PALETTE[group.color];
   const prefix = groupPrefix(group);
   return (
+    /*
+     * Outside the section, not inside it: the trigger renders as a
+     * `display: contents` wrapper, so a right-click anywhere in the group's own
+     * box — which is the section's element, not a descendant — would never
+     * reach a handler mounted underneath it.
+     */
+    <ContextMenuTrigger onOpenChange={(open) => open && onContextOpen()}>
     <section
       className={`schema-group ${isSelected ? "selected" : ""} ${inMultiSelection ? "multi-selected" : ""} ${isMoving ? "moving" : ""}`}
       role="group"
@@ -94,7 +101,6 @@ function SchemaGroupCardComponent({
       }}
       onPointerDown={onPointerDown}
     >
-      <ContextMenuTrigger onOpenChange={(open) => open && onContextOpen()}>
         <div
           className="schema-group-head"
           style={{
@@ -187,21 +193,34 @@ function SchemaGroupCardComponent({
             </ContextMenuItem>
             <ContextMenuItem onAction={() => onSelectMembers(group.id)}>
               <HugeiconsIcon icon={CursorRectangleSelectionIcon} />
-              Select this schema&rsquo;s tables
+              {/* It selects the memos and the rectangle too, so it cannot
+                  claim to select only the tables. */}
+              Select everything in this schema
             </ContextMenuItem>
-            {/* The same `onPatch` the header's swatches drive — one code path,
-                two ways in, so the two can never disagree. */}
+            {/* Same selection API as the header's swatches, driving the same
+                `onPatch` — one code path, two ways in, so the two cannot
+                disagree, and both show which colour is currently on. */}
             <ContextMenuSub>
               <ContextMenuSubTrigger isDisabled={readOnly}>
                 <HugeiconsIcon icon={PaintBoardIcon} />
-                Colour
+                Color
+                <span
+                  className="schema-group-color-dot ml-auto"
+                  style={{ background: palette.border }}
+                  aria-hidden="true"
+                />
               </ContextMenuSubTrigger>
-              <ContextMenuSubContent>
+              <ContextMenuSubContent
+                selectionMode="single"
+                disallowEmptySelection
+                selectedKeys={[group.color]}
+                onSelectionChange={(keys) => {
+                  const [key] = [...keys];
+                  if (key) onPatch(group.id, { color: key as SchemaGroup["color"] });
+                }}
+              >
                 {Object.entries(GROUP_PALETTE).map(([color, option]) => (
-                  <ContextMenuItem
-                    key={color}
-                    onAction={() => onPatch(group.id, { color: color as SchemaGroup["color"] })}
-                  >
+                  <ContextMenuItem key={color} id={color}>
                     <span
                       className="schema-group-color-dot"
                       style={{ background: option.border }}
@@ -217,14 +236,20 @@ function SchemaGroupCardComponent({
               onAction={() => onApplyKeyword(group.id)}
             >
               <HugeiconsIcon icon={Tag01Icon} />
-              {prefix
-                ? `Prefix ${pendingPrefix || "no"} ${pendingPrefix === 1 ? "table" : "tables"} with ${prefix}`
-                : "Set a keyword to prefix tables"}
+              {/* Disabled rows still have to say what they mean: "Prefix no
+                  tables with MLL_" reads as an action nobody asked for, where
+                  the real message is that there is nothing left to do. */}
+              {!prefix
+                ? "Set a keyword to prefix tables"
+                : pendingPrefix
+                  ? `Prefix ${pendingPrefix} ${pendingPrefix === 1 ? "table" : "tables"} with ${prefix}`
+                  : `Every table already carries ${prefix}`}
             </ContextMenuItem>
           </ContextMenuGroup>
           <ContextMenuSeparator />
           <ContextMenuGroup>
             <ContextMenuItem
+              variant="destructive"
               isDisabled={readOnly}
               onAction={() => onDelete(group.id)}
             >
@@ -233,7 +258,6 @@ function SchemaGroupCardComponent({
             </ContextMenuItem>
           </ContextMenuGroup>
         </ContextMenu>
-      </ContextMenuTrigger>
       <button
         type="button"
         className="schema-group-resize"
@@ -253,6 +277,7 @@ function SchemaGroupCardComponent({
         }}
       />
     </section>
+    </ContextMenuTrigger>
   );
 }
 

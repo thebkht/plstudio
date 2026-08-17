@@ -217,6 +217,13 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
   };
 
   return (
+    /*
+     * Wrapping the frame, not sitting inside it: the trigger renders as a
+     * `display: contents` wrapper, and `.canvas` is a zero-size absolute box,
+     * so a right-click on the empty grid targets the frame itself and would
+     * never reach a handler mounted below it.
+     */
+    <ContextMenuTrigger>
     <div
       ref={g.canvasRef}
       className={`canvas-wrap ${g.grabbing ? "grabbing" : ""} ${g.grabbing || g.dragPosition || g.marquee || g.dragSelection ? "gesturing" : ""} ${g.panMode ? "pan-mode" : ""}`}
@@ -235,7 +242,6 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
       }}
       style={g.gridStyle}
     >
-      <ContextMenuTrigger>
       <div
         className="canvas"
         style={{
@@ -539,8 +545,8 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
           </ContextMenuItem>
         </ContextMenuGroup>
       </ContextMenu>
-      </ContextMenuTrigger>
     </div>
+    </ContextMenuTrigger>
   );
 }
 
