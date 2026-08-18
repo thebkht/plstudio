@@ -1085,22 +1085,31 @@ export default function Workspace({
             />
 
             <div className="flex gap-2 flex-col">
-              <ButtonGroup>
-                <Button variant="outline" onClick={() => addColumn(table.id)}>
+              <ButtonGroup className="w-full">
+                <Button
+                  variant="outline"
+                  onClick={() => addColumn(table.id)}
+                  className="w-full"
+                >
                   <HugeiconsIcon icon={PlusSignIcon} data-icon="inline-start" />
                   Add column
                 </Button>
               </ButtonGroup>
 
-              <ButtonGroup>
+              <ButtonGroup className="w-full">
                 <Button
                   variant="outline"
                   onClick={() => makeJunction(table.id)}
+                  className="w-full"
                 >
                   <HugeiconsIcon icon={Link01Icon} data-icon="inline-start" />
                   Junction
                 </Button>
-                <Button variant="outline" onClick={() => deleteTable(table.id)}>
+                <Button
+                  variant="outline"
+                  onClick={() => deleteTable(table.id)}
+                  className="w-full"
+                >
                   <HugeiconsIcon icon={Delete02Icon} data-icon="inline-start" />
                   Delete
                 </Button>
