@@ -9,6 +9,7 @@ import { SelectProvider } from "@/app/components/designer/context/select-context
 import { TransformProvider } from "@/app/components/designer/context/transform-context";
 import { SaveStateProvider } from "@/app/components/designer/context/save-state-context";
 import { SchemaProvider } from "@/app/components/designer/context/schema-context";
+import { CanvasCommandsProvider } from "@/app/components/designer/context/canvas-commands-context";
 
 /**
  * The editor's entry point. This file is deliberately thin: it exists to mount
@@ -39,7 +40,9 @@ export default function Designer(props: DesignerProps) {
                 readOnly={readOnly ?? false}
                 user={user}
               >
-                <Workspace {...props} />
+                <CanvasCommandsProvider>
+                  <Workspace {...props} />
+                </CanvasCommandsProvider>
               </SchemaProvider>
             </SaveStateProvider>
           </TransformProvider>

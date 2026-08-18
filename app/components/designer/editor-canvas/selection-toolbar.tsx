@@ -2,7 +2,7 @@
 
 import type { ShortcutId } from "@/app/lib/shortcuts";
 import { selectionCount } from "@/app/lib/selection";
-import { useSelect, useTransform } from "@/app/hooks";
+import { useSelect } from "@/app/hooks";
 
 export type SelectionToolbarProps = {
   /** Bounding box of the multi-selection, in canvas coordinates. */
@@ -22,13 +22,22 @@ export function SelectionToolbar({
   onDelete,
 }: SelectionToolbarProps) {
   const { selection } = useSelect();
-  const { pan, zoom } = useTransform();
+  /*
+   * Screen-space chrome anchored to a canvas-space frame, so it has to follow
+   * the camera — and it is visible while the camera can move, unlike the drag
+   * overlays. Composing the two in `calc()` off the viewport custom properties
+   * keeps it pinned during a pan without re-rendering it per frame; `frame` is
+   * static for as long as this is on screen (a multi-drag hides it).
+   */
   return (
     <div
       className="selection-toolbar"
-      style={{
-        transform: `translate3d(${pan.x + (frame.x + frame.width / 2) * zoom}px, ${pan.y + frame.y * zoom}px, 0)`,
-      }}
+      style={
+        {
+          "--frame-cx": `${frame.x + frame.width / 2}px`,
+          "--frame-y": `${frame.y}px`,
+        } as React.CSSProperties
+      }
     >
       <span className="selection-toolbar-count">
         {selectionCount(selection)} selected

@@ -9,10 +9,12 @@ import type { CollabStatus, Peer } from "@/app/lib/collab/useCollaborativeSchema
 
 /**
  * Collaborators' pointers. Rendered inside the canvas transform so a peer's
- * cursor sits over the same table for everyone, then counter-scaled by `1/zoom`
- * so the label stays legible at any zoom level.
+ * cursor sits over the same table for everyone, then counter-scaled by
+ * `--inverse-zoom` so the label stays legible at any zoom level. Reading the
+ * scale from the custom property rather than a `zoom` prop is what keeps this
+ * layer off the per-frame render path — see `context/transform-context`.
  */
-export const PeerCursors = memo(function PeerCursors({ peers, zoom }: { peers: Peer[]; zoom: number }) {
+export const PeerCursors = memo(function PeerCursors({ peers }: { peers: Peer[] }) {
   return (
     <>
       {peers.filter((peer) => peer.cursor).map((peer) => (
@@ -20,7 +22,7 @@ export const PeerCursors = memo(function PeerCursors({ peers, zoom }: { peers: P
           className="peer-cursor"
           key={peer.clientId}
           style={{
-            transform: `translate3d(${peer.cursor!.x}px, ${peer.cursor!.y}px, 0) scale(${1 / zoom})`,
+            transform: `translate3d(${peer.cursor!.x}px, ${peer.cursor!.y}px, 0) scale(var(--inverse-zoom, 1))`,
             color: peer.color,
           }}
         >

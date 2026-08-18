@@ -127,11 +127,18 @@
   --type-other: #71717a;
 
   /*
-   * Canvas surface and grid. `--grid-size`, `--grid-dot-radius`, `--grid-x/y`
-   * and `--grid-opacity` are all overwritten inline from `pan` and `zoom` every
-   * frame; the values here are only what a canvas at rest looks like.
+   * Canvas surface and grid. The camera (`--pan-x/y`, `--zoom`,
+   * `--inverse-zoom`) and the grid pattern derived from it (`--grid-size`,
+   * `--grid-dot-radius`, `--grid-x/y`, `--grid-opacity`) are all rewritten on
+   * `.canvas-wrap` by `applyViewport` every frame of a pan or zoom, without a
+   * React render — the values here are only what a canvas at rest looks like,
+   * and what the first paint uses before the canvas mounts.
    */
   --canvas-surface: #ffffff;
+  --pan-x: 0px;
+  --pan-y: 0px;
+  --zoom: 1;
+  --inverse-zoom: 1;
   --grid-size: 24px;
   --grid-dot-radius: 0.85px;
   --grid-x: 0px;
@@ -1110,6 +1117,12 @@ button {
   position: absolute;
   left: 0;
   top: 0;
+  /* The camera, composed with the frame's own canvas-space anchor. */
+  transform: translate3d(
+    calc(var(--pan-x) + var(--frame-cx) * var(--zoom)),
+    calc(var(--pan-y) + var(--frame-y) * var(--zoom)),
+    0
+  );
   z-index: 12;
   display: flex;
   align-items: center;

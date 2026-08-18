@@ -64,15 +64,10 @@ import {
   useLayout,
   useSchema,
   useSelect,
-  useTransform,
   useTransformControls,
 } from "@/app/hooks";
 import {
   DRAG_THRESHOLD,
-  GRID_DOT_RADIUS,
-  GRID_FADE_END,
-  GRID_FADE_START,
-  GRID_SIZE,
   GROUP_MIN_HEIGHT,
   GROUP_MIN_WIDTH,
   HEADER_HEIGHT,
@@ -87,6 +82,7 @@ import {
   TABLE_GAP,
   ZOOM_SENSITIVITY,
   ZOOM_STEP_LIMIT,
+  WHEEL_SETTLE_MS,
 } from "../constants";
 import {
   enclosedBy,
@@ -149,12 +145,16 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
     selectTable,
   } = useSelect();
   const { setPanelTab, setSidebarOpen } = useLayout();
-  // Split deliberately: the hook drives the camera through the stable controls,
-  // and reads the live value only for the grid pattern and a gesture's origin.
-  const { zoom, pan } = useTransform();
+  /*
+   * Controls only. The hook *drives* the camera and never renders from it, so
+   * reading `useTransform()` here would re-render the whole canvas on every
+   * frame of a pan for no gain — `panRef`/`zoomRef` carry the live value.
+   */
   const {
     setZoom,
     setPan,
+    applyViewport,
+    viewportRef,
     panRef,
     zoomRef,
     springsRef,
@@ -240,7 +240,8 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
     y: number;
   } | null>(null);
 
-  const canvasRef = useRef<HTMLDivElement>(null);
+  /* The element `applyViewport` writes to; the provider owns it so both can. */
+  const canvasRef = viewportRef;
   /**
    * Gesture state lives in refs, not state: it updates every pointermove and
    * must not schedule a React render per frame.
@@ -294,28 +295,6 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
   dragMemoPositionRef.current = dragMemoPosition;
   resizeMemoRef.current = resizeMemo;
   resizeTableRef.current = resizeTable;
-
-  /**
-   * Puts the dot lattice into canvas space. `.canvas` has `transform-origin: 0
-   * 0`, so canvas point (0, 0) sits at screen (`pan.x`, `pan.y`) — anchoring
-   * the tiling there is what makes a dot stay on the same point of the diagram
-   * while the camera moves. The half-tile shift centres each dot on a lattice
-   * point rather than in the middle of its tile, matching drawDB's pattern
-   * offset of `-gridCircleRadius`.
-   */
-  const gridStyle = useMemo(() => {
-    const size = GRID_SIZE * zoom;
-    return {
-      "--grid-size": `${size}px`,
-      "--grid-dot-radius": `${GRID_DOT_RADIUS * zoom}px`,
-      "--grid-x": `${pan.x - size / 2}px`,
-      "--grid-y": `${pan.y - size / 2}px`,
-      "--grid-opacity": Math.max(
-        0,
-        Math.min(1, (zoom - GRID_FADE_END) / (GRID_FADE_START - GRID_FADE_END)),
-      ),
-    } as React.CSSProperties;
-  }, [pan.x, pan.y, zoom]);
 
   dragPositionRef.current = dragPosition;
 
@@ -498,11 +477,11 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
       const rect = canvasRect();
       if (!rect) return { x: 0, y: 0 };
       return {
-        x: (event.clientX - rect.left - pan.x) / zoom,
-        y: (event.clientY - rect.top - pan.y) / zoom,
+        x: (event.clientX - rect.left - panRef.current.x) / zoomRef.current,
+        y: (event.clientY - rect.top - panRef.current.y) / zoomRef.current,
       };
     },
-    [canvasRect, pan.x, pan.y, zoom],
+    [canvasRect, panRef, zoomRef],
   );
   const rowPoint = useCallback(
     (table: Table, columnIndex: number) => {
@@ -740,7 +719,7 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
     const next = Math.max(
       MIN_ZOOM,
       Math.min(
-        zoom,
+        zoomRef.current,
         (rect.width - padding * 2) / Math.max(1, maxX - minX),
         (rect.height - padding * 2) / Math.max(1, maxY - minY),
       ),
@@ -1075,7 +1054,7 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
           y: gesture.originY + event.clientY - gesture.startY,
         };
         gesture.tracker.add(next.x, next.y, now);
-        scheduleMove(() => setPan(next));
+        scheduleMove(() => applyViewport(next, zoomRef.current));
         return;
       }
 
@@ -1240,7 +1219,9 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
           target,
           velocity,
           flicked ? FLICK_SPRING : SETTLE_SPRING,
-          setPan,
+          (value) => applyViewport(value, zoomRef.current),
+          // One commit for the whole flick, once it has come to rest.
+          (value) => setPan(value),
         );
         return;
       }
@@ -1458,6 +1439,20 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
     let zoomDelta = 0;
     let panDelta = { x: 0, y: 0 };
     let pointer = { x: 0, y: 0 };
+    /*
+     * Wheel has no end event, so the commit is on an idle timer. Until it
+     * fires the camera lives only in the refs and the DOM — which is exactly
+     * how a pan behaves between pointerdown and pointerup.
+     */
+    let settleTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleSettle = () => {
+      if (settleTimer !== null) clearTimeout(settleTimer);
+      settleTimer = setTimeout(() => {
+        settleTimer = null;
+        setPan(panRef.current);
+        setZoom(zoomRef.current);
+      }, WHEEL_SETTLE_MS);
+    };
 
     const applyWheel = () => {
       let nextZoom = zoomRef.current;
@@ -1491,8 +1486,9 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
         };
         panDelta = { x: 0, y: 0 };
       }
-      if (nextZoom !== zoomRef.current) setZoom(nextZoom);
-      if (nextPan !== panRef.current) setPan(nextPan);
+      if (nextZoom === zoomRef.current && nextPan === panRef.current) return;
+      applyViewport(nextPan, nextZoom);
+      scheduleSettle();
     };
 
     const flushWheel = () => {
@@ -1537,9 +1533,24 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
     element.addEventListener("wheel", onWheel, { passive: false });
     return () => {
       flushWheel();
+      // Unmounting mid-scroll must still leave the camera committed, or the
+      // next mount reads a `pan`/`zoom` the refs have long since passed.
+      if (settleTimer !== null) {
+        clearTimeout(settleTimer);
+        setPan(panRef.current);
+        setZoom(zoomRef.current);
+      }
       element.removeEventListener("wheel", onWheel);
     };
-  }, [canvasRect, stopAnimation]);
+  }, [
+    applyViewport,
+    canvasRect,
+    panRef,
+    setPan,
+    setZoom,
+    stopAnimation,
+    zoomRef,
+  ]);
 
   /** Zoom around the viewport centre, for the HUD buttons and keyboard. */
   const zoomBy = useCallback(
@@ -1573,14 +1584,18 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
     event.currentTarget.setPointerCapture(event.pointerId);
     setGrabbing(true);
     const tracker = new VelocityTracker();
-    tracker.add(pan.x, pan.y, event.timeStamp || performance.now());
+    tracker.add(
+      panRef.current.x,
+      panRef.current.y,
+      event.timeStamp || performance.now(),
+    );
     gestureRef.current = {
       mode: "pan",
       pointerId: event.pointerId,
       grabX: 0,
       grabY: 0,
-      originX: pan.x,
-      originY: pan.y,
+      originX: panRef.current.x,
+      originY: panRef.current.y,
       startX: event.clientX,
       startY: event.clientY,
       moved: false,
@@ -1595,8 +1610,8 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
     if (!rect) return startPan(event);
     event.currentTarget.setPointerCapture(event.pointerId);
     const point = {
-      x: (event.clientX - rect.left - pan.x) / zoom,
-      y: (event.clientY - rect.top - pan.y) / zoom,
+      x: (event.clientX - rect.left - panRef.current.x) / zoomRef.current,
+      y: (event.clientY - rect.top - panRef.current.y) / zoomRef.current,
     };
     const base =
       event.shiftKey || event.metaKey || event.ctrlKey
@@ -1808,8 +1823,8 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
       mode: "memo",
       pointerId: event.pointerId,
       memoId: memo.id,
-      grabX: (event.clientX - rect.left - pan.x) / zoom - position.x,
-      grabY: (event.clientY - rect.top - pan.y) / zoom - position.y,
+      grabX: (event.clientX - rect.left - panRef.current.x) / zoomRef.current - position.x,
+      grabY: (event.clientY - rect.top - panRef.current.y) / zoomRef.current - position.y,
       originX: position.x,
       originY: position.y,
       startX: event.clientX,
@@ -1830,8 +1845,8 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
     if (!rect) return;
     const position = liveMemo(memo);
     const pointer = {
-      x: (event.clientX - rect.left - pan.x) / zoom,
-      y: (event.clientY - rect.top - pan.y) / zoom,
+      x: (event.clientX - rect.left - panRef.current.x) / zoomRef.current,
+      y: (event.clientY - rect.top - panRef.current.y) / zoomRef.current,
     };
     setSelection(selectOnly("memo", memo.id));
     setGrabbing(true);
@@ -1873,8 +1888,8 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
       mode: "group",
       pointerId: event.pointerId,
       memoId: undefined,
-      grabX: (event.clientX - rect.left - pan.x) / zoom - position.x,
-      grabY: (event.clientY - rect.top - pan.y) / zoom - position.y,
+      grabX: (event.clientX - rect.left - panRef.current.x) / zoomRef.current - position.x,
+      grabY: (event.clientY - rect.top - panRef.current.y) / zoomRef.current - position.y,
       originX: position.x,
       originY: position.y,
       startX: event.clientX,
@@ -1896,8 +1911,8 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
     if (!rect) return;
     const position = liveGroup(group);
     const pointer = {
-      x: (event.clientX - rect.left - pan.x) / zoom,
-      y: (event.clientY - rect.top - pan.y) / zoom,
+      x: (event.clientX - rect.left - panRef.current.x) / zoomRef.current,
+      y: (event.clientY - rect.top - panRef.current.y) / zoomRef.current,
     };
     setSelection(selectOnly("group", group.id));
     setGrabbing(true);
@@ -2240,7 +2255,6 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
     fitView,
     foreignKeyTarget,
     grabbing,
-    gridStyle,
     linking,
     liveGroup,
     liveMemo,

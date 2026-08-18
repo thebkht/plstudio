@@ -3,6 +3,7 @@
  * so consumers write `import { useDesignerSettings } from "@/app/hooks"` rather
  * than reaching into `components/designer/context/` directly.
  */
+export { useCanvasCommands } from "./use-canvas-commands";
 export { useDesignerSettings } from "./use-designer-settings";
 export { useLayout } from "./use-layout";
 export { useSelect } from "./use-select";

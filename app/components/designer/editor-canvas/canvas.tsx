@@ -4,7 +4,6 @@ import {
   useRef,
   useState,
   type ComponentProps,
-  type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type RefObject,
@@ -41,12 +40,7 @@ import { isSelected, selectOnly } from "@/app/lib/selection";
 import type { ShortcutId } from "@/app/lib/shortcuts";
 import { enclosedBy, relationshipCardinalities } from "../geometry";
 import { ShortcutKeys } from "../primitives";
-import {
-  useDesignerSettings,
-  useSchema,
-  useSelect,
-  useTransform,
-} from "@/app/hooks";
+import { useDesignerSettings, useSchema, useSelect } from "@/app/hooks";
 import { Dock } from "./dock";
 import { MemoCard } from "./memo-card";
 import { RelationshipEdge } from "./relationship-edge";
@@ -61,6 +55,15 @@ type SchemaGroupCardProps = ComponentProps<typeof SchemaGroupCard>;
 type Point = { x: number; y: number };
 type Box = { x: number; y: number; width: number; height: number };
 type EdgePoint = Point & { direction: 1 | -1 };
+
+/**
+ * The camera, straight from the custom properties `applyViewport` writes. A
+ * constant string: nothing here is interpolated from React state, which is the
+ * point — see the rule in `context/transform-context`.
+ */
+const VIEWPORT_TRANSFORM =
+  "translate3d(var(--pan-x), var(--pan-y), 0) scale(var(--zoom))";
+
 
 /** A link being dragged from a column towards a drop target. */
 export type Linking = {
@@ -87,14 +90,14 @@ export type CanvasRelationship = {
  * Everything the canvas needs that is *not* already in a context. It is one
  * object rather than forty props because it is one thing: the gesture surface.
  *
- * It cannot become a canvas-scoped context as it stands — the appbar's menus
- * and the global key handler fire these same commands, and they render outside
- * the canvas. Moving them under a provider mounted here would have to come with
- * them; until then the surface is owned by `Workspace` and handed down.
+ * `canvas-host` builds it one level up, and that is as far as it travels. The
+ * fourteen commands the appbar's menus and the global key handler also fire
+ * reach them through `CanvasCommandsContext` instead, so nothing above the
+ * canvas holds a value that changes every frame. Dissolving the rest of this
+ * object into a canvas-scoped context is a separate refactor.
  */
 export type CanvasGestures = {
   canvasRef: RefObject<HTMLDivElement | null>;
-  gridStyle: CSSProperties;
   grabbing: boolean;
   panMode: boolean;
   dragPosition: { id: string; x: number; y: number } | null;
@@ -199,7 +202,6 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
     setSelection,
     selectTable,
   } = useSelect();
-  const { pan, zoom } = useTransform();
   const { settings, isMac } = useDesignerSettings();
   /** Where the background menu was opened, in canvas space. */
   const contextPointRef = useRef<Point>({ x: 0, y: 0 });
@@ -273,12 +275,17 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
           setContextGroupId(groupId);
           if (groupId) setSelection(selectOnly("group", groupId));
         }}
-        style={g.gridStyle}
       >
         <div
           className="canvas"
+          /*
+           * Read from custom properties rather than from `pan`/`zoom` state, so
+           * the string here is a constant and a mid-gesture render can never
+           * stamp a stale camera over the live one. `applyViewport` is the only
+           * writer; see `context/transform-context`.
+           */
           style={{
-            transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
+            transform: VIEWPORT_TRANSFORM,
             willChange: g.grabbing || g.dragPosition ? "transform" : undefined,
           }}
         >
@@ -454,7 +461,7 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
               }}
             />
           )}
-          <PeerCursors peers={peers} zoom={zoom} />
+          <PeerCursors peers={peers} />
         </div>
 
         {/*
@@ -473,9 +480,7 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
           />
         )}
 
-        {g.linking && (
-          <LinkingOverlay linking={g.linking} pan={pan} zoom={zoom} />
-        )}
+        {g.linking && <LinkingOverlay linking={g.linking} />}
 
         {/*
         Grouped by what each control changes: the viewport, then history,
@@ -611,19 +616,13 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
 /** The rubber band drawn from a column to the pointer while a link is dragged. */
 function LinkingOverlay({
   linking,
-  pan,
-  zoom,
 }: {
   linking: { startX: number; startY: number; x: number; y: number };
-  pan: Point;
-  zoom: number;
 }) {
   return (
     <svg
       className="linking-overlay"
-      style={{
-        transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
-      }}
+      style={{ transform: VIEWPORT_TRANSFORM }}
       aria-hidden="true"
     >
       <path

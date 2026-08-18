@@ -49,11 +49,7 @@ import {
   type SaveQueue,
   type SaveResult,
 } from "@/app/lib/save-queue";
-import {
-  EMPTY_SELECTION,
-  selectAll,
-  selectGroupWithMembers,
-} from "@/app/lib/selection";
+import { EMPTY_SELECTION, selectAll } from "@/app/lib/selection";
 import {
   isEditingTarget,
   matchShortcut,
@@ -80,6 +76,7 @@ import { ColumnList } from "./editor-side-panel/tables-tab/column-list";
 import { UniqueConstraints } from "./editor-side-panel/tables-tab/unique-constraints";
 import type { ImportMessage } from "./editor-header/modal/import";
 import {
+  useCanvasCommands,
   useDesignerSettings,
   useLayout,
   useSaveState,
@@ -90,14 +87,13 @@ import {
 import { ControlPanel } from "./editor-header/control-panel";
 import { Modals } from "./editor-header/modal/modal";
 import { SidePanel } from "./editor-side-panel/side-panel";
-import { Canvas } from "./editor-canvas/canvas";
-import { useCanvasGestures } from "./editor-canvas/use-canvas-gestures";
+import { CanvasHost } from "./editor-canvas/canvas-host";
 import { TablesTab } from "./editor-side-panel/tables-tab/tables-tab";
 import {
   RelationshipsTab,
   type RelationshipRow,
 } from "./editor-side-panel/relationships-tab/relationships-tab";
-import { HEADER_HEIGHT, NO_GROUP, ROW_HEIGHT } from "./constants";
+import { NO_GROUP } from "./constants";
 import { prepareCanvasSchema, relationshipCardinalities } from "./geometry";
 
 export type DesignerProps = {
@@ -133,8 +129,6 @@ export default function Workspace({
     setRevision,
     collabStatus,
     peers,
-    setCursor,
-    broadcastSelection,
     patchTable,
     patchColumn,
     deleteTable,
@@ -161,70 +155,30 @@ export default function Workspace({
     selectSingle,
     selectTable,
   } = useSelect();
-  /** The canvas owns its own gestures; see editor-canvas/use-canvas-gestures. */
+  /*
+   * Commands only. The gesture state these close over lives in
+   * `editor-canvas/canvas-host`, *below* this component — what is destructured
+   * here are forwarders through a context value built once for the app's
+   * lifetime, so reading them costs no re-render.
+   */
   const {
     addGroup,
     addMemo,
     addTable,
-    applyGroupKeyword,
     assignTableToGroup,
     autoLayout,
-    canvasPoint,
-    canvasRef,
-    commitGroupSize,
-    commitMemoSize,
     copySelection,
-    copyTableDDL,
-    deleteGroup,
-    deleteMemo,
     deleteSelection,
-    dragGroupPosition,
-    dragPosition,
-    dragSelection,
-    editTableInPanel,
-    editingMemoId,
-    finishLinking,
     fitView,
-    foreignKeyTarget,
-    grabbing,
-    gridStyle,
-    linking,
-    liveGroup,
-    liveMemo,
-    livePosition,
-    liveWidth,
     makeJunction,
-    marquee,
-    memoHadText,
-    multiFrame,
-    onCanvasDown,
-    onCanvasDownCapture,
-    onCardKeyDown,
-    onGroupDown,
-    onGroupResizeDown,
-    onHeaderDown,
-    onMemoDown,
-    onMemoResizeDown,
-    onTableResizeDown,
-    onTableResizeKeyDown,
-    panMode,
     pasteSelection,
-    patchGroup,
-    patchMemo,
-    peerSelection,
-    pressSelection,
-    resetTableWidth,
-    resizeTable,
     revealTables,
-    selected,
-    setEditingMemoId,
     setHandMode,
-    setLinking,
     setSpaceHeld,
-    startLinking,
-    unprefixedTables,
     zoomBy,
-  } = useCanvasGestures({ readOnly });
+  } = useCanvasCommands();
+  /** Came with the gestures until they moved down; it is a lookup, not a gesture. */
+  const selected = (selectedId && tablesById.get(selectedId)) || null;
 
   const { setZoom } = useTransformControls();
 
@@ -691,8 +645,6 @@ export default function Workspace({
   };
   /** Menu items fire the same closures as the chords, so the two can never diverge. */
   const run = (id: ShortcutId) => () => shortcutActions[id]?.();
-  const selectGroupMembers = (groupId: string) =>
-    setSelection(selectGroupWithMembers(schema, groupId));
   const hint = (id: ShortcutId) => shortcutHint(id, isMac);
 
   /**
@@ -796,60 +748,6 @@ export default function Workspace({
     });
     return counts;
   }, [relationships]);
-  const edgeSideRef = useRef(new Map<string, 1 | -1>());
-
-  const relationshipPoint = (
-    table: Table,
-    index: number,
-    other: Table,
-    anchorKey: string,
-  ) => {
-    // Anchors follow the live position so edges stay attached mid-drag.
-    const origin = livePosition(table);
-    const otherOrigin = livePosition(other);
-
-    const width = liveWidth(table);
-    const right = origin.x + width;
-    const otherRight = otherOrigin.x + liveWidth(other);
-
-    // Comparing card extents ensures that when cards are clear of each other,
-    // they leave facing each other (right edge to left edge, or vice versa).
-    // Cards that overlap horizontally have no clear facing side, so both
-    // ends route out the same flank (C-shaped curve) around whichever side
-    // (left or right) has closer aligning edges.
-    const raw: 1 | -1 =
-      otherOrigin.x >= right
-        ? 1
-        : otherRight <= origin.x
-          ? -1
-          : Math.abs(right - otherRight) <= Math.abs(origin.x - otherOrigin.x)
-            ? 1
-            : -1;
-
-    // Hysteresis: keep the previous direction unless the card position has moved
-    // past the boundary margin to avoid edge flipping flicker.
-    const HYSTERESIS = 30; // px
-    const previous = edgeSideRef.current.get(anchorKey);
-    let direction = raw;
-    if (previous !== undefined && previous !== raw) {
-      const keepsPrevious =
-        previous === 1
-          ? otherOrigin.x >= origin.x &&
-            right - otherRight <=
-              Math.abs(origin.x - otherOrigin.x) + HYSTERESIS
-          : otherRight <= right &&
-            origin.x - otherOrigin.x <=
-              Math.abs(right - otherRight) + HYSTERESIS;
-      if (keepsPrevious) direction = previous;
-    }
-    edgeSideRef.current.set(anchorKey, direction);
-
-    return {
-      x: origin.x + (direction === 1 ? width : 0),
-      y: origin.y + HEADER_HEIGHT + index * ROW_HEIGHT + ROW_HEIGHT / 2,
-      direction,
-    };
-  };
 
   const patchRelationship = (id: string, patch: Partial<Relationship>) => {
     if (readOnly) return;
@@ -1557,86 +1455,12 @@ export default function Workspace({
           </SidebarTrigger>
         )}
 
-        <Canvas
+        <CanvasHost
           readOnly={readOnly}
           save={save}
-          gestures={{
-            canvasRef,
-            gridStyle,
-            grabbing,
-            panMode,
-            dragPosition,
-            dragGroupPosition,
-            dragSelection,
-            marquee,
-            resizeTable,
-            linking,
-            multiFrame,
-            peerSelection,
-            onCanvasDown,
-            onCanvasDownCapture,
-            onPointerMove: (event) => {
-              // Canvas space, not screen space: peers at other zoom levels must
-              // see the pointer over the same table, not the same pixel.
-              setCursor(canvasPoint(event));
-              if (linking)
-                setLinking((current) =>
-                  current ? { ...current, ...canvasPoint(event) } : current,
-                );
-            },
-            onPointerLeave: () => setCursor(null),
-            finishLinking,
-            onPointerCancel: (event) => {
-              if (linking?.pointerId === event.pointerId) setLinking(null);
-            },
-            livePosition,
-            liveWidth,
-            liveMemo,
-            liveGroup,
-            editingMemoId,
-            setEditingMemoId,
-            memoHadText,
-            pressSelection,
-            startLinking,
-            onHeaderDown,
-            onTableResizeDown,
-            onTableResizeKeyDown,
-            onCardKeyDown,
-            onMemoDown,
-            onMemoResizeDown,
-            onGroupDown,
-            onGroupResizeDown,
-            resetTableWidth,
-            commitGroupSize,
-            commitMemoSize,
-            patchGroup,
-            deleteGroup,
-            applyGroupKeyword,
-            unprefixedTables,
-            patchMemo,
-            deleteMemo,
-            relationships,
-            relationshipPoint,
-            relationshipCounts,
-            foreignKeyTarget,
-            addTable,
-            editTableInPanel,
-            copyTableDDL,
-            makeJunction,
-            zoomBy,
-            fitView,
-            addGroup,
-            addMemo,
-            autoLayout,
-            onToggleHand: () => setHandMode((on) => !on),
-            hint,
-            runShortcut: (id: ShortcutId) => shortcutActions[id]?.(),
-            copySelection,
-            deleteSelection,
-            selectGroupMembers,
-            canvasPoint,
-            pasteSelection,
-          }}
+          relationships={relationships}
+          relationshipCounts={relationshipCounts}
+          runShortcut={(id: ShortcutId) => shortcutActions[id]?.()}
         />
       </SidebarProvider>
 

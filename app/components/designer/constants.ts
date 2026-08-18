@@ -44,6 +44,14 @@ export const WHEEL_LINE_HEIGHT = 16;
 export const WHEEL_PAGE_HEIGHT = 400;
 export const ZOOM_SENSITIVITY = 0.005;
 export const ZOOM_STEP_LIMIT = 24;
+/**
+ * How long after the last wheel event the camera is committed to React state.
+ * Wheel has no end event, so this timer plays the part `pointerup` plays for a
+ * pan: until it fires, the camera lives in `panRef`/`zoomRef` and the DOM only.
+ * Long enough that a continuous scroll never commits mid-gesture, short enough
+ * that the dock's zoom readout still reads as live.
+ */
+export const WHEEL_SETTLE_MS = 120;
 /** Movement before a press is treated as a drag rather than a tap. */
 export const DRAG_THRESHOLD = 4;
 /** Arrow-key nudge for keyboard positioning. */
