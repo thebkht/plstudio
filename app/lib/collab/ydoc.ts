@@ -41,7 +41,25 @@ export const isEmptyDoc = (ydoc: Y.Doc) => {
   return root.meta.size === 0 && root.tables.length === 0 && root.groups.length === 0 && root.memos.length === 0 && root.relationships.length === 0;
 };
 
-const same = (a: unknown, b: unknown) => a === b || JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+/**
+ * Structural equality for the only shapes that reach a record field: primitives,
+ * plain objects (`color`, `fk`) and arrays of those (`uniques`, `fields`).
+ * It short-circuits on the first mismatch and on reference equality at every
+ * level, where the `JSON.stringify` it replaces serialised both sides in full --
+ * for every field of every record, on every commit.
+ */
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const keys = Object.keys(a);
+  return (
+    keys.length === Object.keys(b).length &&
+    keys.every((key) => deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]))
+  );
+}
+
+const same = (a: unknown, b: unknown) => deepEqual(a ?? null, b ?? null);
 
 /** Writes only what actually differs — a no-op `set` still churns the network and the undo stack. */
 function setIfChanged(map: Y.Map<unknown>, key: string, value: unknown) {
@@ -68,11 +86,20 @@ function reconcileList<T extends { id: string }>(
   const nextIds = new Set(next.map((item) => item.id));
   for (let index = list.length - 1; index >= 0; index -= 1) if (!nextIds.has(readId(list.get(index)))) list.delete(index, 1);
 
+  /*
+   * Survivors are patched before anything is inserted, so one index pass stays
+   * valid for all of them -- the alternative, a `toArray().findIndex` per item,
+   * rescanned the whole list for every record of every commit.
+   */
+  const indexById = new Map(list.toArray().map((map, index) => [readId(map), index]));
+  next.forEach((item) => {
+    const existing = indexById.get(item.id);
+    if (existing !== undefined) write(list.get(existing), item);
+  });
   // A preliminary Y.Map cannot be read back, so every record is integrated into
   // the list first and populated afterwards — never built up detached.
   next.forEach((item, target) => {
-    const existing = list.toArray().findIndex((map) => readId(map) === item.id);
-    if (existing !== -1) return write(list.get(existing), item);
+    if (indexById.has(item.id)) return;
     const map = new Y.Map<unknown>();
     list.insert(Math.min(target, list.length), [map]);
     write(map, item);
@@ -80,10 +107,29 @@ function reconcileList<T extends { id: string }>(
 
   const order = list.toArray().map(readId);
   if (order.length === next.length && order.every((id, index) => id === next[index].id)) return;
-  list.delete(0, list.length);
-  const rebuilt = next.map(() => new Y.Map<unknown>());
-  list.insert(0, rebuilt);
-  next.forEach((item, index) => write(rebuilt[index], item));
+  /*
+   * Y.Array cannot express a move, so a record that changes place is deleted
+   * and re-created -- but only across the span that actually moved. Rebuilding
+   * the whole list would destroy every Y.Map in it, and those identities are
+   * what the reader's cache and the undo stack are keyed on: one column
+   * reordered would otherwise remake every record and repaint the whole canvas.
+   *
+   * A length mismatch means the doc holds duplicates of an id -- two clients
+   * having seeded it, which `byId` hides on read -- so there is no span to
+   * speak of and the whole list is rebuilt, which also dedupes it.
+   */
+  const rebuild = (from: number, to: number, remove = to - from + 1) => {
+    list.delete(from, remove);
+    const rebuilt = next.slice(from, to + 1).map(() => new Y.Map<unknown>());
+    list.insert(from, rebuilt);
+    rebuilt.forEach((map, index) => write(map, next[from + index]));
+  };
+  if (order.length !== next.length) return rebuild(0, next.length - 1, list.length);
+  let from = 0;
+  while (order[from] === next[from].id) from += 1;
+  let to = next.length - 1;
+  while (order[to] === next[to].id) to -= 1;
+  rebuild(from, to);
 }
 
 const writeColumn = (map: Y.Map<unknown>, column: Column) =>
@@ -162,28 +208,73 @@ const byId = <T extends { id: string }>(items: T[]) => {
   return items.filter((item) => !seen.has(item.id) && seen.add(item.id));
 };
 
-const readColumn = (map: Y.Map<unknown>): Column => ({ ...readRecord<Column>(map, COLUMN_KEYS), fk: (map.get("fk") as Column["fk"]) ?? null });
+/**
+ * Reader-side identity cache, keyed on the shared type a record was read from
+ * so an entry lives exactly as long as its record does.
+ *
+ * Without it `schemaFromYDoc` hands back a brand-new object graph on every
+ * update, so every `Table` and `Column` gets a fresh reference and every
+ * `memo()` in the designer misses — on every keystroke, for the twenty-four
+ * tables you are *not* editing. Passing a cache is optional so the projection
+ * stays a pure function of the doc.
+ */
+export type ReadCache = WeakMap<object, unknown>;
+export const createReadCache = (): ReadCache => new WeakMap();
 
-const readTable = (map: Y.Map<unknown>): Table => ({
-  ...readRecord<Table>(map, TABLE_KEYS),
-  columns: byId(((map.get("columns") as Y.Array<Y.Map<unknown>> | undefined)?.toArray() ?? []).map(readColumn)),
-});
+/** The previously read object when `built` is structurally identical to it. */
+const stable = <T>(cache: ReadCache | undefined, key: object, built: T): T => {
+  if (!cache) return built;
+  const previous = cache.get(key) as T | undefined;
+  if (previous !== undefined && deepEqual(previous, built)) return previous;
+  cache.set(key, built);
+  return built;
+};
+
+/**
+ * The previous array when every element came back identical. Elements are
+ * already stabilised by `stable`, so this is a reference scan, and it keeps the
+ * memos keyed on `schema.tables` rather than on a table holding too.
+ */
+const stableList = <T>(cache: ReadCache | undefined, key: object, built: T[]): T[] => {
+  if (!cache) return built;
+  const previous = cache.get(key) as T[] | undefined;
+  if (previous && previous.length === built.length && previous.every((item, index) => item === built[index])) return previous;
+  cache.set(key, built);
+  return built;
+};
+
+const readColumn = (map: Y.Map<unknown>, cache?: ReadCache): Column =>
+  stable(cache, map, { ...readRecord<Column>(map, COLUMN_KEYS), fk: (map.get("fk") as Column["fk"]) ?? null });
+
+const readTable = (map: Y.Map<unknown>, cache?: ReadCache): Table => {
+  const columns = (map.get("columns") as Y.Array<Y.Map<unknown>> | undefined) ?? null;
+  return stable(cache, map, {
+    ...readRecord<Table>(map, TABLE_KEYS),
+    columns: byId((columns?.toArray() ?? []).map((column) => readColumn(column, cache))),
+  });
+};
 
 /**
  * Projects the shared document back into the plain `Schema` the whole domain
  * layer already speaks, so validation, generation and export stay untouched.
  * `id` and `revision` are server-owned and may be supplied by the caller.
  */
-export function schemaFromYDoc(ydoc: Y.Doc, overrides: { id?: string; revision?: number } = {}): Schema {
+export function schemaFromYDoc(
+  ydoc: Y.Doc,
+  overrides: { id?: string; revision?: number } = {},
+  cache?: ReadCache,
+): Schema {
   const root = schemaRoot(ydoc);
+  const read = <T extends { id: string }>(list: Y.Array<Y.Map<unknown>>, keys: readonly (keyof T & string)[]) =>
+    stableList(cache, list, byId(list.toArray().map((map) => stable(cache, map, readRecord<T>(map, keys)))));
   return {
     id: overrides.id ?? (root.meta.get("id") as string) ?? "",
     name: (root.meta.get("name") as string) ?? "Untitled",
     revision: overrides.revision ?? 0,
     schemaFormatVersion: (root.meta.get("schemaFormatVersion") as number) ?? SCHEMA_FORMAT_VERSION,
-    tables: byId(root.tables.toArray().map(readTable)),
-    relationships: byId(root.relationships.toArray().map((map) => readRecord<Relationship>(map, RELATIONSHIP_KEYS))),
-    groups: byId(root.groups.toArray().map((map) => readRecord<SchemaGroup>(map, GROUP_KEYS))),
-    memos: byId(root.memos.toArray().map((map) => readRecord<Memo>(map, MEMO_KEYS))),
+    tables: stableList(cache, root.tables, byId(root.tables.toArray().map((map) => readTable(map, cache)))),
+    relationships: read<Relationship>(root.relationships, RELATIONSHIP_KEYS),
+    groups: read<SchemaGroup>(root.groups, GROUP_KEYS),
+    memos: read<Memo>(root.memos, MEMO_KEYS),
   };
 }

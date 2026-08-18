@@ -65,6 +65,7 @@ import {
   useSchema,
   useSelect,
   useTransform,
+  useTransformControls,
 } from "@/app/hooks";
 import {
   DRAG_THRESHOLD,
@@ -91,6 +92,7 @@ import {
   enclosedBy,
   insideGroup,
   resizeDelta,
+  tidyLayout,
   wheelScale,
 } from "../geometry";
 
@@ -129,8 +131,8 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
     deleteColumn,
     addColumn,
     reorderColumns,
-    tablesById,
     groupsById,
+    columnsById,
     issues,
     errors,
   } = useSchema();
@@ -147,10 +149,11 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
     selectTable,
   } = useSelect();
   const { setPanelTab, setSidebarOpen } = useLayout();
+  // Split deliberately: the hook drives the camera through the stable controls,
+  // and reads the live value only for the grid pattern and a gesture's origin.
+  const { zoom, pan } = useTransform();
   const {
-    zoom,
     setZoom,
-    pan,
     setPan,
     panRef,
     zoomRef,
@@ -158,7 +161,7 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
     stopAnimationRef,
     stopAnimation,
     animateTo,
-  } = useTransform();
+  } = useTransformControls();
   const [editingMemoId, setEditingMemoId] = useState<string | null>(null);
   /**
    * Memos that have held text at some point. A memo left blank was never really
@@ -625,15 +628,12 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
   const foreignKeyTarget = useCallback(
     (column: Column) => {
       if (!column.fk) return undefined;
-      const target = tablesById.get(column.fk.tableId);
-      const targetColumn = target?.columns.find(
-        (item) => item.id === column.fk!.columnId,
-      );
-      return target && targetColumn
-        ? { table: target, column: targetColumn }
-        : undefined;
+      const found = columnsById.get(column.fk.columnId);
+      // The id pair has to agree: a column may have been moved to another table
+      // since the key was set, and the reference is stale rather than valid.
+      return found && found.table.id === column.fk.tableId ? found : undefined;
     },
-    [tablesById],
+    [columnsById],
   );
 
 
@@ -672,17 +672,7 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
     commit({ ...schema, tables: [...schema.tables, table] });
     selectTable(table.id);
   };
-  const autoLayout = () => {
-    const next = {
-      ...schema,
-      tables: schema.tables.map((table, index) => ({
-        ...table,
-        x: 70 + (index % 4) * 360,
-        y: 70 + Math.floor(index / 4) * 270,
-      })),
-    };
-    commit(next);
-  };
+  const autoLayout = () => commit(tidyLayout(schema));
   const fitView = () => {
     if (
       !canvasRef.current ||

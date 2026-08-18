@@ -3,6 +3,7 @@
 import {
   createContext,
   useCallback,
+  useDeferredValue,
   useMemo,
   useRef,
   type ReactNode,
@@ -74,6 +75,7 @@ export type SchemaContextValue = {
   deleteUnique: (tableId: string, uniqueId: string) => void;
   tablesById: Map<string, Table>;
   groupsById: Map<string, SchemaGroup>;
+  columnsById: Map<string, { table: Table; column: Column }>;
   issues: ValidationIssue[];
   errors: ValidationIssue[];
   ddl: string;
@@ -339,7 +341,10 @@ export function SchemaProvider({
 
   /** Every mutation below rewrites `uniques` whole — see `dropColumnFromUniques`. */
   const withUniques = useCallback(
-    (tableId: string, mutate: (uniques: UniqueConstraint[]) => UniqueConstraint[]) =>
+    (
+      tableId: string,
+      mutate: (uniques: UniqueConstraint[]) => UniqueConstraint[],
+    ) =>
       commitWith((current) => ({
         ...current,
         tables: current.tables.map((table) =>
@@ -352,7 +357,8 @@ export function SchemaProvider({
   );
 
   const addUnique = useCallback(
-    (tableId: string) => withUniques(tableId, (uniques) => [...uniques, makeUniqueConstraint()]),
+    (tableId: string) =>
+      withUniques(tableId, (uniques) => [...uniques, makeUniqueConstraint()]),
     [withUniques],
   );
 
@@ -368,7 +374,9 @@ export function SchemaProvider({
 
   const deleteUnique = useCallback(
     (tableId: string, uniqueId: string) =>
-      withUniques(tableId, (uniques) => uniques.filter((constraint) => constraint.id !== uniqueId)),
+      withUniques(tableId, (uniques) =>
+        uniques.filter((constraint) => constraint.id !== uniqueId),
+      ),
     [withUniques],
   );
 
@@ -380,8 +388,27 @@ export function SchemaProvider({
     () => new Map((schema.groups ?? []).map((group) => [group.id, group])),
     [schema.groups],
   );
+  /**
+   * Flat, so resolving a foreign key is two lookups rather than a scan of the
+   * target's columns -- that scan ran once per column of every card.
+   */
+  const columnsById = useMemo(
+    () =>
+      new Map(
+        schema.tables.flatMap((table) =>
+          table.columns.map(
+            (column) => [column.id, { table, column }] as const,
+          ),
+        ),
+      ),
+    [schema.tables],
+  );
 
-  const issues = useMemo(() => validateSchema(schema), [schema]);
+  const deferredSchema = useDeferredValue(schema);
+  const issues = useMemo(
+    () => validateSchema(deferredSchema),
+    [deferredSchema],
+  );
   const errors = useMemo(
     () => issues.filter((issue) => issue.severity === "error"),
     [issues],
@@ -423,6 +450,7 @@ export function SchemaProvider({
       deleteUnique,
       tablesById,
       groupsById,
+      columnsById,
       issues,
       errors,
       ddl,
@@ -451,6 +479,7 @@ export function SchemaProvider({
       deleteUnique,
       tablesById,
       groupsById,
+      columnsById,
       issues,
       errors,
       ddl,

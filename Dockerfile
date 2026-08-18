@@ -26,6 +26,7 @@ ENV NEXT_PUBLIC_COLLAB_URL=$NEXT_PUBLIC_COLLAB_URL
 ENV DATA_DIR=/tmp/build-data
 ENV BETTER_AUTH_SECRET=build-time-placeholder
 ENV BETTER_AUTH_URL=http://localhost:3000
+ENV DATABASE_URL=file:/tmp/build-data/auth.db
 
 # `next build --webpack`; see CLAUDE.md.
 RUN pnpm build

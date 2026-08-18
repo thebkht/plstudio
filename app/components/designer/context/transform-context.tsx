@@ -18,13 +18,32 @@ import {
 
 export type Pan = { x: number; y: number };
 
+/**
+ * Frame-varying. `pan`/`zoom` change on every pointermove of a pan/zoom
+ * gesture and every frame of the post-release momentum spring, so anything
+ * that only needs to *read* the current camera should consume this context
+ * — never `TransformControlsContext` — and accept that it re-renders at
+ * gesture frame rate.
+ */
 export type TransformContextValue = {
   zoom: number;
-  setZoom: React.Dispatch<React.SetStateAction<number>>;
   pan: Pan;
+  /** The zoom level a screen reader hears, settled so it is not narrated per frame. */
+  settledZoom: number;
+};
+
+/**
+ * Permanently stable. Every field here keeps the same identity for the
+ * app's entire lifetime (state setters are stable by React contract; the
+ * refs are `useRef` objects; `stopAnimation`/`animateTo` are `useCallback`s
+ * whose deps never change). Consuming this context never re-renders the
+ * consumer — that's the point of splitting it out of `TransformContextValue`.
+ */
+export type TransformControlsContextValue = {
+  setZoom: React.Dispatch<React.SetStateAction<number>>;
   setPan: React.Dispatch<React.SetStateAction<Pan>>;
   /**
-   * Mirrors of the two above. The canvas's long-lived pointer and wheel
+   * Mirrors of pan/zoom. The canvas's long-lived pointer and wheel
    * listeners read these so they never re-subscribe mid-gesture.
    */
   panRef: React.RefObject<Pan>;
@@ -40,13 +59,13 @@ export type TransformContextValue = {
     onFrame: (value: Vec) => void,
     onSettle?: (value: Vec) => void,
   ) => void;
-  /** The zoom level a screen reader hears, settled so it is not narrated per frame. */
-  settledZoom: number;
 };
 
 export const TransformContext = createContext<TransformContextValue | null>(
   null,
 );
+export const TransformControlsContext =
+  createContext<TransformControlsContextValue | null>(null);
 
 export function TransformProvider({ children }: { children: ReactNode }) {
   const [zoom, setZoom] = useState(1);
@@ -116,11 +135,18 @@ export function TransformProvider({ children }: { children: ReactNode }) {
     [stopAnimation],
   );
 
+  // Frame-varying — rebuilds (and re-renders TransformContext consumers) on
+  // every zoom/pan/settledZoom change.
   const value = useMemo(
+    () => ({ zoom, pan, settledZoom }),
+    [zoom, pan, settledZoom],
+  );
+
+  // Stable — every member keeps its identity for the app's lifetime, so this
+  // object is built exactly once and never causes a re-render downstream.
+  const controls = useMemo(
     () => ({
-      zoom,
       setZoom,
-      pan,
       setPan,
       panRef,
       zoomRef,
@@ -128,13 +154,15 @@ export function TransformProvider({ children }: { children: ReactNode }) {
       stopAnimationRef,
       stopAnimation,
       animateTo,
-      settledZoom,
     }),
-    [zoom, pan, stopAnimation, animateTo, settledZoom],
+    [stopAnimation, animateTo],
   );
+
   return (
-    <TransformContext.Provider value={value}>
-      {children}
-    </TransformContext.Provider>
+    <TransformControlsContext.Provider value={controls}>
+      <TransformContext.Provider value={value}>
+        {children}
+      </TransformContext.Provider>
+    </TransformControlsContext.Provider>
   );
 }

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 import { HocuspocusProvider } from "@hocuspocus/provider";
 import type { Schema } from "@/app/lib/schema";
-import { applySchemaToYDoc, isEmptyDoc, schemaFromYDoc, schemaRoot } from "./ydoc";
+import { applySchemaToYDoc, createReadCache, isEmptyDoc, schemaFromYDoc, schemaRoot } from "./ydoc";
 
 export type CollabUser = { id: string; name: string; image?: string | null };
 export type Peer = { clientId: number; user: CollabUser; color: string; cursor: { x: number; y: number } | null; selectedIds: string[] };
@@ -70,11 +70,17 @@ export function useCollaborativeSchema({
    * save overwrite the stored schema with nothing, so until the doc holds
    * anything we present the server's copy instead.
    */
+  /**
+   * Lives as long as the doc: it is what lets an unchanged table come back as
+   * the *same* object across reads, so the designer's memoised cards hold
+   * instead of every card re-rendering on every keystroke.
+   */
+  const readCache = useMemo(() => createReadCache(), [ydoc]);
   const readSchema = useCallback(
     () => isEmptyDoc(ydoc)
       ? { ...seedRef.current, id: projectId, revision: revisionRef.current }
-      : schemaFromYDoc(ydoc, { id: projectId, revision: revisionRef.current }),
-    [projectId, ydoc],
+      : schemaFromYDoc(ydoc, { id: projectId, revision: revisionRef.current }, readCache),
+    [projectId, readCache, ydoc],
   );
 
   /**
@@ -89,12 +95,25 @@ export function useCollaborativeSchema({
 
   // Mirror every document change — local or remote — into React state.
   useEffect(() => {
+    /*
+     * One commit is several transactions -- a drag release plus the
+     * normalisation passes behind it -- and projecting each one separately
+     * renders the designer once per transaction. Coalescing to a microtask
+     * rather than a frame keeps the local echo within the same task, so
+     * typing still lands immediately.
+     */
+    let queued = false;
     const sync = () => setSchemaState(readSchema());
-    ydoc.on("update", sync);
+    const schedule = () => {
+      if (queued) return;
+      queued = true;
+      queueMicrotask(() => { queued = false; sync(); });
+    };
+    ydoc.on("update", schedule);
     // With no server, nothing else will ever populate this doc.
     if (!collabUrl || !identity) seedIfEmpty();
     sync();
-    return () => { ydoc.off("update", sync); };
+    return () => { ydoc.off("update", schedule); };
   }, [collabUrl, identity, readSchema, seedIfEmpty, ydoc]);
 
   // The undo manager is built after seeding, so the seed itself is never undoable.

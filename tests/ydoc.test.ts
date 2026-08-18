@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
-import { applySchemaToYDoc, isEmptyDoc, schemaFromYDoc, schemaRoot } from "@/app/lib/collab/ydoc";
+import { applySchemaToYDoc, createReadCache, isEmptyDoc, schemaFromYDoc, schemaRoot, type ReadCache } from "@/app/lib/collab/ydoc";
 import { makeColumn, makeDemoSchema, makeUniqueConstraint, makeMemo, makeSchemaGroup, makeTable, type Schema } from "@/app/lib/schema";
 
 const seed = (schema: Schema) => applySchemaToYDoc(new Y.Doc(), schema);
@@ -224,5 +224,93 @@ describe("duplicate damage", () => {
     expect(merged.groups).toHaveLength(1);
     expect(merged.memos).toHaveLength(1);
     expect(merged.tables[0].columns.map((column) => column.id)).toEqual(schema.tables[0].columns.map((column) => column.id));
+  });
+});
+
+describe("identity preservation across reads", () => {
+  const cached = (ydoc: Y.Doc, schema: Schema, cache: ReadCache) =>
+    schemaFromYDoc(ydoc, { id: schema.id, revision: schema.revision }, cache);
+
+  it("returns the same table and column objects when nothing changed", () => {
+    const schema = makeDemoSchema();
+    const ydoc = seed(schema);
+    const cache = createReadCache();
+    const first = cached(ydoc, schema, cache);
+    const second = cached(ydoc, schema, cache);
+    expect(second.tables).toBe(first.tables);
+    expect(second.tables[0]).toBe(first.tables[0]);
+    expect(second.tables[0].columns[0]).toBe(first.tables[0].columns[0]);
+  });
+
+  it("replaces only the table that changed, and keeps its untouched columns", () => {
+    const schema = makeDemoSchema();
+    const ydoc = seed(schema);
+    const cache = createReadCache();
+    const first = cached(ydoc, schema, cache);
+    applySchemaToYDoc(ydoc, { ...schema, tables: [{ ...schema.tables[0], x: schema.tables[0].x + 40 }, schema.tables[1]] });
+    const second = cached(ydoc, schema, cache);
+    expect(second.tables[0]).not.toBe(first.tables[0]);
+    expect(second.tables[1]).toBe(first.tables[1]);
+    expect(second.tables[0].columns[0]).toBe(first.tables[0].columns[0]);
+  });
+
+  it("without a cache every read is a fresh graph, so the projection stays pure", () => {
+    const schema = makeDemoSchema();
+    const ydoc = seed(schema);
+    expect(read(ydoc, schema).tables[0]).not.toBe(read(ydoc, schema).tables[0]);
+    expect(read(ydoc, schema)).toEqual(read(ydoc, schema));
+  });
+});
+
+describe("write path", () => {
+  it("writes nothing when the schema is unchanged", () => {
+    const schema = makeDemoSchema();
+    const ydoc = seed(schema);
+    let updates = 0;
+    ydoc.on("update", () => { updates += 1; });
+    applySchemaToYDoc(ydoc, schema);
+    expect(updates).toBe(0);
+  });
+
+  it("reordering columns leaves the untouched tables' records alone", () => {
+    const schema = makeDemoSchema();
+    const ydoc = seed(schema);
+    const cache = createReadCache();
+    const before = schemaFromYDoc(ydoc, {}, cache);
+    const [first, ...rest] = schema.tables[0].columns;
+    const reordered = { ...schema, tables: [{ ...schema.tables[0], columns: [...rest, first] }, schema.tables[1]] };
+    applySchemaToYDoc(ydoc, reordered);
+    const after = schemaFromYDoc(ydoc, {}, cache);
+    expect(after.tables[0].columns.map((column) => column.id)).toEqual(reordered.tables[0].columns.map((column) => column.id));
+    expect(after.tables[1]).toBe(before.tables[1]);
+  });
+
+  it("survives a reorder that also adds and removes columns", () => {
+    const base = makeDemoSchema();
+    const wide = ["A", "B", "C", "D"].map((name) => makeColumn({ name, type: "NUMBER", size: "" }));
+    const schema = { ...base, tables: [{ ...base.tables[0], columns: wide }, base.tables[1]] };
+    const ydoc = seed(schema);
+    const [dropped, b, c, d] = wide;
+    const added = makeColumn({ name: "ADDED", type: "NUMBER", size: "" });
+    // Reversed, one gone and one new: the reorder span covers the whole list.
+    const next = { ...schema, tables: [{ ...schema.tables[0], columns: [d, added, c, b] }, schema.tables[1]] };
+    applySchemaToYDoc(ydoc, next);
+    const columns = read(ydoc, schema).tables[0].columns;
+    expect(columns.map((column) => column.id)).toEqual([d.id, added.id, c.id, b.id]);
+    expect(columns.map((column) => column.id)).not.toContain(dropped.id);
+  });
+});
+
+describe("writing over a doc two clients both seeded", () => {
+  it("dedupes the duplicated records instead of indexing past the end", () => {
+    const schema = makeDemoSchema();
+    const a = seed(schema);
+    sync(a, seed(schema));
+    expect(schemaRoot(a).tables.length).toBe(4); // duplicated by the merge
+
+    const renamed = { ...schema, tables: [{ ...schema.tables[0], name: "PUPIL" }, schema.tables[1]] };
+    expect(() => applySchemaToYDoc(a, renamed)).not.toThrow();
+    expect(schemaRoot(a).tables.length).toBe(2);
+    expect(read(a, schema).tables.map((table) => table.name)).toEqual(["PUPIL", "ENROLLMENT"]);
   });
 });

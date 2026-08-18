@@ -6,6 +6,6 @@
 export { useDesignerSettings } from "./use-designer-settings";
 export { useLayout } from "./use-layout";
 export { useSelect } from "./use-select";
-export { useTransform } from "./use-transform";
+export { useTransform, useTransformControls } from "./use-transform";
 export { useSaveState } from "./use-save-state";
 export { useSchema } from "./use-schema";

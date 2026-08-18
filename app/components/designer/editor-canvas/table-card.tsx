@@ -81,13 +81,15 @@ const ColumnRow = memo(function ColumnRow({
       data-table-id={table.id}
       data-column-id={column.id}
       isDisabled={hoverDisabled}
-      content={
+      // A thunk, so resolving the foreign key happens when a row is actually
+      // pointed at rather than for every row of every card on every render.
+      content={() => (
         <ColumnCard
           table={table}
           column={column}
           reference={foreignKeyTarget(column)}
         />
-      }
+      )}
     >
       <span
         className="row-grip"

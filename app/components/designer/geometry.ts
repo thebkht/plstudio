@@ -12,6 +12,8 @@ import {
 } from "@/app/lib/schema";
 import {
   GROUP_HEADER_HEIGHT,
+  GROUP_MIN_HEIGHT,
+  GROUP_MIN_WIDTH,
   RESIZE_STEP,
   RESIZE_STEP_COARSE,
   WHEEL_LINE_HEIGHT,
@@ -142,6 +144,120 @@ export function repairInitialLayout(schema: Schema): Schema {
         break;
       }
     }
+  });
+  return next;
+}
+
+/** Gap between tidied cards, and between the tidied groups themselves. */
+const TIDY_GAP = 24;
+const TIDY_GROUP_GAP = 48;
+/** Inset from a group's edges. The same 12 `insideGroup` uses, for the same reason. */
+const TIDY_MARGIN = 12;
+const TIDY_ORIGIN = 70;
+const TIDY_MAX_COLUMNS = 4;
+/** How wide a row of groups may get before it wraps. */
+const TIDY_ROW_WIDTH = 1440;
+
+type PackBox = { width: number; height: number };
+
+/**
+ * Lays boxes left-to-right, wrapping once the next one would cross `maxWidth`.
+ * A box wider than the limit is still placed rather than dropped -- it takes a
+ * row of its own and the reported extent grows to hold it, so a caller sizing a
+ * container around the result never clips its own content.
+ */
+function packBoxes(boxes: PackBox[], maxWidth: number, gap: number) {
+  const places: { x: number; y: number }[] = [];
+  let x = 0;
+  let y = 0;
+  let row = 0;
+  let width = 0;
+  let height = 0;
+  boxes.forEach((box) => {
+    if (x > 0 && x + box.width > maxWidth) {
+      x = 0;
+      y += row + gap;
+      row = 0;
+    }
+    places.push({ x, y });
+    x += box.width + gap;
+    row = Math.max(row, box.height);
+    width = Math.max(width, x - gap);
+    height = Math.max(height, y + row);
+  });
+  return { places, width, height };
+}
+
+/**
+ * Columns for a bucket of `count` cards. Derived from the count alone and never
+ * from the current layout, which is what makes a second tidy a no-op.
+ */
+const tidyColumns = (count: number) =>
+  Math.min(TIDY_MAX_COLUMNS, Math.max(1, Math.ceil(Math.sqrt(count))));
+
+/**
+ * Rearranges every card without ever changing which group it belongs to.
+ *
+ * Membership is re-derived geometrically the next time a group is resized --
+ * `commitGroupSize` tests each member's *centre* with `enclosedBy` -- so a
+ * layout that moved a table outside its group's box would not merely look
+ * wrong, it would silently evict the table on that next resize. Hence: members
+ * are packed *inside* their group and the group grows to hold them, and the
+ * loose tables are flowed *below* every group rather than beside one, so a
+ * table that belongs to nothing can never come to rest inside a group's box and
+ * be adopted by it. `schemaId` is read here and never written.
+ */
+export function tidyLayout(schema: Schema): Schema {
+  const next = cloneSchema(schema);
+  const boxOf = (table: Table) => ({ width: tableWidth(table), height: tableHeight(table) });
+  // Sized against their own members first; where they land is decided after.
+  const filled = (next.groups ?? []).map((group) => {
+    const members = next.tables.filter((table) => table.schemaId === group.id);
+    const boxes = members.map(boxOf);
+    const widest = Math.max(GROUP_MIN_WIDTH - TIDY_MARGIN * 2, ...boxes.map((box) => box.width));
+    const columns = tidyColumns(boxes.length);
+    const packed = packBoxes(boxes, columns * widest + (columns - 1) * TIDY_GAP, TIDY_GAP);
+    return {
+      group,
+      members,
+      places: packed.places,
+      width: Math.max(GROUP_MIN_WIDTH, packed.width + TIDY_MARGIN * 2),
+      height: Math.max(GROUP_MIN_HEIGHT, GROUP_HEADER_HEIGHT + packed.height + TIDY_MARGIN * 2),
+    };
+  });
+  const flow = packBoxes(filled, TIDY_ROW_WIDTH, TIDY_GROUP_GAP);
+  let bottom = TIDY_ORIGIN;
+  filled.forEach((entry, index) => {
+    const x = TIDY_ORIGIN + flow.places[index].x;
+    const y = TIDY_ORIGIN + flow.places[index].y;
+    const dx = x - entry.group.x;
+    const dy = y - entry.group.y;
+    Object.assign(entry.group, { x, y, width: entry.width, height: entry.height });
+    entry.members.forEach((table, member) => {
+      table.x = x + TIDY_MARGIN + entry.places[member].x;
+      table.y = y + GROUP_HEADER_HEIGHT + TIDY_MARGIN + entry.places[member].y;
+    });
+    // Memos keep whatever arrangement they were given; they only ride along.
+    next.memos?.forEach((memo) => {
+      if (memo.schemaId !== entry.group.id) return;
+      memo.x += dx;
+      memo.y += dy;
+    });
+    bottom = Math.max(bottom, y + entry.height);
+  });
+  const loose = next.tables.filter(
+    (table) => !filled.some((entry) => entry.group.id === table.schemaId),
+  );
+  const boxes = loose.map(boxOf);
+  const widest = Math.max(1, ...boxes.map((box) => box.width));
+  const top = filled.length ? bottom + TIDY_GROUP_GAP : TIDY_ORIGIN;
+  packBoxes(
+    boxes,
+    TIDY_MAX_COLUMNS * widest + (TIDY_MAX_COLUMNS - 1) * TIDY_GAP,
+    TIDY_GAP,
+  ).places.forEach((place, index) => {
+    loose[index].x = TIDY_ORIGIN + place.x;
+    loose[index].y = top + place.y;
   });
   return next;
 }

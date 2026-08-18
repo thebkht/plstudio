@@ -16,6 +16,15 @@ import { cn } from "@/lib/utils"
  * on a canvas of tables means dozens of them; the same data is reachable from
  * the side panel.
  */
+/**
+ * Renders a `content` thunk only once the popover actually mounts its children,
+ * which it does only while open. Passing a function rather than an element is
+ * how a caller keeps expensive lookups out of the trigger's render — a card
+ * with a row per column would otherwise resolve every row's popover body on
+ * every render, for rows nobody is pointing at.
+ */
+const LazyContent = ({ render }: { render: () => React.ReactNode }) => <>{render()}</>
+
 function HoverCard({
   content,
   children,
@@ -30,7 +39,7 @@ function HoverCard({
   ...props
   // "content" is also a global HTML attribute, so it must be replaced, not merged.
 }: Omit<React.ComponentProps<"div">, "content"> & {
-  content: React.ReactNode
+  content: React.ReactNode | (() => React.ReactNode)
   placement?: React.ComponentProps<typeof PopoverPrimitive>["placement"]
   openDelay?: number
   closeDelay?: number
@@ -96,7 +105,7 @@ function HoverCard({
           "data-[placement=bottom]:slide-in-from-top-2 data-[placement=left]:slide-in-from-right-2 data-[placement=right]:slide-in-from-left-2 data-[placement=top]:slide-in-from-bottom-2"
         )}
       >
-        {content}
+        {typeof content === "function" ? <LazyContent render={content} /> : content}
       </PopoverPrimitive>
     </>
   )
