@@ -436,6 +436,7 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
               return (
                 <RelationshipEdge
                   key={id}
+                  edgeId={id}
                   fromX={from.x}
                   fromY={from.y}
                   fromDirection={from.direction}

@@ -27,6 +27,7 @@ export type EdgeAnchor = {
 };
 
 export const RelationshipEdge = memo(function RelationshipEdge({
+  edgeId,
   fromX,
   fromY,
   fromDirection,
@@ -41,6 +42,7 @@ export const RelationshipEdge = memo(function RelationshipEdge({
   showCardinality,
   showLabel,
 }: {
+  edgeId: string;
   fromX: number;
   fromY: number;
   fromDirection: number;
@@ -83,7 +85,7 @@ export const RelationshipEdge = memo(function RelationshipEdge({
   const fromMarkerX = fromX + fromDirection * MARKER_DISTANCE;
   const toMarkerX = toX + toDirection * MARKER_DISTANCE;
   return (
-    <g className="relationship">
+    <g className="relationship" data-edge-id={edgeId}>
       {/* Invisible fat stroke so the thin line is easy to hover. */}
       <path d={path} className="relationship-hit" />
       <path d={path} className={`relationship-path ${active ? "active" : ""}`} />

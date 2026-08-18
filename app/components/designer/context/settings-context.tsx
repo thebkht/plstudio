@@ -12,12 +12,16 @@ import { isMacPlatform } from "@/app/lib/shortcuts";
 export type DesignerSettings = {
   showCardinality: boolean;
   showRelationshipLabels: boolean;
+  /** Whether pointing at or selecting a table fades everything a foreign key
+   *  away from it. On by default: it is what makes a dense diagram legible. */
+  dimUnrelated: boolean;
   autoSave: boolean;
 };
 
 const DEFAULT_SETTINGS: DesignerSettings = {
   showCardinality: true,
   showRelationshipLabels: true,
+  dimUnrelated: true,
   autoSave: false,
 };
 

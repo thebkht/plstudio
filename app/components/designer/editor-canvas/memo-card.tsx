@@ -53,6 +53,7 @@ function MemoCardComponent({
   return (
     <article
       className={`memo-card ${isSelected ? "selected" : ""} ${inMultiSelection ? "multi-selected" : ""}`}
+      data-memo-id={memo.id}
       role="group"
       tabIndex={0}
       aria-label="Memo"

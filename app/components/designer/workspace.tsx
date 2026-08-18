@@ -922,6 +922,14 @@ export default function Workspace({
         })),
     },
     {
+      label: `${relationSettings.dimUnrelated ? "Turn off" : "Turn on"} focus dimming`,
+      onSelect: () =>
+        setRelationSettings((current) => ({
+          ...current,
+          dimUnrelated: !current.dimUnrelated,
+        })),
+    },
+    {
       label: `${relationSettings.autoSave ? "Turn off" : "Turn on"} auto-save`,
       onSelect: () =>
         setRelationSettings((current) => {

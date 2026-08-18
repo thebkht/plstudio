@@ -332,6 +332,9 @@ export const TableCard = memo(function TableCard({
     <ContextMenuTrigger onOpenChange={(open) => open && onSelect(table.id)}>
       <div
         className={`table-card ${selected ? "selected" : ""} ${multiSelected ? "multi-selected" : ""} ${moving ? "moving" : ""} ${heldByName ? "peer-held" : ""}`}
+        // Focus dimming finds cards by attribute rather than by prop, so a card
+        // outside the neighbourhood is never re-rendered to be dimmed.
+        data-table-id={table.id}
         role="button"
         tabIndex={0}
         aria-pressed={selected}

@@ -1,6 +1,11 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { useCanvasGestures } from "./use-canvas-gestures";
 import { Canvas, type CanvasRelationship } from "./canvas";
 import {
@@ -10,7 +15,7 @@ import {
   useSelect,
   useTransformControls,
 } from "@/app/hooks";
-import { selectGroupWithMembers } from "@/app/lib/selection";
+import { neighbourhood, selectGroupWithMembers } from "@/app/lib/selection";
 import { shortcutHint, type ShortcutId } from "@/app/lib/shortcuts";
 import type { Table } from "@/app/lib/schema";
 import { HEADER_HEIGHT, ROW_HEIGHT } from "../constants";
@@ -42,8 +47,8 @@ export function CanvasHost({
   runShortcut,
 }: CanvasHostProps) {
   const { schema, setCursor } = useSchema();
-  const { setSelection } = useSelect();
-  const { isMac } = useDesignerSettings();
+  const { setSelection, selectedIdRef } = useSelect();
+  const { settings, isMac } = useDesignerSettings();
   const { register } = useCanvasCommands();
   const { applyViewport, panRef, zoomRef } = useTransformControls();
   const gestures = useCanvasGestures({ readOnly });
@@ -166,6 +171,73 @@ export function CanvasHost({
   };
 
   /*
+   * Focus dimming. A table's neighbourhood is one hop of foreign keys, and
+   * everything outside it fades -- which on the diagrams that need this at all
+   * is most of the canvas.
+   *
+   * React does not own any of it, for the same reason it does not own the
+   * camera: hover changes as fast as the pointer moves, and routing it through
+   * state would re-render every card on the canvas to fade twenty of them. The
+   * neighbourhood is applied by toggling a class on the nodes already in the
+   * DOM, found by the `data-*` attributes the cards and edges carry, so a card
+   * outside the neighbourhood is never re-rendered at all.
+   */
+  const hoverRef = useRef<string | null>(null);
+  /** What the DOM currently shows, so an unchanged hover costs nothing. */
+  const focusedRef = useRef<string | null>(null);
+  const dimRef = useRef(settings.dimUnrelated);
+  dimRef.current = settings.dimUnrelated;
+  const schemaRef = useRef(schema);
+  schemaRef.current = schema;
+
+  const applyFocus = () => {
+    const wrap = gestures.canvasRef.current;
+    if (!wrap) return;
+    // Selection wins over hover: a click is a deliberate answer to the question
+    // hovering only asks in passing.
+    const root = dimRef.current
+      ? (selectedIdRef.current ?? hoverRef.current)
+      : null;
+    focusedRef.current = root;
+    const { tables, edges } = neighbourhood(
+      schemaRef.current.relationships ?? [],
+      root,
+    );
+    // A group stays lit while anything inside it is lit, so the region a
+    // neighbourhood lives in keeps its label and its colour.
+    const groups = new Set(
+      schemaRef.current.tables
+        .filter((table) => table.schemaId && tables.has(table.id))
+        .map((table) => table.schemaId),
+    );
+    wrap.classList.toggle("focusing", root !== null);
+    wrap.classList.toggle(
+      "hover-focus",
+      root !== null && selectedIdRef.current === null,
+    );
+    const paint = (selector: string, key: string, lit: Set<unknown>) =>
+      wrap
+        .querySelectorAll(selector)
+        .forEach((node) =>
+          node.classList.toggle(
+            "dimmed",
+            root !== null && !lit.has(node.getAttribute(key)),
+          ),
+        );
+    paint(".table-card[data-table-id]", "data-table-id", tables);
+    paint("[data-edge-id]", "data-edge-id", edges);
+    paint("[data-group-id]", "data-group-id", groups);
+    paint("[data-memo-id]", "data-memo-id", new Set());
+  };
+
+  /*
+   * After every render, because a card that has just mounted -- pasted, undone,
+   * or scrolled back into view -- carries no class of its own. The same window
+   * `applyViewport` is re-asserted for, closed the same way.
+   */
+  useLayoutEffect(applyFocus);
+
+  /*
    * The pointer stream, rAF-coalesced. Presence and the in-flight link both
    * only ever need the newest position, and a trackpad delivers pointermoves
    * faster than the compositor can use them.
@@ -180,10 +252,14 @@ export function CanvasHost({
     },
     [],
   );
-  const onPointerMove = (event: { clientX: number; clientY: number }) => {
+  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     // Canvas space, not screen space: peers at other zoom levels must see the
     // pointer over the same table, not the same pixel.
     pointRef.current = canvasPoint(event);
+    hoverRef.current =
+      (event.target as Element | null)
+        ?.closest?.(".table-card[data-table-id]")
+        ?.getAttribute("data-table-id") ?? null;
     if (frameRef.current !== null) return;
     frameRef.current = requestAnimationFrame(() => {
       frameRef.current = null;
@@ -192,6 +268,10 @@ export function CanvasHost({
       setCursor(point);
       if (linkingRef.current)
         setLinking((current) => (current ? { ...current, ...point } : current));
+      // Only when it actually changed: the pointer crosses a card once, but it
+      // moves across it a hundred times.
+      if (hoverRef.current !== focusedRef.current && !selectedIdRef.current)
+        applyFocus();
     });
   };
 
@@ -205,7 +285,11 @@ export function CanvasHost({
         relationshipCounts,
         relationshipPoint,
         onPointerMove,
-        onPointerLeave: () => setCursor(null),
+        onPointerLeave: () => {
+          setCursor(null);
+          hoverRef.current = null;
+          applyFocus();
+        },
         onPointerCancel: (event) => {
           if (linkingRef.current?.pointerId === event.pointerId)
             setLinking(null);

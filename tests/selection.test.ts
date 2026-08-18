@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateDDL } from "@/app/lib/generators";
-import { makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, normalizeRelationships, tableWidth, type Schema } from "@/app/lib/schema";
-import { EMPTY_SELECTION, marqueeSelection, moveSelection, movingEntities, pruneSelection, rectFromPoints, removeSelection, selectAll, selectionBounds, selectionCount, selectionSchema, selectOnly, toggleSelected } from "@/app/lib/selection";
+import { makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, normalizeRelationships, tableWidth, type Relationship, type Schema } from "@/app/lib/schema";
+import { EMPTY_SELECTION, marqueeSelection, neighbourhood, moveSelection, movingEntities, pruneSelection, rectFromPoints, removeSelection, selectAll, selectionBounds, selectionCount, selectionSchema, selectOnly, toggleSelected } from "@/app/lib/selection";
 
 /**
  * A group at (400,400) sized 760x520, holding one table and one memo, with a
@@ -151,5 +151,43 @@ describe("the selection as a standalone schema", () => {
     expect(subset.tables[0].columns.every((column) => !column.fk)).toBe(true);
     const ddl = generateDDL(subset);
     schema.tables.slice(1).forEach((table) => expect(ddl).not.toContain(table.name));
+  });
+});
+
+/** A→B→C. D is named only by the tests, never by a relationship. */
+const link = (id: string, from: string, to: string): Relationship => ({
+  id,
+  startTableId: from,
+  startFieldId: `${from}.c1`,
+  endTableId: to,
+  endFieldId: `${to}.c1`,
+  fields: [{ startFieldId: `${from}.c1`, endFieldId: `${to}.c1` }],
+  name: `fk_${id}`,
+  cardinality: "many_to_one",
+  manyLabel: "n",
+  updateConstraint: "No action",
+  deleteConstraint: "No action",
+});
+const chain = () => [link("r1", "a", "b"), link("r2", "b", "c")];
+
+describe("neighbourhood", () => {
+  it("takes one hop, in both directions, and the root with it", () => {
+    const { tables, edges } = neighbourhood(chain(), "b");
+    expect([...tables].sort()).toEqual(["a", "b", "c"]);
+    expect([...edges].sort()).toEqual(["r1", "r2"]);
+  });
+
+  it("does not follow the second hop", () => {
+    expect([...neighbourhood(chain(), "a").tables].sort()).toEqual(["a", "b"]);
+  });
+
+  it("dims nothing when there is no root", () => {
+    expect(neighbourhood(chain(), null).tables.size).toBe(0);
+    expect(neighbourhood(chain(), null).edges.size).toBe(0);
+  });
+
+  it("lights only itself when nothing references it", () => {
+    expect([...neighbourhood(chain(), "d").tables]).toEqual(["d"]);
+    expect(neighbourhood(chain(), "d").edges.size).toBe(0);
   });
 });

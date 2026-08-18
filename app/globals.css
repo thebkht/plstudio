@@ -1373,6 +1373,60 @@ button {
   }
 }
 
+/*
+ * Focus dimming: pointing at or selecting a table fades everything more than
+ * one foreign key away from it. `canvas-host` toggles `.dimmed` straight onto
+ * the nodes it finds by `data-*` attribute, so nothing re-renders to fade --
+ * these rules are the whole of the effect.
+ *
+ * Dimming is a hint, not a gate: a faded card still hovers, still answers a
+ * click, and still carries its own selection styling underneath.
+ */
+.canvas-wrap.focusing .dimmed {
+  opacity: 0.16;
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+.canvas-wrap.focusing .table-card.dimmed,
+.canvas-wrap.focusing .schema-group.dimmed,
+.canvas-wrap.focusing .memo-card.dimmed {
+  /* Cards fade further than this and the diagram loses its shape. */
+  opacity: 0.34;
+}
+/* Hover only asks the question in passing, so it answers more quietly. */
+.canvas-wrap.focusing.hover-focus .dimmed {
+  opacity: 0.4;
+}
+.canvas-wrap.focusing.hover-focus .table-card.dimmed,
+.canvas-wrap.focusing.hover-focus .schema-group.dimmed,
+.canvas-wrap.focusing.hover-focus .memo-card.dimmed {
+  opacity: 0.55;
+}
+/* Raised over the cards while focusing, so the line being traced runs across
+   the card it points at instead of disappearing behind it. */
+.canvas-wrap.focusing .edges {
+  z-index: 3;
+}
+/* A faded trunk thins out too, so opacity is never the only cue. */
+.canvas-wrap.focusing .relationship.dimmed .relationship-path {
+  stroke-width: 1.5;
+}
+/* Same rule the edges follow: nothing animates mid-gesture. */
+.canvas-wrap.gesturing .dimmed {
+  transition: none;
+}
+@media (prefers-reduced-transparency: reduce) {
+  /* Fade less, and let desaturation carry what the opacity no longer does. */
+  .canvas-wrap.focusing .dimmed {
+    opacity: 0.5;
+    filter: grayscale(1);
+  }
+  .canvas-wrap.focusing .table-card.dimmed,
+  .canvas-wrap.focusing .schema-group.dimmed,
+  .canvas-wrap.focusing .memo-card.dimmed {
+    opacity: 0.7;
+  }
+}
+
 .memo-card {
   position: absolute;
   left: 0;

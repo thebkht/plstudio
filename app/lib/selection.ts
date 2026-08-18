@@ -1,4 +1,4 @@
-import { groupMembers, normalizeGroups, normalizeRelationships, tableHeight, tableWidth, type Memo, type Schema, type SchemaGroup, type Table } from "./schema";
+import { groupMembers, normalizeGroups, normalizeRelationships, tableHeight, tableWidth, type Memo, type Relationship, type Schema, type SchemaGroup, type Table } from "./schema";
 
 /**
  * What the canvas has selected, and everything that follows from it: marquee
@@ -215,4 +215,27 @@ export function selectionSchema(schema: Schema, selection: CanvasSelection): Sch
       groups: (schema.groups ?? []).filter((group) => moving.groups.has(group.id)),
     }),
   );
+}
+
+/**
+ * One table and everything one foreign key away from it -- what stays lit when
+ * the canvas dims the rest.
+ *
+ * One hop, not the transitive closure: on the diagrams that need this at all,
+ * two hops is most of the schema and dims nothing. A table with no root, or a
+ * root that no relationship names, yields empty sets and the canvas dims
+ * nothing rather than dimming everything.
+ */
+export function neighbourhood(relationships: Relationship[], rootId: string | null) {
+  const tables = new Set<string>();
+  const edges = new Set<string>();
+  if (!rootId) return { tables, edges };
+  tables.add(rootId);
+  relationships.forEach((relationship) => {
+    if (relationship.startTableId !== rootId && relationship.endTableId !== rootId) return;
+    edges.add(relationship.id);
+    tables.add(relationship.startTableId);
+    tables.add(relationship.endTableId);
+  });
+  return { tables, edges };
 }
