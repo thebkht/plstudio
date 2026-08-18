@@ -1084,20 +1084,28 @@ export default function Workspace({
               deleteUnique={deleteUnique}
             />
 
-            <ButtonGroup>
-              <Button variant="outline" onClick={() => addColumn(table.id)}>
-                <HugeiconsIcon icon={PlusSignIcon} data-icon="inline-start" />
-                Add column
-              </Button>
-              <Button variant="outline" onClick={() => makeJunction(table.id)}>
-                <HugeiconsIcon icon={Link01Icon} data-icon="inline-start" />
-                Junction
-              </Button>
-              <Button variant="outline" onClick={() => deleteTable(table.id)}>
-                <HugeiconsIcon icon={Delete02Icon} data-icon="inline-start" />
-                Delete
-              </Button>
-            </ButtonGroup>
+            <div className="flex gap-2 flex-col">
+              <ButtonGroup>
+                <Button variant="outline" onClick={() => addColumn(table.id)}>
+                  <HugeiconsIcon icon={PlusSignIcon} data-icon="inline-start" />
+                  Add column
+                </Button>
+              </ButtonGroup>
+
+              <ButtonGroup>
+                <Button
+                  variant="outline"
+                  onClick={() => makeJunction(table.id)}
+                >
+                  <HugeiconsIcon icon={Link01Icon} data-icon="inline-start" />
+                  Junction
+                </Button>
+                <Button variant="outline" onClick={() => deleteTable(table.id)}>
+                  <HugeiconsIcon icon={Delete02Icon} data-icon="inline-start" />
+                  Delete
+                </Button>
+              </ButtonGroup>
+            </div>
           </div>
         ) : null}
       </CollapsibleContent>
