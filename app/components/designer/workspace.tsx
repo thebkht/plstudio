@@ -1100,16 +1100,11 @@ export default function Workspace({
                 <Button
                   variant="outline"
                   onClick={() => makeJunction(table.id)}
-                  className="w-full"
                 >
                   <HugeiconsIcon icon={Link01Icon} data-icon="inline-start" />
                   Junction
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => deleteTable(table.id)}
-                  className="w-full"
-                >
+                <Button variant="outline" onClick={() => deleteTable(table.id)}>
                   <HugeiconsIcon icon={Delete02Icon} data-icon="inline-start" />
                   Delete
                 </Button>
