@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useMemo,
   useRef,
   useState,
   type ComponentProps,
@@ -28,17 +29,20 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { PeerCursors } from "@/app/components/collab-presence";
-import type {
-  Column,
-  Memo,
-  Relationship,
-  SchemaGroup,
-  Table,
+import {
+  tableHeight,
+  tableWidth,
+  type Column,
+  type Memo,
+  type Relationship,
+  type SchemaGroup,
+  type Table,
 } from "@/app/lib/schema";
 import type { Rect } from "@/app/lib/selection";
 import { isSelected, selectOnly } from "@/app/lib/selection";
 import type { ShortcutId } from "@/app/lib/shortcuts";
 import { enclosedBy, relationshipCardinalities } from "../geometry";
+import { idealBend, routeEdges } from "../edge-routing";
 import { ShortcutKeys } from "../primitives";
 import { useDesignerSettings, useSchema, useSelect } from "@/app/hooks";
 import { Dock } from "./dock";
@@ -212,6 +216,67 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
   );
 
   /*
+   * Both ends of every edge, resolved once. `relationshipPoint` keeps per-anchor
+   * hysteresis in a ref, so it is called on every render rather than inside a
+   * memo -- skipping a render would freeze the flank an edge leaves from.
+   */
+  const edges = g.relationships.map((relationship) => ({
+    id: relationship.id,
+    relationship: relationship.relationship,
+    from: {
+      ...g.relationshipPoint(
+        relationship.from,
+        relationship.fromIndex,
+        relationship.to,
+        `${relationship.id}:from`,
+      ),
+      tableId: relationship.from.id,
+    },
+    to: {
+      ...g.relationshipPoint(
+        relationship.to,
+        relationship.toIndex,
+        relationship.from,
+        `${relationship.id}:to`,
+      ),
+      tableId: relationship.to.id,
+    },
+  }));
+
+  /*
+   * Routing is the one thing here that reads the whole diagram, so it is keyed
+   * on *committed* geometry: a drag moves cards a hundred times a second and
+   * re-routing all of them per frame is exactly the cost the gesture layer was
+   * moved down here to avoid. The signature only changes when a position is
+   * committed, so a drag reuses the map it started with and the trunks re-settle
+   * once, on release.
+   */
+  const routeSignature = [
+    schema.tables
+      .map((table) => `${table.id}@${table.x},${table.y}`)
+      .join("|"),
+    g.relationships
+      .map((edge) => `${edge.id}:${edge.fromIndex}:${edge.toIndex}`)
+      .join("|"),
+  ].join("#");
+  const routes = useMemo(
+    () =>
+      routeEdges(
+        edges.map(({ id, from, to }) => ({ id, from, to })),
+        schema.tables.map((table) => ({
+          id: table.id,
+          x: table.x,
+          y: table.y,
+          width: tableWidth(table),
+          height: tableHeight(table),
+        })),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the signature is
+    // the dependency; `edges` is rebuilt every render by design (see above).
+    [routeSignature],
+  );
+
+  /*
    * A group's body is `pointer-events: none` so the canvas can be panned and
    * marquee-selected straight through it, which means a right-click inside one
    * lands on the canvas and never reaches the group at all. Only the head and
@@ -359,36 +424,34 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
           between two cards a long way out still draws.
         */}
           <svg className="edges" aria-hidden="true">
-            {g.relationships.map((relationship) => {
-              const from = g.relationshipPoint(
-                relationship.from,
-                relationship.fromIndex,
-                relationship.to,
-                `${relationship.id}:from`,
-              );
-              const to = g.relationshipPoint(
-                relationship.to,
-                relationship.toIndex,
-                relationship.from,
-                `${relationship.id}:to`,
-              );
+            {edges.map(({ id, relationship, from, to }) => {
               const [fromCardinality, toCardinality] =
-                relationshipCardinalities(relationship.relationship);
+                relationshipCardinalities(relationship);
+              // A card in flight has moved out from under the routed map, so
+              // its edges fall back to the bend they can derive on their own
+              // until the position is committed and everything re-routes.
+              const moving =
+                g.dragPosition?.id === from.tableId ||
+                g.dragPosition?.id === to.tableId;
               return (
                 <RelationshipEdge
-                  key={relationship.id}
+                  key={id}
                   fromX={from.x}
                   fromY={from.y}
                   fromDirection={from.direction}
                   toX={to.x}
                   toY={to.y}
                   toDirection={to.direction}
+                  bendX={
+                    moving
+                      ? idealBend(from, to)
+                      : (routes.get(id) ?? idealBend(from, to))
+                  }
                   fromCardinality={fromCardinality}
                   toCardinality={toCardinality}
-                  label={relationship.relationship.name}
+                  label={relationship.name}
                   active={
-                    selectedId === relationship.from.id ||
-                    selectedId === relationship.to.id
+                    selectedId === from.tableId || selectedId === to.tableId
                   }
                   showCardinality={settings.showCardinality}
                   showLabel={settings.showRelationshipLabels}

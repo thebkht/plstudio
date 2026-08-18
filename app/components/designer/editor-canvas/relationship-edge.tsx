@@ -1,6 +1,7 @@
 "use client";
 
 import { memo } from "react";
+import { MARKER_DISTANCE } from "../constants";
 
 /**
  * One relationship as SVG. Up to nine nodes per edge and a nine-command path
@@ -10,11 +11,6 @@ import { memo } from "react";
  * table moves two anchors, and memo lets every other edge skip re-rendering
  * rather than rebuilding an identical path.
  */
-
-/** How far an edge runs straight out of its anchor before it is allowed to turn. */
-const EDGE_STUB = 44;
-/** Markers sit on the stub, short of the bend. */
-const MARKER_DISTANCE = 28;
 
 /**
  * SVG text cannot ellipsize in CSS, and generated FK names run long enough to
@@ -37,6 +33,7 @@ export const RelationshipEdge = memo(function RelationshipEdge({
   toX,
   toY,
   toDirection,
+  bendX,
   fromCardinality,
   toCardinality,
   label,
@@ -50,6 +47,9 @@ export const RelationshipEdge = memo(function RelationshipEdge({
   toX: number;
   toY: number;
   toDirection: number;
+  /** Where the vertical trunk runs, decided across the whole diagram by
+   *  `routeEdges` so the trunks fan into lanes instead of stacking. */
+  bendX: number;
   fromCardinality: string;
   toCardinality: string;
   label: string;
@@ -60,17 +60,9 @@ export const RelationshipEdge = memo(function RelationshipEdge({
   const deltaY = toY - fromY;
   // Every edge leaves its anchor sideways and runs clear of the card before it
   // turns, so the line always emerges from the column's own edge and passes
-  // through that end's marker. The bend can then only be placed beyond both
-  // stubs — halfway between them when the cards face each other, past the
-  // further one when both ends leave on the same side.
-  const fromStub = fromX + fromDirection * EDGE_STUB;
-  const toStub = toX + toDirection * EDGE_STUB;
-  const bendX =
-    fromDirection !== toDirection
-      ? (fromStub + toStub) / 2
-      : fromDirection === 1
-        ? Math.max(fromStub, toStub)
-        : Math.min(fromStub, toStub);
+  // through that end's marker. Where it then turns is `bendX`, which is not
+  // this edge's to decide: a bend that reads well is one no other trunk and no
+  // card is already sitting on, and only the router sees all of them.
   const exitDirection = Math.sign(bendX - fromX) || fromDirection;
   const enterDirection = Math.sign(toX - bendX) || toDirection;
   const verticalDirection = Math.sign(deltaY) || 1;

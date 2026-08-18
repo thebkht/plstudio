@@ -67,6 +67,30 @@ export const GROUP_HEADER_HEIGHT = 42;
 export const TABLE_GAP = 18;
 /** How far an edge runs straight out of its anchor before it may turn. Long
  *  enough to clear the cardinality marker that sits on that run. */
+export const EDGE_STUB = 44;
+/** Cardinality markers sit on that stub, short of the bend. */
+export const MARKER_DISTANCE = 28;
+/**
+ * Spacing between two edges' vertical trunks. Wide enough that two adjacent
+ * 2.5px strokes read as two lines rather than one thick one, narrow enough that
+ * a dozen edges sharing a corridor still fit inside it.
+ */
+export const LANE_PITCH = 14;
+/** Slack on the "do these two trunks overlap" test, so trunks that merely meet
+ *  end to end still count -- they would draw as one unbroken stroke. */
+export const LANE_SHARE_MARGIN = 6;
+/** Clearance kept between a trunk and the card it routes past. */
+export const EDGE_CARD_CLEARANCE = 10;
+/** How far past its anchors a trunk may be pushed to find a clearer lane. */
+export const EDGE_MAX_DETOUR = 320;
+/**
+ * What a lane costs, in pixels of detour. Crossing a card is worth a long walk
+ * around it; sharing a lane with an overlapping trunk is worth a shorter one.
+ */
+export const EDGE_CROSS_PENALTY = 1000;
+export const EDGE_SHARE_PENALTY = 260;
+/** Candidate lanes examined per edge, so a wide corridor stays O(1) to search. */
+export const EDGE_LANE_SAMPLES = 64;
 export const MEMO_COLORS: {
   id: MemoColor;
   label: string;
