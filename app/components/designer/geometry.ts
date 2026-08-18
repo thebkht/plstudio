@@ -19,6 +19,7 @@ import {
   WHEEL_LINE_HEIGHT,
   WHEEL_PAGE_HEIGHT,
 } from "./constants";
+import { layeredPlaces, type LayoutLink } from "./graph-layout";
 
 /** Pixels per unit of a wheel event's delta, whichever unit the device reports. */
 export const wheelScale = (event: WheelEvent) =>
@@ -198,6 +199,13 @@ const tidyColumns = (count: number) =>
 /**
  * Rearranges every card without ever changing which group it belongs to.
  *
+ * Inside a bucket -- a group's members, or the loose tables taken together --
+ * the arrangement comes from the foreign keys between them: `layeredPlaces`
+ * puts a child one column left of its parent and orders each column to pull
+ * the edges between two columns straight. A bucket whose members reference
+ * nothing falls through to the shelf packer, so a diagram with no
+ * relationships tidies exactly as it always did.
+ *
  * Membership is re-derived geometrically the next time a group is resized --
  * `commitGroupSize` tests each member's *centre* with `enclosedBy` -- so a
  * layout that moved a table outside its group's box would not merely look
@@ -210,13 +218,47 @@ const tidyColumns = (count: number) =>
 export function tidyLayout(schema: Schema): Schema {
   const next = cloneSchema(schema);
   const boxOf = (table: Table) => ({ width: tableWidth(table), height: tableHeight(table) });
+  const links: LayoutLink[] = (next.relationships ?? []).map((relationship) => ({
+    from: relationship.startTableId,
+    to: relationship.endTableId,
+  }));
+  /** Which bucket a table is in, so an inter-group edge can be told apart. */
+  const bucketOf = new Map(next.tables.map((table) => [table.id, table.schemaId ?? ""]));
+  const within = (members: Table[]) => {
+    const inside = new Set(members.map((table) => table.id));
+    return links.filter((link) => inside.has(link.from) && inside.has(link.to));
+  };
+  /**
+   * The graph decides the arrangement wherever there is one to read. A bucket
+   * with no edges of its own has nothing to layer, and the shelf packer's grid
+   * is the better answer there -- it is also the answer this has always given.
+   */
+  const arrange = (members: Table[], shelfWidth: (boxes: PackBox[]) => number) => {
+    const boxes = members.map(boxOf);
+    const edges = within(members);
+    return edges.length
+      ? layeredPlaces(
+          members.map((table, index) => ({ id: table.id, ...boxes[index] })),
+          edges,
+          TIDY_GAP,
+        )
+      : packBoxes(boxes, shelfWidth(boxes), TIDY_GAP);
+  };
+  /** The two shelf shapes tidy has always used, kept for the bucket that has
+   *  no edges to lay out. */
+  const groupShelf = (boxes: PackBox[]) => {
+    const widest = Math.max(GROUP_MIN_WIDTH - TIDY_MARGIN * 2, ...boxes.map((box) => box.width));
+    const columns = tidyColumns(boxes.length);
+    return columns * widest + (columns - 1) * TIDY_GAP;
+  };
+  const looseShelf = (boxes: PackBox[]) => {
+    const widest = Math.max(1, ...boxes.map((box) => box.width));
+    return TIDY_MAX_COLUMNS * widest + (TIDY_MAX_COLUMNS - 1) * TIDY_GAP;
+  };
   // Sized against their own members first; where they land is decided after.
   const filled = (next.groups ?? []).map((group) => {
     const members = next.tables.filter((table) => table.schemaId === group.id);
-    const boxes = members.map(boxOf);
-    const widest = Math.max(GROUP_MIN_WIDTH - TIDY_MARGIN * 2, ...boxes.map((box) => box.width));
-    const columns = tidyColumns(boxes.length);
-    const packed = packBoxes(boxes, columns * widest + (columns - 1) * TIDY_GAP, TIDY_GAP);
+    const packed = arrange(members, groupShelf);
     return {
       group,
       members,
@@ -225,9 +267,39 @@ export function tidyLayout(schema: Schema): Schema {
       height: Math.max(GROUP_MIN_HEIGHT, GROUP_HEADER_HEIGHT + packed.height + TIDY_MARGIN * 2),
     };
   });
-  const flow = packBoxes(filled, TIDY_ROW_WIDTH, TIDY_GROUP_GAP);
+  /**
+   * Groups flow in the order the edges between them suggest: start from the
+   * most connected, then keep appending whichever unplaced group is most
+   * connected to the one just placed. It only shortens the long trunks that
+   * cross the whole canvas, and with no inter-group edges every weight is zero
+   * and the order falls back to the array's own -- what it has always been.
+   */
+  const weight = (a: string, b: string) =>
+    links.filter(
+      (link) =>
+        (bucketOf.get(link.from) === a && bucketOf.get(link.to) === b) ||
+        (bucketOf.get(link.from) === b && bucketOf.get(link.to) === a),
+    ).length;
+  const total = (id: string) =>
+    filled.reduce((sum, other) => sum + (other.group.id === id ? 0 : weight(id, other.group.id)), 0);
+  const order: number[] = [];
+  const pending = filled.map((_, index) => index);
+  while (pending.length) {
+    const last = order.length ? filled[order[order.length - 1]].group.id : null;
+    const pick = pending.reduce((best, index) =>
+      // Original index last, so a tie can only ever resolve one way.
+      (last ? weight(last, filled[index].group.id) : total(filled[index].group.id)) >
+      (last ? weight(last, filled[best].group.id) : total(filled[best].group.id))
+        ? index
+        : best,
+    );
+    order.push(pick);
+    pending.splice(pending.indexOf(pick), 1);
+  }
+  const flow = packBoxes(order.map((index) => filled[index]), TIDY_ROW_WIDTH, TIDY_GROUP_GAP);
   let bottom = TIDY_ORIGIN;
-  filled.forEach((entry, index) => {
+  order.forEach((entryIndex, index) => {
+    const entry = filled[entryIndex];
     const x = TIDY_ORIGIN + flow.places[index].x;
     const y = TIDY_ORIGIN + flow.places[index].y;
     const dx = x - entry.group.x;
@@ -248,14 +320,8 @@ export function tidyLayout(schema: Schema): Schema {
   const loose = next.tables.filter(
     (table) => !filled.some((entry) => entry.group.id === table.schemaId),
   );
-  const boxes = loose.map(boxOf);
-  const widest = Math.max(1, ...boxes.map((box) => box.width));
   const top = filled.length ? bottom + TIDY_GROUP_GAP : TIDY_ORIGIN;
-  packBoxes(
-    boxes,
-    TIDY_MAX_COLUMNS * widest + (TIDY_MAX_COLUMNS - 1) * TIDY_GAP,
-    TIDY_GAP,
-  ).places.forEach((place, index) => {
+  arrange(loose, looseShelf).places.forEach((place, index) => {
     loose[index].x = TIDY_ORIGIN + place.x;
     loose[index].y = top + place.y;
   });

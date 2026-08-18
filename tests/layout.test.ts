@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { enclosedBy, tidyLayout } from "@/app/components/designer/geometry";
+import { layeredPlaces } from "@/app/components/designer/graph-layout";
 import { GROUP_MIN_HEIGHT, GROUP_MIN_WIDTH } from "@/app/components/designer/constants";
 import { makeColumn, makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, tableHeight, tableWidth, type Schema, type SchemaGroup, type Table } from "@/app/lib/schema";
 
@@ -107,5 +108,106 @@ describe("tidyLayout", () => {
     const empty: Schema = { ...plain, groups: [makeSchemaGroup("Empty", 0, 0, 0)] };
     const group = tidyLayout(empty).groups![0];
     expect([group.width, group.height]).toEqual([GROUP_MIN_WIDTH, GROUP_MIN_HEIGHT]);
+  });
+});
+
+const sq = (id: string) => ({ id, width: 100, height: 40 });
+const at = (result: { places: { x: number; y: number }[] }, index: number) => result.places[index];
+
+describe("layeredPlaces", () => {
+  it("puts a chain in ascending columns", () => {
+    const result = layeredPlaces([sq("a"), sq("b"), sq("c")], [{ from: "a", to: "b" }, { from: "b", to: "c" }], 24);
+    expect(at(result, 0).x).toBeLessThan(at(result, 1).x);
+    expect(at(result, 1).x).toBeLessThan(at(result, 2).x);
+    expect(result.width).toBe(100 * 3 + 24 * 2);
+  });
+
+  it("shares a column between siblings and stacks them", () => {
+    const result = layeredPlaces([sq("root"), sq("a"), sq("b")], [{ from: "root", to: "a" }, { from: "root", to: "b" }], 24);
+    expect(at(result, 1).x).toBe(at(result, 2).x);
+    expect(Math.abs(at(result, 1).y - at(result, 2).y)).toBe(40 + 24);
+  });
+
+  it("survives a cycle by dropping the arc that closes it", () => {
+    const cyclic = layeredPlaces([sq("a"), sq("b"), sq("c")], [{ from: "a", to: "b" }, { from: "b", to: "c" }, { from: "c", to: "a" }], 24);
+    expect(cyclic.places).toHaveLength(3);
+    expect(new Set(cyclic.places.map((place) => place.x)).size).toBe(3);
+  });
+
+  it("ignores self-references, duplicates and dangling ends", () => {
+    const result = layeredPlaces([sq("a"), sq("b")], [{ from: "a", to: "a" }, { from: "a", to: "b" }, { from: "a", to: "b" }, { from: "a", to: "gone" }], 24);
+    expect(at(result, 0).x).toBeLessThan(at(result, 1).x);
+  });
+
+  it("orders a column to uncross the edges between two columns", () => {
+    // Written crossed: the first left node points at the second right node.
+    const boxes = [sq("l1"), sq("l2"), sq("r1"), sq("r2")];
+    const result = layeredPlaces(boxes, [{ from: "l1", to: "r2" }, { from: "l2", to: "r1" }], 24);
+    const [l1, l2, r1, r2] = result.places;
+    // Whichever way the sweep settles, the two edges must run parallel.
+    expect(Math.sign(l1.y - l2.y)).toBe(Math.sign(r2.y - r1.y));
+  });
+
+  it("is the same layout whatever order the boxes and links arrive in", () => {
+    const boxes = [sq("a"), sq("b"), sq("c"), sq("d")];
+    const links = [{ from: "a", to: "b" }, { from: "a", to: "c" }, { from: "b", to: "d" }];
+    const forward = layeredPlaces(boxes, links, 24);
+    const shuffled = layeredPlaces([...boxes].reverse(), [...links].reverse(), 24);
+    boxes.forEach((box, index) => expect(forward.places[index]).toEqual(shuffled.places[boxes.length - 1 - index]));
+  });
+
+  it("has nothing to say about an empty bucket", () => {
+    expect(layeredPlaces([], [], 24)).toEqual({ places: [], width: 0, height: 0 });
+  });
+});
+
+/** The strewn fixture, wired up: A→B→C inside Core, and one edge into Edge's D. */
+function related() {
+  const { schema, coreId, edgeId } = strewn();
+  const id = (name: string) => schema.tables.find((table) => table.name === name)!.id;
+  const link = (from: string, to: string, index: number) => ({
+    id: `r${index}`,
+    startTableId: id(from),
+    startFieldId: "f",
+    endTableId: id(to),
+    endFieldId: "f",
+    fields: [],
+    name: `fk_${index}`,
+    cardinality: "many_to_one" as const,
+    manyLabel: "n",
+    updateConstraint: "No action" as const,
+    deleteConstraint: "No action" as const,
+  });
+  return {
+    schema: { ...schema, relationships: [link("A_VERY_LONG_TABLE_NAME_INDEED", "B", 1), link("B", "C", 2), link("C", "D", 3), link("LOOSE_ONE", "LOOSE_TWO", 4)] },
+    coreId,
+    edgeId,
+  };
+}
+
+describe("tidyLayout, with relationships to read", () => {
+  it("still keeps every member's centre inside its own group", () => {
+    const next = tidyLayout(related().schema);
+    const groups = new Map((next.groups ?? []).map((group) => [group.id, group]));
+    next.tables.filter((table) => table.schemaId).forEach((table) => expect(holds(groups.get(table.schemaId!)!, table)).toBe(true));
+  });
+
+  it("still keeps loose tables out of every group's box, and overlaps nothing", () => {
+    const next = tidyLayout(related().schema);
+    next.tables.filter((table) => !table.schemaId).forEach((table) => (next.groups ?? []).forEach((group) => expect(holds(group, table)).toBe(false)));
+    const boxes = next.tables.map(boxOf);
+    boxes.forEach((box, index) => boxes.slice(index + 1).forEach((other) => expect(overlaps(box, other)).toBe(false)));
+  });
+
+  it("lays a group's chain out in ascending columns", () => {
+    const next = tidyLayout(related().schema);
+    const byName = (name: string) => next.tables.find((table) => table.name === name)!;
+    expect(byName("A_VERY_LONG_TABLE_NAME_INDEED").x).toBeLessThan(byName("B").x);
+    expect(byName("B").x).toBeLessThan(byName("C").x);
+  });
+
+  it("is still a no-op the second time", () => {
+    const once = tidyLayout(related().schema);
+    expect(tidyLayout(once)).toEqual(once);
   });
 });
