@@ -21,7 +21,7 @@ export type DesignerSettings = {
 const DEFAULT_SETTINGS: DesignerSettings = {
   showCardinality: true,
   showRelationshipLabels: true,
-  dimUnrelated: true,
+  dimUnrelated: false,
   autoSave: false,
 };
 
@@ -58,10 +58,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     window.localStorage.setItem("plstudio-settings", JSON.stringify(settings));
   }, [settings]);
 
-  const value = useMemo(() => ({ settings, setSettings, isMac }), [
-    settings,
-    isMac,
-  ]);
+  const value = useMemo(
+    () => ({ settings, setSettings, isMac }),
+    [settings, isMac],
+  );
   return (
     <SettingsContext.Provider value={value}>
       {children}
