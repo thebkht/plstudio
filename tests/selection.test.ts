@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateDDL } from "@/app/lib/generators";
 import { makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, normalizeRelationships, tableWidth, type Relationship, type Schema } from "@/app/lib/schema";
-import { EMPTY_SELECTION, marqueeSelection, neighbourhood, moveSelection, movingEntities, pruneSelection, rectFromPoints, removeSelection, selectAll, selectionBounds, selectionCount, selectionSchema, selectOnly, toggleSelected } from "@/app/lib/selection";
+import { EMPTY_SELECTION, focusedEntities, marqueeSelection, neighbourhood, moveSelection, movingEntities, pruneSelection, rectFromPoints, removeSelection, selectAll, selectionBounds, selectionCount, selectionSchema, selectOnly, toggleSelected } from "@/app/lib/selection";
 
 /**
  * A group at (400,400) sized 760x520, holding one table and one memo, with a
@@ -189,5 +189,25 @@ describe("neighbourhood", () => {
   it("lights only itself when nothing references it", () => {
     expect([...neighbourhood(chain(), "d").tables]).toEqual(["d"]);
     expect(neighbourhood(chain(), "d").edges.size).toBe(0);
+  });
+});
+
+describe("focusedEntities", () => {
+  it("lights a table's whole neighbourhood", () => {
+    const { tables, edges } = focusedEntities(chain(), { kind: "table", id: "b" });
+    expect([...tables].sort()).toEqual(["a", "b", "c"]);
+    expect([...edges].sort()).toEqual(["r1", "r2"]);
+  });
+
+  it("lights only the two ends of one line", () => {
+    const { tables, edges } = focusedEntities(chain(), { kind: "edge", id: "r1" });
+    expect([...tables].sort()).toEqual(["a", "b"]);
+    expect([...edges]).toEqual(["r1"]);
+  });
+
+  it("lights nothing for no target, or for one that is gone", () => {
+    expect(focusedEntities(chain(), null).tables.size).toBe(0);
+    expect(focusedEntities(chain(), { kind: "edge", id: "deleted" }).tables.size).toBe(0);
+    expect(focusedEntities(chain(), { kind: "edge", id: "deleted" }).edges.size).toBe(0);
   });
 });

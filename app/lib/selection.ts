@@ -239,3 +239,23 @@ export function neighbourhood(relationships: Relationship[], rootId: string | nu
   });
   return { tables, edges };
 }
+
+/** What the canvas is focused on: a card, or one of the lines between them. */
+export type FocusTarget = { kind: "table" | "edge"; id: string };
+
+/**
+ * What stays lit, for either kind of focus.
+ *
+ * Pointing at a table asks "what does this touch"; pointing at one line asks
+ * the narrower question "what does *this* join", and answers it with the two
+ * tables at its ends and nothing else. A target naming something that no longer
+ * exists lights nothing, and the canvas dims nothing rather than everything.
+ */
+export function focusedEntities(relationships: Relationship[], target: FocusTarget | null) {
+  if (!target) return { tables: new Set<string>(), edges: new Set<string>() };
+  if (target.kind === "table") return neighbourhood(relationships, target.id);
+  const edge = relationships.find((relationship) => relationship.id === target.id);
+  return edge
+    ? { tables: new Set([edge.startTableId, edge.endTableId]), edges: new Set([edge.id]) }
+    : { tables: new Set<string>(), edges: new Set<string>() };
+}

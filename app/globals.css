@@ -1410,6 +1410,12 @@ button {
 .canvas-wrap.focusing .relationship.dimmed .relationship-path {
   stroke-width: 1.5;
 }
+/* The one place dimming is a gate rather than a hint. The edge layer sits over
+   the cards while focusing, so a faded slab left hoverable would answer for
+   every card underneath it. */
+.canvas-wrap.focusing .relationship.dimmed {
+  pointer-events: none;
+}
 /* Same rule the edges follow: nothing animates mid-gesture. */
 .canvas-wrap.gesturing .dimmed {
   transition: none;
