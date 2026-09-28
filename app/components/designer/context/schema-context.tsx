@@ -24,12 +24,12 @@ import {
   type Table,
   type UniqueConstraint,
 } from "@/app/lib/schema";
-import { generateDDL } from "@/app/lib/generators";
 import { validateSchema } from "@/app/lib/validation";
 import type { ValidationIssue } from "@/app/lib/validation";
 import { useLayout } from "@/app/hooks/use-layout";
 import { useSaveState } from "@/app/hooks/use-save-state";
 import { prepareCanvasSchema } from "../geometry";
+import { useWorkerDDL } from "./use-worker-ddl";
 
 export type SchemaProviderProps = {
   initialSchema: Schema;
@@ -417,12 +417,10 @@ export function SchemaProvider({
    * Generating SQL is the most expensive thing a schema change can trigger, and
    * almost every schema change discards the result: the code panel and the
    * export dialog are the only readers. Gate each generator on a visible reader
-   * so typing doesn't rebuild DDL nobody is looking at.
+   * so typing doesn't rebuild DDL nobody is looking at -- and, when someone is,
+   * build it in a worker so typing doesn't wait on it either.
    */
-  const ddl = useMemo(
-    () => (panelMode === "code" ? generateDDL(schema) : ""),
-    [panelMode, schema],
-  );
+  const ddl = useWorkerDDL(schema, panelMode === "code");
 
   const value = useMemo(
     () => ({
