@@ -1,9 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import type { Schema } from "@/app/lib/schema";
 import type { ValidationIssue } from "@/app/lib/validation";
 import { useLayout, useSchema } from "@/app/hooks";
-import { ExportModal } from "./export";
+import { ExportModal, type ExportTab, type MigrationBaseline } from "./export";
 import {
   ImportModal,
   type ImportFormat,
@@ -43,6 +44,9 @@ export function Modals({
   const { modal, setModal } = useLayout();
   const { schema, errors } = useSchema();
   const close = (open: boolean) => !open && setModal(null);
+  const [exportTab, setExportTab] = useState<ExportTab>("ddl");
+  // Kept across openings: comparing against the same baseline is the common case.
+  const [baseline, setBaseline] = useState<MigrationBaseline | null>(null);
 
   return (
     <>
@@ -59,6 +63,10 @@ export function Modals({
         schema={schema as Schema}
         errors={errors as ValidationIssue[]}
         onClearInvalidForeignKeys={onClearInvalidForeignKeys}
+        exportTab={exportTab}
+        onExportTabChange={setExportTab}
+        baseline={baseline}
+        onBaselineChange={setBaseline}
       />
       <ImportModal
         isOpen={modal === "import"}
