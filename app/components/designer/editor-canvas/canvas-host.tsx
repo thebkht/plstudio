@@ -23,6 +23,7 @@ import {
 import { shortcutHint, type ShortcutId } from "@/app/lib/shortcuts";
 import type { Table } from "@/app/lib/schema";
 import { HEADER_HEIGHT, ROW_HEIGHT } from "../constants";
+import { facingSide } from "../edge-routing";
 
 export type CanvasHostProps = {
   readOnly: boolean;
@@ -132,22 +133,10 @@ export function CanvasHost({
     const otherOrigin = livePosition(other);
 
     const width = liveWidth(table);
+    const otherWidth = liveWidth(other);
     const right = origin.x + width;
-    const otherRight = otherOrigin.x + liveWidth(other);
-
-    // Comparing card extents ensures that when cards are clear of each other,
-    // they leave facing each other (right edge to left edge, or vice versa).
-    // Cards that overlap horizontally have no clear facing side, so both
-    // ends route out the same flank (C-shaped curve) around whichever side
-    // (left or right) has closer aligning edges.
-    const raw: 1 | -1 =
-      otherOrigin.x >= right
-        ? 1
-        : otherRight <= origin.x
-          ? -1
-          : Math.abs(right - otherRight) <= Math.abs(origin.x - otherOrigin.x)
-            ? 1
-            : -1;
+    const otherRight = otherOrigin.x + otherWidth;
+    const raw = facingSide(origin.x, width, otherOrigin.x, otherWidth);
 
     // Hysteresis: keep the previous direction unless the card position has moved
     // past the boundary margin to avoid edge flipping flicker.

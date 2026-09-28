@@ -2,6 +2,7 @@
 
 import { memo } from "react";
 import { MARKER_DISTANCE } from "../constants";
+import { edgePath } from "../edge-routing";
 
 /**
  * One relationship as SVG. Up to nine nodes per edge and a nine-command path
@@ -59,27 +60,16 @@ export const RelationshipEdge = memo(function RelationshipEdge({
   showCardinality: boolean;
   showLabel: boolean;
 }) {
-  const deltaY = toY - fromY;
   // Every edge leaves its anchor sideways and runs clear of the card before it
   // turns, so the line always emerges from the column's own edge and passes
   // through that end's marker. Where it then turns is `bendX`, which is not
   // this edge's to decide: a bend that reads well is one no other trunk and no
   // card is already sitting on, and only the router sees all of them.
-  const exitDirection = Math.sign(bendX - fromX) || fromDirection;
-  const enterDirection = Math.sign(toX - bendX) || toDirection;
-  const verticalDirection = Math.sign(deltaY) || 1;
-  const radius = Math.min(
-    10,
-    Math.abs(bendX - fromX) / 2,
-    Math.abs(toX - bendX) / 2,
-    Math.abs(deltaY) / 2,
+  const path = edgePath(
+    { x: fromX, y: fromY, direction: fromDirection },
+    { x: toX, y: toY, direction: toDirection },
+    bendX,
   );
-  // Facing anchors on the same row need no bend at all; the straight run
-  // already passes through both markers.
-  const path =
-    Math.abs(deltaY) <= 4 && fromDirection !== toDirection
-      ? `M ${fromX} ${fromY} L ${toX} ${toY}`
-      : `M ${fromX} ${fromY} H ${bendX - exitDirection * radius} Q ${bendX} ${fromY} ${bendX} ${fromY + verticalDirection * radius} V ${toY - verticalDirection * radius} Q ${bendX} ${toY} ${bendX + enterDirection * radius} ${toY} H ${toX}`;
   // The SVG paints before the cards, so the outward normal is the only
   // direction that clears the card a marker belongs to.
   const fromMarkerX = fromX + fromDirection * MARKER_DISTANCE;

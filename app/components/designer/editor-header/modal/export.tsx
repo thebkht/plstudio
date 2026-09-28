@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { toast } from "sonner";
 import {
   Cancel01Icon,
   Copy01Icon,
@@ -13,15 +14,18 @@ import { generateDDL, generateDML, generateMermaidER } from "@/app/lib/generator
 import { generateMigration } from "@/app/lib/migration";
 import { parseCreateTable } from "@/app/lib/parser";
 import { exportSchemaJson, parseSchemaJson } from "@/app/lib/schema-json";
+import { renderDiagramSVG, type DiagramTheme } from "../../diagram-svg";
+import { svgToPng } from "./svg-to-png";
 import type { Schema } from "@/app/lib/schema";
 import type { ValidationIssue } from "@/app/lib/validation";
 import { Alert, AlertAction, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { highlightJson, highlightMermaid, highlightSql } from "../../highlight";
 
-export type ExportTab = "ddl" | "dml" | "migration" | "mermaid" | "json";
+export type ExportTab = "ddl" | "dml" | "migration" | "mermaid" | "json" | "image";
 
 /**
  * What a migration is generated *from*: the database as it stands, which the
@@ -36,6 +40,7 @@ const exportTabs = [
   ["migration", "Migration"],
   ["mermaid", "Mermaid"],
   ["json", "JSON"],
+  ["image", "Image"],
 ] as const satisfies ReadonlyArray<readonly [ExportTab, string]>;
 
 /** `file.text()` resolves eagerly, so a huge file would freeze the tab first. */
@@ -70,6 +75,8 @@ export const ExportModal = ({
   const [copied, setCopied] = useState(false);
   const [baselineError, setBaselineError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [imageTheme, setImageTheme] = useState<DiagramTheme>("light");
+  const [rendering, setRendering] = useState(false);
   const ddl = useMemo(
     () => (isOpen && exportTab === "ddl" ? generateDDL(schema) : ""),
     [exportTab, isOpen, schema],
@@ -90,8 +97,13 @@ export const ExportModal = ({
     () => (isOpen && exportTab === "migration" && baseline ? generateMigration(baseline.schema, schema) : null),
     [baseline, exportTab, isOpen, schema],
   );
+  const svg = useMemo(
+    () => (isOpen && exportTab === "image" ? renderDiagramSVG(schema, { theme: imageTheme }) : ""),
+    [exportTab, imageTheme, isOpen, schema],
+  );
   const isJson = exportTab === "json";
   const isMigration = exportTab === "migration";
+  const isImage = exportTab === "image";
   const isMermaid = exportTab === "mermaid";
   const output =
     exportTab === "ddl"
@@ -102,7 +114,9 @@ export const ExportModal = ({
           ? mermaid
           : isMigration
             ? (migration?.sql ?? "")
-            : json;
+            : isImage
+              ? svg
+              : json;
 
   const openBaseline = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -129,25 +143,38 @@ export const ExportModal = ({
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1200);
   };
-  const download = () => {
-    const url = URL.createObjectURL(
-      new Blob([output], {
-        type: isJson ? "application/json" : "text/plain",
-      }),
-    );
+  const save = (blob: Blob, name: string) => {
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = isJson
-      ? `${fileSlug(schema.name)}.json`
-      : isMermaid
-        ? `${fileSlug(schema.name)}.mmd`
-        : isMigration
-          ? `${fileSlug(schema.name)}-migration.sql`
-          : exportTab === "dml"
-          ? "dml.sql"
-          : "schema.sql";
+    link.download = name;
     link.click();
     URL.revokeObjectURL(url);
+  };
+  const download = () =>
+    save(
+      new Blob([output], { type: isJson ? "application/json" : isImage ? "image/svg+xml" : "text/plain" }),
+      isJson
+        ? `${fileSlug(schema.name)}.json`
+        : isMermaid
+          ? `${fileSlug(schema.name)}.mmd`
+          : isMigration
+            ? `${fileSlug(schema.name)}-migration.sql`
+            : isImage
+              ? `${fileSlug(schema.name)}.svg`
+              : exportTab === "dml"
+                ? "dml.sql"
+                : "schema.sql",
+    );
+  const downloadPng = async () => {
+    setRendering(true);
+    try {
+      save(await svgToPng(svg), `${fileSlug(schema.name)}.png`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not render the PNG.");
+    } finally {
+      setRendering(false);
+    }
   };
 
   return (
@@ -181,7 +208,7 @@ export const ExportModal = ({
           </div>
         </div>
         {/* A JSON or Mermaid export is a snapshot of the diagram, not generated Oracle SQL, so an Oracle DDL error does not block it. */}
-        {errors.length > 0 && !isJson && !isMermaid && (
+        {errors.length > 0 && !isJson && !isMermaid && !isImage && (
           <Alert variant="destructive" className="mt-4">
             <HugeiconsIcon icon={Cancel01Icon} />
             <AlertTitle>
@@ -242,7 +269,43 @@ export const ExportModal = ({
             </pre>
           )}
         </TabsContent>
-        {exportTabs.filter(([key]) => key !== "migration").map(([key]) => (
+        <TabsContent id="image">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+            <ToggleGroup
+              aria-label="Image theme"
+              selectionMode="single"
+              disallowEmptySelection
+              selectedKeys={[imageTheme]}
+              onSelectionChange={(keys) => {
+                const [key] = [...keys];
+                if (key) setImageTheme(key as DiagramTheme);
+              }}
+            >
+              <ToggleGroupItem id="light">Light</ToggleGroupItem>
+              <ToggleGroupItem id="dark">Dark</ToggleGroupItem>
+            </ToggleGroup>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" isDisabled={!svg} onClick={download}>
+                <HugeiconsIcon icon={Download04Icon} data-icon="inline-start" />
+                SVG
+              </Button>
+              <Button variant="outline" size="sm" isDisabled={!svg || rendering} onClick={downloadPng}>
+                <HugeiconsIcon icon={Download04Icon} data-icon="inline-start" />
+                {rendering ? "Rendering…" : "PNG"}
+              </Button>
+            </div>
+          </div>
+          {svg && (
+            // A data URL rather than inline markup: the preview must not inherit the page's styles.
+            // eslint-disable-next-line @next/next/no-img-element -- generated locally, nothing to optimize
+            <img
+              className="diagram-preview mt-3"
+              src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`}
+              alt={`Diagram of ${schema.name}`}
+            />
+          )}
+        </TabsContent>
+        {exportTabs.filter(([key]) => key !== "migration" && key !== "image").map(([key]) => (
           <TabsContent key={key} id={key}>
             <pre className="code">
               <code>

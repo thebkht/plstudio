@@ -1898,6 +1898,16 @@ button {
   white-space: pre-wrap;
   tab-size: 2;
 }
+/* The exported image, scaled to fit: the dialog shows it, the download is full size. */
+.diagram-preview {
+  display: block;
+  width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: repeating-conic-gradient(var(--muted) 0 25%, transparent 0 50%) 0 0 / 16px 16px;
+}
 .code code,
 .sql-highlight code {
   font: inherit;

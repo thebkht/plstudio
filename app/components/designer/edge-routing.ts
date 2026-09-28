@@ -160,3 +160,33 @@ export function routeEdges(edges: EdgeInput[], obstacles: Obstacle[]) {
     });
   return routed;
 }
+
+/**
+ * Which flank of a card an edge leaves from, before any hysteresis: toward the
+ * other card when the two are clear of each other, and otherwise out whichever
+ * side has the closer-aligned edges, so overlapping cards get a C-shaped route.
+ * `relationshipPoint` adds the per-anchor memory on top; the image export,
+ * which draws one still frame, uses this as it is.
+ */
+export const facingSide = (x: number, width: number, otherX: number, otherWidth: number): 1 | -1 => {
+  const right = x + width;
+  const otherRight = otherX + otherWidth;
+  if (otherX >= right) return 1;
+  if (otherRight <= x) return -1;
+  return Math.abs(right - otherRight) <= Math.abs(x - otherX) ? 1 : -1;
+};
+
+/**
+ * The path an edge draws: out of its anchor sideways, a rounded turn onto the
+ * trunk at `bendX`, and in to the other anchor. Facing anchors on the same row
+ * need no bend at all.
+ */
+export function edgePath(from: Omit<EdgeEnd, "tableId">, to: Omit<EdgeEnd, "tableId">, bendX: number) {
+  const deltaY = to.y - from.y;
+  if (Math.abs(deltaY) <= 4 && from.direction !== to.direction) return `M ${from.x} ${from.y} L ${to.x} ${to.y}`;
+  const exitDirection = Math.sign(bendX - from.x) || from.direction;
+  const enterDirection = Math.sign(to.x - bendX) || to.direction;
+  const verticalDirection = Math.sign(deltaY) || 1;
+  const radius = Math.min(10, Math.abs(bendX - from.x) / 2, Math.abs(to.x - bendX) / 2, Math.abs(deltaY) / 2);
+  return `M ${from.x} ${from.y} H ${bendX - exitDirection * radius} Q ${bendX} ${from.y} ${bendX} ${from.y + verticalDirection * radius} V ${to.y - verticalDirection * radius} Q ${bendX} ${to.y} ${bendX + enterDirection * radius} ${to.y} H ${to.x}`;
+}
