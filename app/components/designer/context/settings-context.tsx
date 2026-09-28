@@ -16,6 +16,7 @@ export type DesignerSettings = {
    *  away from it. On by default: it is what makes a dense diagram legible. */
   dimUnrelated: boolean;
   autoSave: boolean;
+  showMinimap: boolean;
 };
 
 const DEFAULT_SETTINGS: DesignerSettings = {
@@ -23,6 +24,7 @@ const DEFAULT_SETTINGS: DesignerSettings = {
   showRelationshipLabels: true,
   dimUnrelated: false,
   autoSave: false,
+  showMinimap: true,
 };
 
 export type SettingsContextValue = {

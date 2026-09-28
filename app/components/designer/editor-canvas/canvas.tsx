@@ -46,6 +46,7 @@ import { idealBend, routeEdges } from "../edge-routing";
 import { ShortcutKeys } from "../primitives";
 import { useDesignerSettings, useSchema, useSelect } from "@/app/hooks";
 import { Dock } from "./dock";
+import { Minimap } from "./minimap";
 import { MemoCard } from "./memo-card";
 import { RelationshipEdge } from "./relationship-edge";
 import { SchemaGroupCard, SchemaGroupMenu } from "./schema-group";
@@ -544,6 +545,13 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
         The add commands are called, never passed: they take an optional canvas
         point, and a click handler would hand them the DOM event as one.
       */}
+        {settings.showMinimap && (
+          <Minimap
+            tables={schema.tables}
+            groups={schema.groups}
+            memos={schema.memos}
+          />
+        )}
         <Dock
           panMode={g.panMode}
           onToggleHand={g.onToggleHand}

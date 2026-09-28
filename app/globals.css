@@ -927,6 +927,69 @@ button {
   background: var(--surface-2);
 }
 /* ── Floating dock ─────────────────────────────────────────────────── */
+/*
+ * The overview map. Its outline is placed entirely in CSS from the camera
+ * properties `applyViewport` writes on `.canvas-wrap`, plus the map's own
+ * scale and offset, so panning and zooming move it without a React render.
+ */
+.minimap {
+  position: absolute;
+  left: 22px;
+  bottom: 22px;
+  z-index: 10;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-0) 88%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+  box-shadow: var(--shadow-dock);
+  cursor: pointer;
+  touch-action: none;
+}
+.minimap svg {
+  display: block;
+}
+.minimap-group,
+.minimap-memo {
+  opacity: 0.28;
+}
+.minimap-table {
+  opacity: 0.85;
+}
+.minimap-viewport {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(var(--wrap-w, 0px) * var(--inverse-zoom, 1) * var(--mm-scale));
+  height: calc(var(--wrap-h, 0px) * var(--inverse-zoom, 1) * var(--mm-scale));
+  transform: translate(
+    calc(var(--mm-x) - var(--pan-x, 0px) * var(--inverse-zoom, 1) * var(--mm-scale)),
+    calc(var(--mm-y) - var(--pan-y, 0px) * var(--inverse-zoom, 1) * var(--mm-scale))
+  );
+  border: 1.5px solid var(--primary);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  pointer-events: none;
+}
+.canvas-wrap.gesturing .minimap {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: var(--surface-0);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .minimap {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: var(--surface-0);
+  }
+}
+/* Narrow screens have no room for it beside the dock. */
+@media (max-width: 900px) {
+  .minimap {
+    display: none;
+  }
+}
 .dock {
   position: absolute;
   right: 22px;

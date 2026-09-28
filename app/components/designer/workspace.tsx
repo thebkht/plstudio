@@ -930,6 +930,14 @@ export default function Workspace({
         })),
     },
     {
+      label: `${relationSettings.showMinimap ? "Hide" : "Show"} minimap`,
+      onSelect: () =>
+        setRelationSettings((current) => ({
+          ...current,
+          showMinimap: !current.showMinimap,
+        })),
+    },
+    {
       label: `${relationSettings.autoSave ? "Turn off" : "Turn on"} auto-save`,
       onSelect: () =>
         setRelationSettings((current) => {
