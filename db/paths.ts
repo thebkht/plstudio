@@ -18,4 +18,5 @@ export const AUTH_DB_PATH = path.join(DATA_DIR, "auth.db");
 export const PROJECTS_DIR = path.join(DATA_DIR, "projects");
 export const YJS_DIR = path.join(DATA_DIR, "yjs");
 export const SHARES_DIR = path.join(DATA_DIR, "shares");
+export const HISTORY_DIR = path.join(DATA_DIR, "history");
 export const LOCKS_DIR = path.join(DATA_DIR, ".locks");

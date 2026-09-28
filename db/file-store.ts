@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 import type { Schema } from "@/app/lib/schema";
-import { LOCKS_DIR, PROJECTS_DIR, SHARES_DIR, YJS_DIR } from "./paths";
+import { HISTORY_DIR, LOCKS_DIR, PROJECTS_DIR, SHARES_DIR, YJS_DIR } from "./paths";
 
 /**
  * Projects live on disk, one JSON file each, instead of in Postgres. Field names
@@ -45,6 +45,7 @@ export const ownerSegment = (record: Pick<ProjectRecord, "organizationId" | "cre
 
 export const projectFile = (owner: string, id: string) => path.join(PROJECTS_DIR, owner, `${encodeURIComponent(id)}.json`);
 const yjsFile = (id: string) => path.join(YJS_DIR, `${encodeURIComponent(id)}.bin`);
+const historyDir = (id: string) => path.join(HISTORY_DIR, encodeURIComponent(id));
 const shareFile = (tokenHash: string) => path.join(SHARES_DIR, `${encodeURIComponent(tokenHash)}.json`);
 
 const isMissing = (error: unknown) => (error as NodeJS.ErrnoException)?.code === "ENOENT";
@@ -202,6 +203,7 @@ export async function deleteProject(id: string) {
   ownerOfProject.delete(id);
   if (found) { await fs.rm(found.file, { force: true }); await pruneOwnerDir(found.file); }
   await fs.rm(yjsFile(id), { force: true });
+  await fs.rm(historyDir(id), { recursive: true, force: true });
   const shareTokenHash = found?.stored.shareTokenHash;
   if (shareTokenHash) await fs.rm(shareFile(shareTokenHash), { force: true });
 }
@@ -233,6 +235,92 @@ export async function listProjects(filter: ListFilter = {}) {
 export async function reassignProjectOwner(fromUserId: string, toUserId: string) {
   const owned = await listProjects({ createdBy: fromUserId });
   await Promise.all(owned.map((project) => withProjectLock(project.id, () => updateProject(project.id, { createdBy: toUserId, updatedAt: project.updatedAt }))));
+}
+
+// --------------------------------------------------------------- versions
+
+/**
+ * Saved snapshots of a project's schema, one file each, under
+ * `history/<projectId>/`. `index.json` beside them carries every version's
+ * metadata, so listing the history never reads a schema. Callers hold the
+ * project lock, which is what serializes the index's read-modify-write; each
+ * file is still written atomically, the version before the index that names it.
+ */
+export type VersionMeta = {
+  id: string;
+  projectId: string;
+  /** The project revision the snapshot was taken at. */
+  revision: number;
+  name: string;
+  /** A name someone gave it. Labelled versions are never pruned. */
+  label: string | null;
+  createdAt: string;
+  createdBy: string | null;
+  tables: number;
+};
+export type VersionRecord = VersionMeta & { schemaJson: Schema };
+
+/** Unlabelled versions kept per project; the oldest go first. */
+export const VERSION_LIMIT = 100;
+
+const versionFile = (projectId: string, id: string) => path.join(historyDir(projectId), `${encodeURIComponent(id)}.json`);
+const indexFile = (projectId: string) => path.join(historyDir(projectId), "index.json");
+
+/** Newest first. */
+export const listVersions = async (projectId: string) => (await readJson<VersionMeta[]>(indexFile(projectId))) ?? [];
+
+export const readVersion = (projectId: string, id: string) => readJson<VersionRecord>(versionFile(projectId, id));
+
+/**
+ * What a version *is*, for "has anything changed": the schema without the
+ * fields every save bumps whether or not anything else moved.
+ */
+const content = ({ revision: _revision, updatedAt: _updatedAt, schemaFormatVersion: _format, ...rest }: Schema) => JSON.stringify(rest);
+
+/**
+ * Snapshot `project` as it is stored. Nothing is written when the schema is
+ * unchanged since the newest version -- saving twice in a row makes one
+ * version, not two -- except that a label names that newest version instead.
+ * Returns the version the history now ends with.
+ */
+export async function writeVersion(project: ProjectRecord, options: { label?: string | null; createdBy?: string | null } = {}) {
+  const versions = await listVersions(project.id);
+  const label = options.label?.trim() || null;
+  const newest = versions[0] && (await readVersion(project.id, versions[0].id));
+  if (newest && content(newest.schemaJson) === content(project.schemaJson)) {
+    if (!label || newest.label === label) return versions[0];
+    return updateVersionLabel(project.id, newest.id, label);
+  }
+  const createdAt = new Date();
+  const meta: VersionMeta = {
+    // Revision first so the files sort in history order; the time keeps two
+    // snapshots of one revision (the collab server bumps it too) distinct.
+    id: `${String(project.revision).padStart(8, "0")}-${createdAt.getTime().toString(36)}`,
+    projectId: project.id,
+    revision: project.revision,
+    name: project.schemaJson.name,
+    label,
+    createdAt: createdAt.toISOString(),
+    createdBy: options.createdBy ?? null,
+    tables: project.schemaJson.tables.length,
+  };
+  await writeAtomic(versionFile(project.id, meta.id), JSON.stringify({ ...meta, schemaJson: project.schemaJson } satisfies VersionRecord));
+  const unlabelled = [meta, ...versions].filter((version) => !version.label);
+  const pruned = new Set(unlabelled.slice(VERSION_LIMIT).map((version) => version.id));
+  await writeAtomic(indexFile(project.id), JSON.stringify([meta, ...versions].filter((version) => !pruned.has(version.id)), null, 2));
+  await Promise.all([...pruned].map((id) => fs.rm(versionFile(project.id, id), { force: true })));
+  return meta;
+}
+
+/** Name (or, with null, un-name) a version. Null when there is no such version. */
+export async function updateVersionLabel(projectId: string, id: string, label: string | null) {
+  const versions = await listVersions(projectId);
+  const record = await readVersion(projectId, id);
+  if (!record || !versions.some((version) => version.id === id)) return null;
+  const meta = { ...versions.find((version) => version.id === id)!, label: label?.trim() || null };
+  await writeAtomic(versionFile(projectId, id), JSON.stringify({ ...record, label: meta.label } satisfies VersionRecord));
+  await writeAtomic(indexFile(projectId), JSON.stringify(versions.map((version) => (version.id === id ? meta : version)), null, 2));
+  return meta;
 }
 
 // ------------------------------------------------------------------- yjs

@@ -153,6 +153,58 @@ describe("deleteProject", () => {
   });
 });
 
+describe("version history", () => {
+  /** Save the project with a changed schema, the way `PUT` does, and snapshot it. */
+  const save = async (id: string, tables: number, label?: string) => {
+    const current = (await store.readProject(id))!;
+    const schemaJson = { ...current.schemaJson, revision: current.revision + 1, tables: Array.from({ length: tables }, (_, index) => ({ ...current.schemaJson.tables[0], id: `t${index}`, name: `T${index}`, x: 0, y: 0, color: { a: "#000", b: "#000" }, keyStrategy: "none" as const, columns: [] })) };
+    const next = (await store.updateProject(id, { schemaJson, revision: current.revision + 1 }))!;
+    return store.writeVersion(next, { label, createdBy: "user-1" });
+  };
+
+  it("lists versions newest first and reads each one back whole", async () => {
+    await seed("p1");
+    await save("p1", 1);
+    await save("p1", 2);
+    const versions = await store.listVersions("p1");
+    expect(versions.map((version) => [version.revision, version.tables])).toEqual([[3, 2], [2, 1]]);
+    const oldest = await store.readVersion("p1", versions[1].id);
+    expect(oldest?.schemaJson.tables.map((table) => table.name)).toEqual(["T0"]);
+  });
+
+  it("does not snapshot a save that changed nothing, but names the newest version", async () => {
+    await seed("p1");
+    const first = (await save("p1", 1))!;
+    const current = (await store.readProject("p1"))!;
+    // A PUT bumps the revision even when the schema is identical.
+    const bumped = (await store.updateProject("p1", { revision: current.revision + 1, schemaJson: { ...current.schemaJson, revision: current.revision + 1 } }))!;
+    expect(await store.writeVersion(bumped)).toEqual(first);
+    const named = await store.writeVersion(bumped, { label: "Release 1" });
+    expect(named).toEqual({ ...first, label: "Release 1" });
+    expect(await store.listVersions("p1")).toEqual([named]);
+    expect((await store.readVersion("p1", first.id))?.label).toBe("Release 1");
+  });
+
+  it("prunes the oldest unlabelled versions past the limit, and never a labelled one", async () => {
+    await seed("p1");
+    const kept = await save("p1", 1, "Baseline");
+    for (let index = 0; index < store.VERSION_LIMIT + 2; index += 1) await save("p1", index + 2);
+    const versions = await store.listVersions("p1");
+    expect(versions.filter((version) => !version.label)).toHaveLength(store.VERSION_LIMIT);
+    expect(versions.at(-1)).toEqual(kept);
+    const files = await fs.readdir(path.join(root, "history", "p1"));
+    expect(files).toHaveLength(store.VERSION_LIMIT + 2);
+  });
+
+  it("goes with the project when it is deleted", async () => {
+    await seed("p1");
+    await save("p1", 1);
+    await store.deleteProject("p1");
+    expect(await store.listVersions("p1")).toEqual([]);
+    await expect(fs.stat(path.join(root, "history", "p1"))).rejects.toThrow();
+  });
+});
+
 describe("migrate-storage-layout", () => {
   const projects = path.join(root, "projects");
 

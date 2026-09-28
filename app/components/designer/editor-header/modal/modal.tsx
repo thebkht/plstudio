@@ -10,6 +10,7 @@ import {
   type ImportFormat,
   type ImportMessage,
 } from "./import";
+import { HistoryModal } from "./history";
 import { ShareModal } from "./share";
 import { ShortcutsModal } from "./shortcuts";
 
@@ -17,12 +18,15 @@ export type ModalsProps = {
   projectId: string;
   workspaceSlug?: string;
   workspaceId?: string;
+  shareToken?: string;
   readOnly: boolean;
   importMessage: ImportMessage | null;
   onImportMessage: (message: ImportMessage | null) => void;
   onReplace: (text: string, format: ImportFormat) => void;
   onAppend: (text: string, format: ImportFormat) => void;
   onClearInvalidForeignKeys: () => void;
+  onSave: () => Promise<void> | void;
+  onRestore: (schema: Schema) => void;
 };
 
 /**
@@ -34,12 +38,15 @@ export function Modals({
   projectId,
   workspaceSlug,
   workspaceId,
+  shareToken,
   readOnly,
   importMessage,
   onImportMessage,
   onReplace,
   onAppend,
   onClearInvalidForeignKeys,
+  onSave,
+  onRestore,
 }: ModalsProps) {
   const { modal, setModal } = useLayout();
   const { schema, errors } = useSchema();
@@ -77,6 +84,22 @@ export function Modals({
         onMessage={onImportMessage}
         onReplace={onReplace}
         onAppend={onAppend}
+      />
+      <HistoryModal
+        isOpen={modal === "history"}
+        onOpenChange={close}
+        projectId={projectId}
+        workspaceSlug={workspaceSlug}
+        shareToken={shareToken}
+        readOnly={readOnly}
+        schema={schema as Schema}
+        onSave={onSave}
+        onRestore={onRestore}
+        onUseAsBaseline={(next) => {
+          setBaseline(next);
+          setExportTab("migration");
+          setModal("export");
+        }}
       />
       <ShortcutsModal
         isOpen={modal === "shortcuts"}

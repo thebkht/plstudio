@@ -837,6 +837,7 @@ export default function Workspace({
     { separator: true },
     { label: "Import…", onSelect: run("import"), hint: hint("import") },
     { label: "Export…", onSelect: run("export"), hint: hint("export") },
+    { label: "Version history…", onSelect: () => setModal("history") },
     { separator: true },
     { label: "Save to database", onSelect: run("save"), hint: hint("save") },
     {
@@ -1496,8 +1497,14 @@ export default function Workspace({
         projectId={projectId}
         workspaceSlug={workspaceSlug}
         workspaceId={workspaceId}
+        shareToken={shareToken}
         readOnly={readOnly}
         importMessage={importMessage}
+        onSave={() => save()}
+        onRestore={(version) =>
+          // Through `commit`, so it syncs to peers and one undo takes it back.
+          commit({ ...version, id: schema.id, revision: schema.revision })
+        }
         onImportMessage={setImportMessage}
         onReplace={(text, format) => {
           if (format === "json") importJson(text);
