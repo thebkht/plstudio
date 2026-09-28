@@ -143,6 +143,12 @@ export type CanvasGestures = {
   onMemoResizeDown: MemoCardProps["onResizePointerDown"];
   onGroupDown: SchemaGroupCardProps["onHeadPointerDown"];
   onGroupResizeDown: SchemaGroupCardProps["onResizePointerDown"];
+  onGroupBodyDown: SchemaGroupCardProps["onPointerDown"];
+  selectMemo: MemoCardProps["onSelect"];
+  clickMemo: MemoCardProps["onClick"];
+  focusMemoText: MemoCardProps["onFocusText"];
+  changeMemoText: MemoCardProps["onChangeText"];
+  blurMemoText: MemoCardProps["onBlurText"];
 
   resetTableWidth: (id: string) => void;
   commitGroupSize: (id: string, width: number, height: number) => void;
@@ -198,7 +204,6 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
     useSchema();
   const {
     selection,
-    selectionRef,
     single,
     selectedId,
     selectedGroupId,
@@ -251,14 +256,20 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
    * committed, so a drag reuses the map it started with and the trunks re-settle
    * once, on release.
    */
-  const routeSignature = [
-    schema.tables
-      .map((table) => `${table.id}@${table.x},${table.y}`)
-      .join("|"),
-    g.relationships
-      .map((edge) => `${edge.id}:${edge.fromIndex}:${edge.toIndex}`)
-      .join("|"),
-  ].join("#");
+  // Itself memoized on the committed identities: building it is O(tables +
+  // edges) of string work, which is not free to redo on every pointermove.
+  const routeSignature = useMemo(
+    () =>
+      [
+        schema.tables
+          .map((table) => `${table.id}@${table.x},${table.y}`)
+          .join("|"),
+        g.relationships
+          .map((edge) => `${edge.id}:${edge.fromIndex}:${edge.toIndex}`)
+          .join("|"),
+      ].join("#"),
+    [schema.tables, g.relationships],
+  );
   const routes = useMemo(
     () =>
       routeEdges(
@@ -365,10 +376,7 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
               }
               isMoving={g.dragGroupPosition?.id === group.id}
               readOnly={readOnly}
-              onPointerDown={(event) => {
-                event.stopPropagation();
-                g.pressSelection(event, "group", group.id);
-              }}
+              onPointerDown={g.onGroupBodyDown}
               onHeadPointerDown={g.onGroupDown}
               onResizePointerDown={g.onGroupResizeDown}
               onPatch={g.patchGroup}
@@ -388,34 +396,14 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
               isEditing={g.editingMemoId === memo.id}
               onPointerDown={g.onMemoDown}
               onResizePointerDown={g.onMemoResizeDown}
-              onSelect={() => setSelection(selectOnly("memo", memo.id))}
-              onClick={(event) => {
-                event.stopPropagation();
-                // The pointerdown already decided this; re-running it here
-                // would undo a Shift-click toggle a moment after it landed.
-                if (event.shiftKey || event.metaKey || event.ctrlKey) return;
-                if (isSelected(selectionRef.current, "memo", memo.id)) return;
-                setSelection(selectOnly("memo", memo.id));
-              }}
+              onSelect={g.selectMemo}
+              onClick={g.clickMemo}
               onPatch={g.patchMemo}
               onDelete={g.deleteMemo}
               onResizeCommit={g.commitMemoSize}
-              onFocusText={() => {
-                setSelection(selectOnly("memo", memo.id));
-                g.setEditingMemoId(memo.id);
-                if (memo.text.trim()) g.memoHadText.current.add(memo.id);
-              }}
-              onChangeText={(value) => {
-                if (value.trim()) g.memoHadText.current.add(memo.id);
-                g.patchMemo(memo.id, { text: value });
-              }}
-              onBlurText={() => {
-                g.setEditingMemoId((current) =>
-                  current === memo.id ? null : current,
-                );
-                if (!memo.text.trim() && !g.memoHadText.current.has(memo.id))
-                  g.deleteMemo(memo.id);
-              }}
+              onFocusText={g.focusMemoText}
+              onChangeText={g.changeMemoText}
+              onBlurText={g.blurMemoText}
             />
           ))}
           {/*

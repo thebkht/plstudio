@@ -50,7 +50,7 @@ export type SchemaGroupCardProps = {
   inMultiSelection: boolean;
   isMoving: boolean;
   readOnly: boolean;
-  onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
+  onPointerDown: (event: ReactPointerEvent<HTMLElement>, id: string) => void;
   onHeadPointerDown: (
     event: ReactPointerEvent<HTMLElement>,
     group: SchemaGroup,
@@ -96,7 +96,7 @@ function SchemaGroupCardComponent({
         borderColor: palette.border,
         zIndex: 0,
       }}
-      onPointerDown={onPointerDown}
+      onPointerDown={(event) => onPointerDown(event, group.id)}
     >
       <div
         className="schema-group-head"

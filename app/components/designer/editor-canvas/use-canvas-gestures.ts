@@ -97,6 +97,19 @@ import {
 type Point = { x: number; y: number };
 
 /**
+ * A function whose identity never changes but always runs the latest closure.
+ * The memo and group cards are `memo`-wrapped, and most of their handlers are
+ * plain closures re-created every render -- which is every pointermove while a
+ * gesture is live -- so without this every card re-rendered on every frame.
+ * Same ref mirror as the listeners use: event handlers only, never render.
+ */
+function useStableCallback<A extends unknown[], R>(fn: (...args: A) => R) {
+  const ref = useRef(fn);
+  ref.current = fn;
+  return useCallback((...args: A) => ref.current(...args), []);
+}
+
+/**
  * Everything the canvas does: its gesture state, the pointer and wheel
  * handling, the camera, and the commands that add, move, resize and delete
  * what sits on it. Lifted out of `Workspace` so the code lives beside the
@@ -406,6 +419,8 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
         dragGroupPosition &&
         memo.schemaId === dragGroupPosition.id;
       const swept = dragSelection && movingSet.memos.has(memo.id);
+      // The memo itself when nothing moves it, so `MemoCard`'s memo holds.
+      if (position === memo && size === memo && !rides && !swept) return memo;
       return {
         x:
           position.x +
@@ -427,6 +442,7 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
         dragGroupPosition?.id === group.id ? dragGroupPosition : group;
       const size = resizeGroup?.id === group.id ? resizeGroup : group;
       const swept = dragSelection && movingSet.groups.has(group.id);
+      if (position === group && size === group && !swept) return group;
       return {
         x: position.x + (swept ? dragSelection.dx : 0),
         y: position.y + (swept ? dragSelection.dy : 0),
@@ -2230,10 +2246,65 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
    * through refs rather than through its dependency array.
    */
 
+  const stable = {
+    deleteGroup: useStableCallback(deleteGroup),
+    deleteMemo: useStableCallback(deleteMemo),
+    onGroupDown: useStableCallback(onGroupDown),
+    onGroupResizeDown: useStableCallback(onGroupResizeDown),
+    onMemoDown: useStableCallback(onMemoDown),
+    onMemoResizeDown: useStableCallback(onMemoResizeDown),
+    patchGroup: useStableCallback(patchGroup),
+    patchMemo: useStableCallback(patchMemo),
+  };
+
+  /*
+   * The card-level handlers the canvas used to build inline, per card, per
+   * render. Taking the id (or the entity) as an argument is what lets them be
+   * one stable function each.
+   */
+  const onGroupBodyDown = useStableCallback(
+    (event: ReactPointerEvent<HTMLElement>, id: string) => {
+      event.stopPropagation();
+      pressSelection(event, "group", id);
+    },
+  );
+  const selectMemo = useStableCallback((id: string) =>
+    setSelection(selectOnly("memo", id)),
+  );
+  const clickMemo = useStableCallback(
+    (event: React.MouseEvent, id: string) => {
+      event.stopPropagation();
+      // The pointerdown already decided this; re-running it here would undo a
+      // Shift-click toggle a moment after it landed.
+      if (event.shiftKey || event.metaKey || event.ctrlKey) return;
+      if (isSelected(selectionRef.current, "memo", id)) return;
+      setSelection(selectOnly("memo", id));
+    },
+  );
+  const focusMemoText = useStableCallback((memo: Memo) => {
+    setSelection(selectOnly("memo", memo.id));
+    setEditingMemoId(memo.id);
+    if (memo.text.trim()) memoHadText.current.add(memo.id);
+  });
+  const changeMemoText = useStableCallback((id: string, value: string) => {
+    if (value.trim()) memoHadText.current.add(id);
+    patchMemo(id, { text: value });
+  });
+  const blurMemoText = useStableCallback((memo: Memo) => {
+    setEditingMemoId((current) => (current === memo.id ? null : current));
+    if (!memo.text.trim() && !memoHadText.current.has(memo.id))
+      deleteMemo(memo.id);
+  });
+
   return {
     addGroup,
     addMemo,
     addTable,
+    blurMemoText,
+    changeMemoText,
+    clickMemo,
+    focusMemoText,
+    selectMemo,
     applyGroupKeyword,
     assignTableToGroup,
     autoLayout,
@@ -2243,8 +2314,8 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
     commitMemoSize,
     copySelection,
     copyTableDDL,
-    deleteGroup,
-    deleteMemo,
+    deleteGroup: stable.deleteGroup,
+    deleteMemo: stable.deleteMemo,
     deleteSelection,
     dragGroupPosition,
     dragPosition,
@@ -2267,17 +2338,18 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
     onCanvasDown,
     onCanvasDownCapture,
     onCardKeyDown,
-    onGroupDown,
-    onGroupResizeDown,
+    onGroupBodyDown,
+    onGroupDown: stable.onGroupDown,
+    onGroupResizeDown: stable.onGroupResizeDown,
     onHeaderDown,
-    onMemoDown,
-    onMemoResizeDown,
+    onMemoDown: stable.onMemoDown,
+    onMemoResizeDown: stable.onMemoResizeDown,
     onTableResizeDown,
     onTableResizeKeyDown,
     panMode,
     pasteSelection,
-    patchGroup,
-    patchMemo,
+    patchGroup: stable.patchGroup,
+    patchMemo: stable.patchMemo,
     peerSelection,
     pressSelection,
     resetTableWidth,

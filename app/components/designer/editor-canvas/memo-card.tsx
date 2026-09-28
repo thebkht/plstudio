@@ -22,14 +22,18 @@ export type MemoCardProps = {
     event: ReactPointerEvent<HTMLButtonElement>,
     memo: Memo,
   ) => void;
-  onSelect: () => void;
-  onClick: (event: React.MouseEvent) => void;
+  onSelect: (id: string) => void;
+  onClick: (event: React.MouseEvent, id: string) => void;
   onPatch: (id: string, patch: Partial<Memo>) => void;
   onDelete: (id: string) => void;
   onResizeCommit: (id: string, width: number, height: number) => void;
-  onFocusText: () => void;
-  onBlurText: () => void;
-  onChangeText: (value: string) => void;
+  /*
+   * Every handler takes the id or the memo rather than closing over it, so the
+   * canvas can pass one stable function to every card and `memo` holds.
+   */
+  onFocusText: (memo: Memo) => void;
+  onBlurText: (memo: Memo) => void;
+  onChangeText: (id: string, value: string) => void;
 };
 
 function MemoCardComponent({
@@ -66,7 +70,7 @@ function MemoCardComponent({
         zIndex: isSelected ? 4 : 1,
       }}
       onPointerDown={(event) => onPointerDown(event, memo)}
-      onClick={onClick}
+      onClick={(event) => onClick(event, memo.id)}
       onKeyDown={(event) => {
         if (
           (event.key === "Delete" || event.key === "Backspace") &&
@@ -125,9 +129,9 @@ function MemoCardComponent({
         value={memo.text}
         aria-label="Memo text"
         placeholder="Write a memo..."
-        onFocus={onFocusText}
-        onChange={(event) => onChangeText(event.target.value)}
-        onBlur={onBlurText}
+        onFocus={() => onFocusText(memo)}
+        onChange={(event) => onChangeText(memo.id, event.target.value)}
+        onBlur={() => onBlurText(memo)}
         onPointerDown={(event) => event.stopPropagation()}
       />
       <button
