@@ -68,7 +68,7 @@ export function generateDDL(schema: Schema) {
     relationships: schema.relationships?.length
       ? schema.relationships
       : undefined,
-  }));
+  }), true);
   const groupsById = new Map((canonical.groups ?? []).map((group) => [group.id, group]));
   const relationshipsByTable = new Map<
     string,

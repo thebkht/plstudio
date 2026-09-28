@@ -463,8 +463,13 @@ export function cloneSchema(schema: Schema): Schema {
   return structuredClone(schema);
 }
 
-export function normalizeGroups(schema: Schema): Schema {
-  const next = cloneSchema(schema);
+/**
+ * `owned` skips the defensive clone, for a caller passing a schema it has just
+ * cloned itself -- `generateDDL` normalizes relationships first, and a second
+ * `structuredClone` of the result was a third of its time on a large diagram.
+ */
+export function normalizeGroups(schema: Schema, owned = false): Schema {
+  const next = owned ? schema : cloneSchema(schema);
   const groups = Array.isArray(next.groups) ? next.groups : [];
   const seen = new Set<string>();
   next.groups = groups.flatMap((value, index) => {
@@ -532,9 +537,13 @@ export function normalizeRelationships(schema: Schema): Schema {
   const relationships: Relationship[] = [];
   const used = new Set<string>();
 
+  // First match wins, as `find` did: a duplicated id must not change which table a key binds to.
+  const tablesById = new Map<string, Table>();
+  next.tables.forEach((table) => { if (!tablesById.has(table.id)) tablesById.set(table.id, table); });
+
   const add = (value: Partial<Relationship>, fallbackId: string) => {
-    const startTable = next.tables.find((table) => table.id === value.startTableId);
-    const endTable = next.tables.find((table) => table.id === value.endTableId);
+    const startTable = tablesById.get(value.startTableId ?? "");
+    const endTable = tablesById.get(value.endTableId ?? "");
     const startField = startTable?.columns.find((column) => column.id === value.startFieldId);
     const endField = endTable?.columns.find((column) => column.id === value.endFieldId);
     if (!startTable || !endTable || !startField || !endField) return;
@@ -575,14 +584,17 @@ export function normalizeRelationships(schema: Schema): Schema {
     }));
   }
 
+  /*
+   * One pass, not one rebuild of every table per key pair: that was
+   * O(relationships x tables) allocations and dominated `generateDDL` on large
+   * diagrams. Later relationships still overwrite earlier ones on the same column.
+   */
+  const fkByColumn = new Map<string, ForeignKeyRef>();
+  relationships.forEach((relationship) => relationship.fields.forEach((pair) =>
+    fkByColumn.set(`${relationship.startTableId}\u0000${pair.startFieldId}`, { tableId: relationship.endTableId, columnId: pair.endFieldId })));
   next.tables = next.tables.map((table) => ({
     ...table,
-    columns: table.columns.map((column) => ({ ...column, fk: null })),
-  }));
-  relationships.forEach((relationship) => relationship.fields.forEach((pair) => {
-    next.tables = next.tables.map((table) => table.id === relationship.startTableId
-      ? { ...table, columns: table.columns.map((column) => column.id === pair.startFieldId ? { ...column, fk: { tableId: relationship.endTableId, columnId: pair.endFieldId } } : column) }
-      : table);
+    columns: table.columns.map((column) => ({ ...column, fk: fkByColumn.get(`${table.id}\u0000${column.id}`) ?? null })),
   }));
   next.relationships = relationships;
   next.schemaFormatVersion = SCHEMA_FORMAT_VERSION;
