@@ -97,7 +97,8 @@ const ColumnRow = memo(function ColumnRow({
         role="button"
         tabIndex={0}
         aria-label={`Link ${table.name}.${column.name}`}
-        onPointerDown={(event) => onStartLink(event, table.id, column.id, columnIndex)}
+        // Alt-click is "show impact" anywhere on the row; the card handles it, so no link starts.
+        onPointerDown={(event) => !event.altKey && onStartLink(event, table.id, column.id, columnIndex)}
         aria-hidden="false"
       />
       <span className="row-name">{column.name.toUpperCase()}</span>
