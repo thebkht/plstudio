@@ -107,6 +107,19 @@ describe("renderDiagramSVG", () => {
     expect(layout.groups.find((group) => group.id === below.id)!.y).toBe(below.y + (grown.height - top.height));
   });
 
+  it("pushes a memo inside a group down with the card above it", () => {
+    const schema = makeDemoSchema();
+    const [student] = schema.tables;
+    const group = { ...makeSchemaGroup("Top", 0, 0), id: "g_top", height: 900 };
+    schema.groups = [group];
+    Object.assign(student, { schemaId: group.id, x: 40, y: 60, comment: "Every student ever enrolled, including the ones who have since left the school entirely." });
+    schema.tables = [student];
+    const memo = { ...makeMemo("seed rows", 40, 60 + tableHeight(student) + 16), id: "memo_1", schemaId: group.id };
+    schema.memos = [memo];
+    const layout = reflowDiagram(schema);
+    expect(layout.memos[0].y).toBe(memo.y + tableHeight(student, "document") - tableHeight(student));
+  });
+
   it("opens with the diagram's title, a summary and a legend", () => {
     const svg = renderDiagramSVG(normalizeRelationships(makeDemoSchema()));
     expect(svg).toContain(">Oracle PL/SQL Workspace</text>");

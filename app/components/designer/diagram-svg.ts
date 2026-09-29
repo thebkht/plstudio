@@ -5,6 +5,7 @@ import {
   GROUP_PALETTE,
   TABLE_FIELD_HEIGHT,
   commentLines,
+  inkOn,
   normalizeRelationships,
   tableHeaderHeight,
   tableHeight,
@@ -67,14 +68,6 @@ const fit = (text: string, width: number, charWidth = CHAR_WIDTH) => {
 
 const round = (value: number) => Math.round(value * 100) / 100;
 
-/** Black or white, whichever reads on `hex` -- the palette runs from navy to mint. */
-const inkOn = (hex: string) => {
-  const match = hex.match(/^#?([0-9a-f]{6})$/i);
-  if (!match) return "#ffffff";
-  const [r, g, b] = [0, 2, 4].map((at) => parseInt(match[1].slice(at, at + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? "#0f172a" : "#ffffff";
-};
-
 /**
  * The memo tokens of globals.css as literals. The canvas resolves `var(--memo-…)`
  * against the page's stylesheet; an exported file has none, and an unresolvable
@@ -118,44 +111,47 @@ export function pushDown(blocks: Block[]) {
 /**
  * Where everything sits in the export. Document cards run taller than classic
  * ones by their comment block, so positions laid out on a classic canvas are
- * reflowed: first each group's members among themselves, growing the group to
- * keep its bottom margin, then the groups, loose tables and memos as blocks,
- * a moved group carrying its members. The canvas is never touched.
+ * reflowed: first each group's members -- its tables *and* its memos -- among
+ * themselves, growing the group to keep its bottom margin, then the groups and
+ * whatever belongs to none as blocks, a moved group carrying its members. The
+ * canvas is never touched.
  */
 export function reflowDiagram(schema: Schema) {
   const groups = schema.groups ?? [];
   const groupIds = new Set(groups.map((group) => group.id));
-  const table = new Map(schema.tables.map((item) => [item.id, { x: item.x, y: item.y }]));
-  const block = (item: Table): Block => ({ id: item.id, x: item.x, y: item.y, width: tableWidth(item), before: tableHeight(item, "classic"), after: tableHeight(item, "document") });
+  const memos = schema.memos ?? [];
+  const blocks: (Block & { schemaId?: string })[] = [
+    ...schema.tables.map((item) => ({ id: item.id, schemaId: item.schemaId, x: item.x, y: item.y, width: tableWidth(item), before: tableHeight(item, "classic"), after: tableHeight(item, "document") })),
+    ...memos.map((memo) => ({ id: memo.id, schemaId: memo.schemaId, x: memo.x, y: memo.y, width: memo.width, before: memo.height, after: memo.height })),
+  ];
+  /** Every table's and memo's top, as it will be drawn. */
+  const at = new Map(blocks.map((item) => [item.id, item.y]));
 
   const grown = new Map<string, SchemaGroup>();
   groups.forEach((group) => {
-    const members = schema.tables.filter((item) => item.schemaId === group.id);
-    const tops = pushDown(members.map(block));
-    tops.forEach((top, id) => (table.get(id)!.y = top));
+    const members = blocks.filter((item) => item.schemaId === group.id);
+    pushDown(members).forEach((top, id) => at.set(id, top));
     const bottom = (items: number[]) => Math.max(group.y, ...items);
-    const margin = Math.max(0, group.y + group.height - bottom(members.map((item) => item.y + tableHeight(item, "classic"))));
-    const reach = bottom(members.map((item) => tops.get(item.id)! + tableHeight(item, "document")));
+    const margin = Math.max(0, group.y + group.height - bottom(members.map((item) => item.y + item.before)));
+    const reach = bottom(members.map((item) => at.get(item.id)! + item.after));
     grown.set(group.id, { ...group, height: Math.max(group.height, reach + margin - group.y) });
   });
 
-  const loose = schema.tables.filter((item) => !groupIds.has(item.schemaId ?? ""));
-  const memos = schema.memos ?? [];
+  const loose = blocks.filter((item) => !groupIds.has(item.schemaId ?? ""));
   const tops = pushDown([
     ...groups.map((group) => ({ id: group.id, x: group.x, y: group.y, width: group.width, before: group.height, after: grown.get(group.id)!.height })),
-    ...loose.map(block),
-    ...memos.map((memo) => ({ id: memo.id, x: memo.x, y: memo.y, width: memo.width, before: memo.height, after: memo.height })),
+    ...loose,
   ]);
+  loose.forEach((item) => at.set(item.id, tops.get(item.id)!));
   groups.forEach((group) => {
     const dy = tops.get(group.id)! - group.y;
     grown.get(group.id)!.y += dy;
-    schema.tables.filter((item) => item.schemaId === group.id).forEach((item) => (table.get(item.id)!.y += dy));
+    blocks.filter((item) => item.schemaId === group.id).forEach((item) => at.set(item.id, at.get(item.id)! + dy));
   });
-  loose.forEach((item) => (table.get(item.id)!.y = tops.get(item.id)!));
   return {
-    tables: table,
+    tables: new Map(schema.tables.map((item) => [item.id, { x: item.x, y: at.get(item.id)! }])),
     groups: groups.map((group) => grown.get(group.id)!),
-    memos: memos.map((memo) => ({ ...memo, y: tops.get(memo.id)! })),
+    memos: memos.map((memo) => ({ ...memo, y: at.get(memo.id)! })),
   };
 }
 

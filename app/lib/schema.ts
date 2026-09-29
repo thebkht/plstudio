@@ -501,6 +501,20 @@ export function commentLines(table: Pick<Table, "name" | "width" | "comment">) {
   return [...lines.slice(0, COMMENT_MAX_LINES - 1), `${last.length >= max ? last.slice(0, max - 1) : last}…`];
 }
 
+/**
+ * Near-black or white, whichever reads on `hex` (relative luminance, WCAG
+ * weights): the palette runs from navy to mint, and a filled header has to
+ * carry its name on all of them.
+ */
+export function inkOn(hex: string) {
+  const match = hex.match(/^#?([0-9a-f]{6})$/i);
+  if (!match) return "#ffffff";
+  const [r, g, b] = [0, 2, 4]
+    .map((at) => parseInt(match[1].slice(at, at + 2), 16) / 255)
+    .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? "#0f172a" : "#ffffff";
+}
+
 /** Top of the card to the first row: where relationship anchors start counting. */
 export function tableHeaderHeight(table: Table, style: CardStyle = "classic") {
   if (style === "classic") return TABLE_COLOR_STRIP_HEIGHT + TABLE_HEADER_HEIGHT;
