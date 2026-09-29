@@ -11,6 +11,7 @@ import { Canvas, type CanvasRelationship } from "./canvas";
 import {
   useCanvasCommands,
   useDesignerSettings,
+  useOverlay,
   useSchema,
   useSelect,
   useTransformControls,
@@ -235,6 +236,37 @@ export function CanvasHost({
    * `applyViewport` is re-asserted for, closed the same way.
    */
   useLayoutEffect(applyFocus);
+
+  /*
+   * The query heatmap and the impact overlay, painted the same way: a
+   * `data-heat` level and two classes toggled on nodes already in the DOM. Both
+   * change only when the schema or the user's choice does, so re-painting after
+   * every render of this host is what keeps a freshly mounted card in step.
+   */
+  const { heatmap, analysis, impactLit } = useOverlay();
+  useLayoutEffect(() => {
+    const wrap = gestures.canvasRef.current;
+    if (!wrap) return;
+    const heat = (node: Element, level: number | undefined) =>
+      heatmap && level ? node.setAttribute("data-heat", String(level)) : node.removeAttribute("data-heat");
+    wrap.classList.toggle("heatmap", heatmap);
+    wrap.classList.toggle("impacting", impactLit !== null);
+    wrap.querySelectorAll(".table-card[data-table-id]").forEach((node) => {
+      const id = node.getAttribute("data-table-id")!;
+      heat(node, analysis.tableLevels.get(id));
+      node.classList.toggle("impact-out", impactLit !== null && !impactLit.tables.has(id));
+    });
+    wrap.querySelectorAll("[data-edge-id]").forEach((node) => {
+      const id = node.getAttribute("data-edge-id")!;
+      heat(node, analysis.edgeLevels.get(id));
+      node.classList.toggle("impact-in", impactLit?.edges.has(id) ?? false);
+      node.classList.toggle("impact-out", impactLit !== null && !impactLit.edges.has(id));
+    });
+    wrap.querySelectorAll(".table-row[data-column-id]").forEach((node) => {
+      const key = `${node.getAttribute("data-table-id")}:${node.getAttribute("data-column-id")}`;
+      node.classList.toggle("impact-hit", impactLit?.columns.has(key) ?? false);
+    });
+  });
 
   /*
    * The pointer stream, rAF-coalesced. Presence and the in-flight link both

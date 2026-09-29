@@ -10,3 +10,4 @@ export { useSelect } from "./use-select";
 export { useTransform, useTransformControls } from "./use-transform";
 export { useSaveState } from "./use-save-state";
 export { useSchema } from "./use-schema";
+export { useOverlay } from "./use-overlay";

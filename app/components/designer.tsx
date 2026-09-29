@@ -10,6 +10,7 @@ import { TransformProvider } from "@/app/components/designer/context/transform-c
 import { SaveStateProvider } from "@/app/components/designer/context/save-state-context";
 import { SchemaProvider } from "@/app/components/designer/context/schema-context";
 import { CanvasCommandsProvider } from "@/app/components/designer/context/canvas-commands-context";
+import { OverlayProvider } from "@/app/components/designer/context/overlay-context";
 
 /**
  * The editor's entry point. This file is deliberately thin: it exists to mount
@@ -18,7 +19,8 @@ import { CanvasCommandsProvider } from "@/app/components/designer/context/canvas
  *
  * Order is a dependency order, not a preference: `SchemaProvider` reads the
  * panel mode from `LayoutProvider` and marks the document dirty through
- * `SaveStateProvider`, so it is mounted innermost. The gesture state that
+ * `SaveStateProvider`, so it is mounted innermost bar `OverlayProvider`, which
+ * derives the query heatmap and impact analysis from it. The gesture state that
  * changes every frame is deliberately *not* here — it belongs to the canvas
  * alone, and hoisting it would re-render the appbar and side panel on every
  * pointermove.
@@ -40,9 +42,11 @@ export default function Designer(props: DesignerProps) {
                 readOnly={readOnly ?? false}
                 user={user}
               >
-                <CanvasCommandsProvider>
-                  <Workspace {...props} />
-                </CanvasCommandsProvider>
+                <OverlayProvider>
+                  <CanvasCommandsProvider>
+                    <Workspace {...props} />
+                  </CanvasCommandsProvider>
+                </OverlayProvider>
               </SchemaProvider>
             </SaveStateProvider>
           </TransformProvider>

@@ -1496,6 +1496,74 @@ button {
   }
 }
 
+/*
+ * Query heatmap. `canvas-host` sets `data-heat` 1–4 on the cards and edges the
+ * saved queries touch -- quartiles of the hottest -- and nothing on the rest.
+ * Heat grows the ring and the stroke as well as warming them, so colour is
+ * never the only cue.
+ */
+:root {
+  --heat-1: oklch(0.86 0.11 95);
+  --heat-2: oklch(0.79 0.15 70);
+  --heat-3: oklch(0.7 0.18 45);
+  --heat-4: oklch(0.6 0.21 28);
+}
+.canvas-wrap.heatmap .table-card[data-heat] {
+  border-color: var(--heat);
+  box-shadow:
+    0 0 0 var(--heat-ring) color-mix(in oklch, var(--heat) 55%, transparent),
+    0 4px 3px rgb(0 0 0 / 0.1);
+}
+.canvas-wrap.heatmap .relationship[data-heat] .relationship-path {
+  stroke: var(--heat);
+  stroke-width: var(--heat-stroke);
+}
+.canvas-wrap.heatmap .relationship[data-heat] .relationship-marker {
+  fill: var(--heat);
+}
+[data-heat="1"] { --heat: var(--heat-1); --heat-ring: 2px; --heat-stroke: 3px; }
+[data-heat="2"] { --heat: var(--heat-2); --heat-ring: 4px; --heat-stroke: 4px; }
+[data-heat="3"] { --heat: var(--heat-3); --heat-ring: 6px; --heat-stroke: 5px; }
+[data-heat="4"] { --heat: var(--heat-4); --heat-ring: 8px; --heat-stroke: 6px; }
+/* Untouched tables step back, so the hot path reads at a glance. */
+.canvas-wrap.heatmap .table-card:not([data-heat]) {
+  opacity: 0.6;
+}
+
+/*
+ * Impact analysis: the chosen column's blast radius. Everything outside it
+ * fades like focus dimming does; the rows it names are marked on their cards.
+ */
+.canvas-wrap.impacting .table-card.impact-out,
+.canvas-wrap.impacting .relationship.impact-out {
+  opacity: 0.3;
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+.canvas-wrap.impacting .relationship.impact-out {
+  pointer-events: none;
+}
+.canvas-wrap.impacting .edges {
+  z-index: 3;
+}
+.canvas-wrap.impacting .relationship.impact-in .relationship-path {
+  stroke: var(--destructive);
+  stroke-width: 4;
+}
+.canvas-wrap.impacting .table-row.impact-hit {
+  background: color-mix(in oklch, var(--destructive) 14%, transparent);
+  box-shadow: inset 3px 0 0 var(--destructive);
+}
+.canvas-wrap.gesturing .impact-out {
+  transition: none;
+}
+@media (prefers-reduced-transparency: reduce) {
+  .canvas-wrap.impacting .impact-out,
+  .canvas-wrap.heatmap .table-card:not([data-heat]) {
+    opacity: 0.7;
+    filter: grayscale(1);
+  }
+}
+
 .memo-card {
   position: absolute;
   left: 0;
