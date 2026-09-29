@@ -1189,6 +1189,11 @@ button {
   background: var(--surface-0);
 }
 /* Dock toggles (the hand tool) read as pressed the way column flags do. */
+/* Concentric with the dock: its 14px corner less its 6px padding. */
+.dock [data-slot="button"],
+.dock .dock-disabled {
+  border-radius: 8px;
+}
 .dock [aria-pressed="true"] {
   background: var(--primary);
   color: var(--primary-foreground);

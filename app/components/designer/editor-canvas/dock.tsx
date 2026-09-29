@@ -15,7 +15,6 @@ import {
   ZoomInAreaIcon,
   ZoomOutAreaIcon,
 } from "@hugeicons/core-free-icons";
-import { ButtonGroup } from "@/components/ui/button-group";
 import { Separator } from "@/components/ui/separator";
 import {
   useDesignerSettings,
@@ -60,7 +59,10 @@ export function Dock({
 
   return (
     <>
-      <ButtonGroup className="dock" aria-label="Canvas controls">
+      {/* A toolbar of separate controls, not a ButtonGroup: that joins its
+          children into one segmented bar, squaring every hover and pilling
+          the last button's right edge only. */}
+      <div role="toolbar" className="dock" aria-label="Canvas controls">
         <DockButton
           label="Hand tool"
           icon={HandGrabIcon}
@@ -163,7 +165,7 @@ export function Dock({
           isMac={isMac}
           onClick={() => setModal("export")}
         />
-      </ButtonGroup>
+      </div>
       {/*
         The zoom readout is not itself a live region: it changes on every
         frame of a ctrl-scroll, which would announce a flood. This settles
