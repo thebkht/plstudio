@@ -93,6 +93,7 @@ export const ColumnList = memo(function ColumnList({
   deleteColumn,
   reorderColumns,
   compatibleForeignKeyTargets,
+  onShowImpact,
 }: {
   table: Table;
   readOnly: boolean;
@@ -100,6 +101,7 @@ export const ColumnList = memo(function ColumnList({
   deleteColumn: (tableId: string, columnId: string) => void;
   reorderColumns: (tableId: string, from: number, to: number) => void;
   compatibleForeignKeyTargets: (column: Column) => ForeignKeyTarget[];
+  onShowImpact: (tableId: string, columnId: string) => void;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
   const slotsRef = useRef(new Map<string, HTMLDivElement>());
@@ -356,6 +358,7 @@ export const ColumnList = memo(function ColumnList({
             patchColumn={patchColumn}
             deleteColumn={deleteColumn}
             compatibleForeignKeyTargets={compatibleForeignKeyTargets}
+            onShowImpact={onShowImpact}
             onGrab={readOnly || table.columns.length < 2 ? undefined : onGrab}
             onGrabKeyDown={onGrabKeyDown}
           />

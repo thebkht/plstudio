@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useMemo,
   useRef,
   useState,
@@ -49,6 +50,7 @@ import { Dock } from "./dock";
 import { Minimap } from "./minimap";
 import { MemoCard } from "./memo-card";
 import { HeatLegend, IndexSuggestions } from "./index-suggestions";
+import { ImpactPanel } from "./impact-panel";
 import { RelationshipEdge } from "./relationship-edge";
 import { SchemaGroupCard, SchemaGroupMenu } from "./schema-group";
 import { SelectionToolbar } from "./selection-toolbar";
@@ -204,7 +206,11 @@ export type CanvasProps = {
 export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
   const { schema, groupsById, peers, addColumn, addIndex, deleteTable, reorderColumns } =
     useSchema();
-  const { heatmap, analysis } = useOverlay();
+  const { heatmap, analysis, setImpactTarget } = useOverlay();
+  const showImpact = useCallback(
+    (tableId: string, columnId: string) => setImpactTarget({ tableId, columnId }),
+    [setImpactTarget],
+  );
   const {
     selection,
     single,
@@ -490,6 +496,7 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
                 onAddColumn={addColumn}
                 onMakeJunction={g.makeJunction}
                 onDeleteTable={deleteTable}
+                onShowImpact={showImpact}
                 reorderColumns={reorderColumns}
               />
             );
@@ -529,6 +536,7 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
           <PeerCursors peers={peers} />
         </div>
         {heatmap && <HeatLegend />}
+        <ImpactPanel />
 
         {/*
         Anchored to the frame but drawn in screen space and never scaled:

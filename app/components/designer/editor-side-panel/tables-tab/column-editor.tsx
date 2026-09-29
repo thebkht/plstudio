@@ -2,7 +2,7 @@
 
 import { memo, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Delete02Icon, DragDropVerticalIcon, FingerPrintIcon, Key01Icon } from "@hugeicons/core-free-icons";
+import { Delete02Icon, DragDropVerticalIcon, FingerPrintIcon, Key01Icon, Target02Icon } from "@hugeicons/core-free-icons";
 import { Button } from "@/components/ui/button";
 import { FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,7 @@ export const ColumnEditor = memo(function ColumnEditor({
   patchColumn,
   deleteColumn,
   compatibleForeignKeyTargets,
+  onShowImpact,
   onGrab,
   onGrabKeyDown,
 }: {
@@ -31,6 +32,8 @@ export const ColumnEditor = memo(function ColumnEditor({
   patchColumn: (tableId: string, columnId: string, patch: Partial<Column>) => void;
   deleteColumn: (tableId: string, columnId: string) => void;
   compatibleForeignKeyTargets: (column: Column) => ForeignKeyTarget[];
+  /** Shows on the canvas everything that depends on this column. */
+  onShowImpact: (tableId: string, columnId: string) => void;
   /** Absent when the diagram is read-only — then no handle is rendered at all. */
   onGrab?: (event: ReactPointerEvent<HTMLButtonElement>, columnId: string) => void;
   onGrabKeyDown?: (event: KeyboardEvent<HTMLButtonElement>, columnId: string) => void;
@@ -57,6 +60,12 @@ export const ColumnEditor = memo(function ColumnEditor({
             onChange={(event) => patch({ name: event.target.value })}
           />
           <InputGroupAddon align="inline-end">
+            <InputGroupButton
+              aria-label={`Show what depends on column ${column.name}`}
+              onClick={() => onShowImpact(table.id, column.id)}
+            >
+              <HugeiconsIcon icon={Target02Icon} />
+            </InputGroupButton>
             <InputGroupButton
               aria-label={`Delete column ${column.name}`}
               onClick={() => deleteColumn(table.id, column.id)}

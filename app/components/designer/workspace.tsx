@@ -71,6 +71,7 @@ import {
   type Relationship,
   type Cardinality,
 } from "@/app/lib/schema";
+import { columnImpact } from "@/app/lib/impact";
 import { type MenuItem } from "@/app/components/designer/primitives";
 import { ColumnList } from "./editor-side-panel/tables-tab/column-list";
 import { UniqueConstraints } from "./editor-side-panel/tables-tab/unique-constraints";
@@ -80,6 +81,7 @@ import {
   useCanvasCommands,
   useDesignerSettings,
   useLayout,
+  useOverlay,
   useSaveState,
   useSchema,
   useSelect,
@@ -183,6 +185,27 @@ export default function Workspace({
   } = useCanvasCommands();
   /** Came with the gestures until they moved down; it is a lookup, not a gesture. */
   const selected = (selectedId && tablesById.get(selectedId)) || null;
+
+  const { setImpactTarget } = useOverlay();
+  const showImpact = useCallback(
+    (tableId: string, columnId: string) => setImpactTarget({ tableId, columnId }),
+    [setImpactTarget],
+  );
+  /*
+   * Deleting stays one click -- undo is the safety net -- but a column other
+   * things depended on says so, with the way back right there.
+   */
+  const deleteColumnReporting = useCallback(
+    (tableId: string, columnId: string) => {
+      const broken = columnImpact(schemaRef.current, { tableId, columnId }).filter((item) => item.drop).length;
+      deleteColumn(tableId, columnId);
+      if (broken)
+        toast.warning(`Deleted a column ${broken} ${broken === 1 ? "thing" : "things"} depended on.`, {
+          action: { label: "Undo", onClick: undo },
+        });
+    },
+    [deleteColumn, schemaRef, undo],
+  );
 
   const { setZoom } = useTransformControls();
 
@@ -1084,9 +1107,10 @@ export default function Workspace({
               table={table}
               readOnly={readOnly}
               patchColumn={patchColumn}
-              deleteColumn={deleteColumn}
+              deleteColumn={deleteColumnReporting}
               reorderColumns={reorderColumns}
               compatibleForeignKeyTargets={compatibleForeignKeyTargets}
+              onShowImpact={showImpact}
             />
 
             <UniqueConstraints

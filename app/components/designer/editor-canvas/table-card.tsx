@@ -27,6 +27,7 @@ import {
   Key01Icon,
   Link01Icon,
   PanelLeftOpenIcon,
+  Target02Icon,
 } from "@hugeicons/core-free-icons";
 import {
   ContextMenu,
@@ -168,6 +169,7 @@ export const TableCard = memo(function TableCard({
   onAddColumn,
   onMakeJunction,
   onDeleteTable,
+  onShowImpact,
   reorderColumns,
 }: {
   table: Table;
@@ -210,10 +212,15 @@ export const TableCard = memo(function TableCard({
   onAddColumn: (tableId: string) => void;
   onMakeJunction: (tableId: string) => void;
   onDeleteTable: (tableId: string) => void;
+  /** Alt-click on a row, or the row's context-menu item. */
+  onShowImpact: (tableId: string, columnId: string) => void;
   reorderColumns?: (tableId: string, from: number, to: number) => void;
 }) {
   const [draggingColumnId, setDraggingColumnId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
+  /** The row a context menu was opened on, so the menu can offer that column's impact. */
+  const [menuColumnId, setMenuColumnId] = useState<string | null>(null);
+  const menuColumn = table.columns.find((column) => column.id === menuColumnId);
   // Built once per card rather than scanned per row: a card is redrawn on every
   // drag frame and the constraints change about once a session.
   const uniqueGroups = useMemo(() => uniqueGroupColumnIds(table), [table]);
@@ -355,8 +362,13 @@ export const TableCard = memo(function TableCard({
         }}
         onPointerDown={(event) => {
           event.stopPropagation();
+          const row = event.altKey ? (event.target as Element).closest?.(".table-row[data-column-id]") : null;
+          if (row) onShowImpact(table.id, row.getAttribute("data-column-id")!);
           onSelect(table.id);
         }}
+        onContextMenuCapture={(event) =>
+          setMenuColumnId((event.target as Element).closest?.(".table-row[data-column-id]")?.getAttribute("data-column-id") ?? null)
+        }
         onKeyDown={(event) => onKeyDown(event, table.id)}
       >
         <div className="table-strip" style={{ background: table.color.a }} aria-hidden="true" />
@@ -432,6 +444,12 @@ export const TableCard = memo(function TableCard({
             <HugeiconsIcon icon={Copy01Icon} />
             Copy CREATE TABLE
           </ContextMenuItem>
+          {menuColumn && (
+            <ContextMenuItem onAction={() => onShowImpact(table.id, menuColumn.id)}>
+              <HugeiconsIcon icon={Target02Icon} />
+              Show impact of {menuColumn.name.toUpperCase()}
+            </ContextMenuItem>
+          )}
         </ContextMenuGroup>
         <ContextMenuSeparator />
         <ContextMenuGroup>
