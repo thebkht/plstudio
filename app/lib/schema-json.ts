@@ -1,5 +1,5 @@
 import { findColumn, findTable, type AppendResult, type ParseResult } from "./parser";
-import { APPEND_GAP, contentEdges, KEY_STRATEGIES, makeColumn, nextId, normalizeGroups, normalizeMemos, normalizeRelationships, normalizeTables, ORACLE_TYPES, PALETTE, SCHEMA_FORMAT_VERSION, type Column, type ForeignKeyRef, type KeyStrategy, type OracleType, type Relationship, type Schema, type SchemaGroup, type Table, type TableIndex, type UniqueConstraint } from "./schema";
+import { APPEND_GAP, contentEdges, KEY_STRATEGIES, makeColumn, nextId, normalizeGroups, normalizeMemos, normalizeQueries, normalizeRelationships, normalizeTables, ORACLE_TYPES, PALETTE, SCHEMA_FORMAT_VERSION, type Column, type ForeignKeyRef, type KeyStrategy, type OracleType, type Relationship, type Schema, type SchemaGroup, type Table, type TableIndex, type UniqueConstraint } from "./schema";
 
 /**
  * The lossless counterpart to `generateDDL`. DDL carries none of the canvas --
@@ -44,6 +44,7 @@ export function exportSchemaJson(schema: Schema, exportedAt = new Date().toISOSt
         groups: schema.groups ?? [],
         relationships: schema.relationships ?? [],
         memos: schema.memos ?? [],
+        queries: schema.queries ?? [],
       },
     } satisfies SchemaExport,
     null,
@@ -210,6 +211,7 @@ export function parseSchemaJson(text: string): ParseResult {
     groups: Array.isArray(rawSchema.groups) ? (rawSchema.groups as SchemaGroup[]) : [],
     relationships: Array.isArray(rawSchema.relationships) ? (rawSchema.relationships as Relationship[]) : [],
     memos: normalizeMemos(rawSchema.memos),
+    queries: normalizeQueries(rawSchema.queries),
   };
   /*
    * `prepareCanvasSchema`'s pipeline minus `repairInitialLayout`: that one
@@ -327,6 +329,8 @@ export function mergeSchemaJson(base: Schema, text: string): AppendResult {
   }));
   const addedGroups = groups.map((group) => ({ ...group, id: groupIds.get(group.id) ?? group.id, x: group.x + dx, y: group.y + dy }));
   const addedMemos = memos.map((memo) => ({ ...memo, id: nextId("memo"), x: memo.x + dx, y: memo.y + dy }));
+  // A query names tables, not ids, so it needs nothing rewired -- only its own id.
+  const addedQueries = (incoming.queries ?? []).map((query) => ({ ...query, id: nextId("query") }));
 
   const relationships = (incoming.relationships ?? [])
     // A relationship owned by a skipped table describes the project's table, not the file's.
@@ -357,6 +361,7 @@ export function mergeSchemaJson(base: Schema, text: string): AppendResult {
       tables: [...ground.tables, ...added],
       groups: [...(ground.groups ?? []), ...addedGroups],
       memos: [...(ground.memos ?? []), ...addedMemos],
+      queries: [...(ground.queries ?? []), ...addedQueries],
       relationships: [...(ground.relationships ?? []), ...relationships],
     }),
   );

@@ -213,6 +213,8 @@ export function selectionSchema(schema: Schema, selection: CanvasSelection): Sch
       tables: schema.tables.filter((table) => moving.tables.has(table.id)),
       memos: (schema.memos ?? []).filter((memo) => moving.memos.has(memo.id)),
       groups: (schema.groups ?? []).filter((group) => moving.groups.has(group.id)),
+      // Queries belong to the diagram, not to anything drawn: a paste must not repeat them.
+      queries: [],
     }),
   );
 }

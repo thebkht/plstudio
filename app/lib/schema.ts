@@ -130,6 +130,18 @@ export type SchemaGroup = {
   color: GroupColor;
 };
 
+/**
+ * One statement kept with the diagram: the heatmap's input, and the snippets
+ * impact analysis checks a column against. `executions` weights it, for a
+ * statement lifted out of V$SQL or an AWR report with its count.
+ */
+export type SavedQuery = {
+  id: string;
+  name: string;
+  sql: string;
+  executions?: number;
+};
+
 export type Schema = {
   id: string;
   name: string;
@@ -139,6 +151,7 @@ export type Schema = {
   groups?: SchemaGroup[];
   relationships?: Relationship[];
   memos?: Memo[];
+  queries?: SavedQuery[];
   updatedAt?: string;
 };
 
@@ -275,6 +288,21 @@ export function normalizeMemos(value: unknown): Memo[] {
   });
 }
 
+export function makeSavedQuery(sql = "", name = "", executions?: number): SavedQuery {
+  return { id: nextId("query"), name, sql, executions };
+}
+
+export function normalizeQueries(value: unknown): SavedQuery[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const query = item as Partial<SavedQuery>;
+    if (typeof query.id !== "string" || !query.id || typeof query.sql !== "string") return [];
+    const executions = typeof query.executions === "number" && Number.isFinite(query.executions) && query.executions > 0 ? Math.round(query.executions) : undefined;
+    return [{ id: query.id, name: typeof query.name === "string" ? query.name : "", sql: query.sql, executions }];
+  });
+}
+
 export function makeDemoSchema(): Schema {
   const student = makeTable("STUDENT", 80, 90, 0);
   const enrollment = makeTable("ENROLLMENT", 460, 270, 1);
@@ -294,6 +322,7 @@ export function makeDemoSchema(): Schema {
     groups: [],
     relationships: [],
     memos: [],
+    queries: [],
   };
 }
 
@@ -307,6 +336,7 @@ export function makeEmptySchema(name = "Untitled Diagram", id = nextId("schema")
     groups: [],
     relationships: [],
     memos: [],
+    queries: [],
   };
 }
 
