@@ -244,9 +244,14 @@ export function CanvasHost({
    * every render of this host is what keeps a freshly mounted card in step.
    */
   const { heatmap, analysis, impactLit } = useOverlay();
+  /** Whether the DOM carries any overlay marks, so the common case -- both off -- walks nothing per frame. */
+  const overlayPaintedRef = useRef(false);
   useLayoutEffect(() => {
     const wrap = gestures.canvasRef.current;
     if (!wrap) return;
+    const active = heatmap || impactLit !== null;
+    if (!active && !overlayPaintedRef.current) return;
+    overlayPaintedRef.current = active;
     const heat = (node: Element, level: number | undefined) =>
       heatmap && level ? node.setAttribute("data-heat", String(level)) : node.removeAttribute("data-heat");
     wrap.classList.toggle("heatmap", heatmap);

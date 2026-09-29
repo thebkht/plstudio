@@ -1,6 +1,7 @@
 import {
   cloneSchema,
   normalizeMemos,
+  normalizeQueries,
   normalizeGroups,
   normalizeRelationships,
   normalizeTables,
@@ -333,6 +334,7 @@ export function prepareCanvasSchema(schema: Schema): Schema {
     normalizeTables(normalizeGroups(normalizeRelationships(schema))),
   );
   next.memos = normalizeMemos(next.memos);
+  next.queries = normalizeQueries(next.queries);
   return next;
 }
 
