@@ -58,6 +58,8 @@ export type DDLConstraint = {
   columns: string[];
   check?: string;
   references?: { tableId: string; table: string; columnIds: string[]; columns: string[]; onDelete: string };
+  /** The canvas edge a foreign key was generated from. */
+  relationshipId?: string;
   /** `-- DrawDB on …` lines printed ahead of a foreign key. */
   notes?: string[];
 };
@@ -178,6 +180,7 @@ export function ddlModel(schema: Schema): DDLTable[] {
           columns: endColumns.map((column) => sqlIdentifier(column.name)),
           onDelete,
         },
+        relationshipId: relationship.id,
         notes,
       });
     });
@@ -331,7 +334,7 @@ function getProcedureSuffix(tableName: string): string {
   return formatted.join("_");
 }
 
-function getPackageName(schema: Schema): string {
+export function getPackageName(schema: Schema): string {
   for (const table of schema.tables) {
     const match = table.name.match(/^([A-Za-z0-9]+)_/);
     if (match && match[1]) {
@@ -344,23 +347,38 @@ function getPackageName(schema: Schema): string {
   return "Osm_Dml";
 }
 
+/**
+ * Which columns each generated procedure names, decided once per table. Both
+ * `generateDML` and impact analysis read it, so "what does `Upd_X` touch" has
+ * exactly one answer.
+ */
+export function dmlPlan(table: Table) {
+  const tableName = table.name.trim();
+  const pkCols = primaryKeyColumns(table);
+  const updCols = table.columns.filter((c) => !c.pk);
+  return {
+    tableName,
+    procSuffix: getProcedureSuffix(tableName),
+    pkCols,
+    hasSingleNumberPk: pkCols.length === 1 && pkCols[0].type === "NUMBER",
+    modifyOnCol: table.columns.find((c) => c.name.toLowerCase().replace(/_/g, "") === "modifyon"),
+    modifyByCol: table.columns.find((c) => c.name.toLowerCase().replace(/_/g, "") === "modifyby"),
+    stateCol: table.columns.find((c) => c.name.toLowerCase() === "state"),
+    /** Log tables get an insert procedure and nothing else. */
+    isLogTable: /(_log|_logs|_audit|_audits)$/i.test(tableName) || /log|audit/i.test(tableName),
+    sequenceName: `${tableName}_Seq`,
+    setCols: updCols.length > 0 ? updCols : table.columns,
+    whereCols: pkCols.length > 0 ? pkCols : table.columns,
+  };
+}
+
 export function generateDML(schema: Schema) {
   const pkgName = getPackageName(schema);
   const out = [`create or replace package body ${pkgName} is`];
   const sep = "  -----------------------------------------------------------------------------------------------------------";
 
   schema.tables.forEach((table) => {
-    const tableName = table.name.trim();
-    const procSuffix = getProcedureSuffix(tableName);
-    const pkCols = primaryKeyColumns(table);
-    const hasSingleNumberPk = pkCols.length === 1 && pkCols[0].type === "NUMBER";
-
-    const modifyOnCol = table.columns.find((c) => c.name.toLowerCase().replace(/_/g, "") === "modifyon");
-    const modifyByCol = table.columns.find((c) => c.name.toLowerCase().replace(/_/g, "") === "modifyby");
-    const stateCol = table.columns.find((c) => c.name.toLowerCase() === "state");
-    const isLogTable = /(_log|_logs|_audit|_audits)$/i.test(tableName) || /log|audit/i.test(tableName);
-
-    const sequenceName = `${tableName}_Seq`;
+    const { tableName, procSuffix, pkCols, hasSingleNumberPk, modifyOnCol, modifyByCol, stateCol, isLogTable, sequenceName, setCols, whereCols } = dmlPlan(table);
 
     // 1. Ins Procedure
     out.push(sep);
@@ -426,8 +444,6 @@ export function generateDML(schema: Schema) {
       out.push("    --");
     }
 
-    const updCols = table.columns.filter((c) => !c.pk);
-    const setCols = updCols.length > 0 ? updCols : table.columns;
     const maxSetColLen = Math.max(...setCols.map((c) => c.name.length));
 
     out.push(`    update ${tableName}`);
@@ -437,7 +453,6 @@ export function generateDML(schema: Schema) {
       out.push(`    ${prefix}${c.name.padEnd(maxSetColLen)} = Io_Row.${c.name}${comma}`);
     });
 
-    const whereCols = pkCols.length > 0 ? pkCols : table.columns;
     whereCols.forEach((c, idx) => {
       const prefix = idx === 0 ? "     where " : "       and ";
       const semicolon = idx === whereCols.length - 1 ? ";" : "";
