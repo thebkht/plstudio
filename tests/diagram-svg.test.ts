@@ -25,7 +25,7 @@ describe("renderDiagramSVG", () => {
     const svg = renderDiagramSVG(schema);
     expect(svg).not.toContain("<script>");
     expect(svg).toContain("A &amp; B &lt;script&gt;");
-    expect(svg).toContain("T&lt;&quot;x&quot;&gt;&amp;&apos;");
+    expect(svg).toContain("T&lt;&quot;X&quot;&gt;&amp;&apos;");
   });
 
   it("frames every card, group and memo inside the viewBox", () => {
@@ -59,5 +59,23 @@ describe("renderDiagramSVG", () => {
     schema.tables = [];
     schema.relationships = [];
     expect(viewBox(renderDiagramSVG(schema))).toEqual([0, 0, 96, 96]);
+  });
+
+  it("paints memos in literal colours, since an exported file has no stylesheet for var() to resolve against", () => {
+    const schema = makeDemoSchema();
+    schema.memos = (["yellow", "green", "blue", "pink"] as const).map((color, index) => ({ ...makeMemo("note", index * 300, 600, color), id: `memo_${index}` }));
+    (["light", "dark"] as const).forEach((theme) => expect(renderDiagramSVG(schema, { theme })).not.toContain("var("));
+    expect(renderDiagramSVG(schema)).toContain(`fill="#f4efdc"`);
+  });
+
+  it("wraps memo text across lines and marks what does not fit", () => {
+    const schema = makeDemoSchema();
+    const sql = "insert into ies_day_count_types (day_count_type, name_mll_code) values (ies_day_count_types_seq.nextval, 'ACT/365');";
+    schema.memos = [{ ...makeMemo(sql, 0, 600), id: "memo_1", width: 240, height: 120 }];
+    const lines = [...renderDiagramSVG(schema).matchAll(/<tspan x="14" dy="\d+">([^<]*)<\/tspan>/g)].map((match) => match[1]);
+    expect(lines).toHaveLength(4);
+    // 28 characters to a 240px memo, so the table name moves to its own line whole.
+    expect(lines.slice(0, 2)).toEqual(["insert into", "ies_day_count_types"]);
+    expect(lines[3].endsWith("…")).toBe(true);
   });
 });

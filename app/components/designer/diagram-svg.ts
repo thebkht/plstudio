@@ -7,10 +7,11 @@ import {
   tableWidth,
   typeString,
   uniqueGroupColumnIds,
+  type MemoColor,
   type Schema,
   type Table,
 } from "@/app/lib/schema";
-import { HEADER_HEIGHT, MARKER_DISTANCE, MEMO_COLORS, ROW_HEIGHT } from "./constants";
+import { HEADER_HEIGHT, MARKER_DISTANCE, ROW_HEIGHT } from "./constants";
 import { edgePath, facingSide, idealBend, routeEdges, type EdgeInput } from "./edge-routing";
 import { relationshipCardinalities } from "./geometry";
 
@@ -41,6 +42,39 @@ const fit = (text: string, width: number, charWidth = CHAR_WIDTH) => {
   const max = Math.max(1, Math.floor(width / charWidth));
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 };
+
+/**
+ * Greedy word wrap to `width`, the way the memo's textarea wraps on screen.
+ * A word longer than a whole line is broken across lines rather than lost.
+ */
+const wrap = (text: string, width: number, charWidth = CHAR_WIDTH) => {
+  const max = Math.max(1, Math.floor(width / charWidth));
+  return text.split("\n").flatMap((paragraph) =>
+    paragraph.split(/\s+/).filter(Boolean).reduce<string[]>((lines, word) => {
+      const pieces = word.match(new RegExp(`.{1,${max}}`, "g")) ?? [word];
+      pieces.forEach((piece) => {
+        const last = lines[lines.length - 1];
+        if (last !== undefined && last.length + 1 + piece.length <= max) lines[lines.length - 1] = `${last} ${piece}`;
+        else lines.push(piece);
+      });
+      return lines;
+    }, []).concat(paragraph.trim() ? [] : [""]),
+  );
+};
+
+/**
+ * The memo tokens of globals.css as literals. The canvas resolves `var(--memo-…)`
+ * against the page's stylesheet; an exported file has none, and an unresolvable
+ * `fill` paints black.
+ */
+const MEMO_SWATCHES: Record<MemoColor, { surface: string; edge: string }> = {
+  yellow: { surface: "#f4efdc", edge: "#a88d19" },
+  green: { surface: "#e3f4e6", edge: "#4ea464" },
+  blue: { surface: "#e0f1fe", edge: "#3598d4" },
+  pink: { surface: "#fee8ef", edge: "#ca6c93" },
+};
+const MEMO_INK = "#322c28";
+const MEMO_LINE = 18;
 
 const round = (value: number) => Math.round(value * 100) / 100;
 
@@ -97,13 +131,16 @@ export function renderDiagramSVG(schema: Schema, { theme = "light" }: { theme?: 
   });
 
   const memos = (canonical.memos ?? []).map((memo) => {
-    const color = MEMO_COLORS.find((item) => item.id === memo.color) ?? MEMO_COLORS[0];
-    const lines = memo.text.split("\n").slice(0, Math.max(1, Math.floor((memo.height - 40) / 18)));
+    const swatch = MEMO_SWATCHES[memo.color] ?? MEMO_SWATCHES.yellow;
+    const room = Math.max(1, Math.floor((memo.height - 40) / MEMO_LINE));
+    const all = wrap(memo.text, memo.width - 28);
+    // Cut where the card ends, and say so on the last line that fits.
+    const lines = all.length > room ? [...all.slice(0, room - 1), fit(`${all[room - 1]}…`, memo.width - 28)] : all;
     return [
       `<g>`,
-      `<rect x="${memo.x}" y="${memo.y}" width="${memo.width}" height="${memo.height}" rx="10" fill="${color.background}" stroke="${color.border}"/>`,
-      `<text x="${memo.x + 14}" y="${memo.y + 34}" font-size="13" fill="#44403c">`,
-      ...lines.map((line, index) => `<tspan x="${memo.x + 14}" dy="${index ? 18 : 0}">${escapeXml(fit(line, memo.width - 28))}</tspan>`),
+      `<rect x="${memo.x}" y="${memo.y}" width="${memo.width}" height="${memo.height}" rx="10" fill="${theme === "dark" ? `${swatch.edge}26` : swatch.surface}" stroke="${swatch.edge}"/>`,
+      `<text x="${memo.x + 14}" y="${memo.y + 34}" font-size="13" fill="${theme === "dark" ? colors.text : MEMO_INK}">`,
+      ...lines.map((line, index) => `<tspan x="${memo.x + 14}" dy="${index ? MEMO_LINE : 0}">${escapeXml(line)}</tspan>`),
       `</text>`,
       `</g>`,
     ].join("");
@@ -138,7 +175,7 @@ export function renderDiagramSVG(schema: Schema, { theme = "light" }: { theme?: 
       return [
         `<line x1="${x}" y1="${top}" x2="${x + cardWidth}" y2="${top}" stroke="${colors.rule}"/>`,
         badge ? `<rect x="${x + 10}" y="${middle - 9}" width="26" height="18" rx="5" fill="${colors.badge}"/><text x="${x + 23}" y="${middle}" font-size="10" font-weight="600" text-anchor="middle" dominant-baseline="central" fill="${column.pk ? colors.key : colors.muted}">${badge}</text>` : "",
-        `<text x="${nameX}" y="${middle}" font-size="13" dominant-baseline="central" fill="${colors.text}"${column.pk ? ` font-weight="600"` : ""}>${escapeXml(fit(column.name, nameRoom))}${column.notNull || column.pk ? "" : `<tspan fill="${colors.muted}">?</tspan>`}</text>`,
+        `<text x="${nameX}" y="${middle}" font-size="13" dominant-baseline="central" fill="${colors.text}"${column.pk ? ` font-weight="600"` : ""}>${escapeXml(fit(column.name.toUpperCase(), nameRoom))}${column.notNull || column.pk ? "" : `<tspan fill="${colors.muted}">?</tspan>`}</text>`,
         `<text x="${x + cardWidth - 14}" y="${middle}" font-size="12" text-anchor="end" dominant-baseline="central" fill="${colors.muted}">${escapeXml(type)}</text>`,
       ].join("");
     });
@@ -150,7 +187,7 @@ export function renderDiagramSVG(schema: Schema, { theme = "light" }: { theme?: 
       `<rect x="${x}" y="${y}" width="${cardWidth}" height="${TABLE_COLOR_STRIP_HEIGHT}" fill="${escapeXml(table.color.a)}"/>`,
       ...rows,
       `</g>`,
-      `<text x="${x + 14}" y="${y + TABLE_COLOR_STRIP_HEIGHT + TABLE_HEADER_HEIGHT / 2}" font-size="14" font-weight="600" dominant-baseline="central" fill="${colors.text}">${escapeXml(fit(table.name, cardWidth - 28, 8.2))}</text>`,
+      `<text x="${x + 14}" y="${y + TABLE_COLOR_STRIP_HEIGHT + TABLE_HEADER_HEIGHT / 2}" font-size="14" font-weight="600" dominant-baseline="central" fill="${colors.text}">${escapeXml(fit(table.name.toUpperCase(), cardWidth - 28, 8.2))}</text>`,
       `<rect x="${x}" y="${y}" width="${cardWidth}" height="${cardHeight}" rx="10" fill="none" stroke="${colors.border}"/>`,
       `</g>`,
     ].join("");
