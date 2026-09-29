@@ -451,12 +451,65 @@ export function tableWidth(table: Pick<Table, "name"> & Partial<Pick<Table, "wid
   return Math.max(TABLE_WIDTH, Math.min(TABLE_AUTO_MAX_WIDTH, nameWidth));
 }
 
-export function tableHeight(table: Table) {
-  return (
-    TABLE_COLOR_STRIP_HEIGHT +
-    TABLE_HEADER_HEIGHT +
-    table.columns.length * TABLE_FIELD_HEIGHT
+/**
+ * How a card is drawn. `classic` is the colour strip over a white header;
+ * `document` fills the header with the table colour and shows the table
+ * comment in a block beneath it, the way a printed ERD does. The export always
+ * draws `document`; the canvas draws whichever the user picked.
+ */
+export type CardStyle = "classic" | "document";
+export const CARD_STYLES: CardStyle[] = ["classic", "document"];
+
+export const DOCUMENT_HEADER_HEIGHT = 40;
+export const COMMENT_LINE_HEIGHT = 16;
+export const COMMENT_PADDING = 10;
+export const COMMENT_MAX_LINES = 3;
+/** Rough advance of a 12px sans glyph -- the comment's wrap width, shared by canvas and export. */
+export const COMMENT_CHAR_WIDTH = 6.4;
+
+/**
+ * Greedy word wrap to `maxChars` a line. A word longer than a line is broken
+ * across lines rather than lost; a blank line in the source stays blank.
+ */
+export function wrapText(text: string, maxChars: number) {
+  const max = Math.max(1, Math.floor(maxChars));
+  return text.split("\n").flatMap((paragraph) =>
+    paragraph.split(/\s+/).filter(Boolean).reduce<string[]>((lines, word) => {
+      (word.match(new RegExp(`.{1,${max}}`, "g")) ?? [word]).forEach((piece) => {
+        const last = lines[lines.length - 1];
+        if (last !== undefined && last.length + 1 + piece.length <= max) lines[lines.length - 1] = `${last} ${piece}`;
+        else lines.push(piece);
+      });
+      return lines;
+    }, []).concat(paragraph.trim() ? [] : [""]),
   );
+}
+
+/**
+ * The comment as a document card shows it: wrapped to the card, at most
+ * `COMMENT_MAX_LINES`, the last one marked when there was more. Computed here,
+ * not measured in the DOM, so the canvas and the export agree on every card's
+ * height -- relationship anchors are derived from it.
+ */
+export function commentLines(table: Pick<Table, "name" | "width" | "comment">) {
+  const comment = table.comment?.trim();
+  if (!comment) return [];
+  const max = Math.floor((tableWidth(table) - 2 * 12) / COMMENT_CHAR_WIDTH);
+  const lines = wrapText(comment, max);
+  if (lines.length <= COMMENT_MAX_LINES) return lines;
+  const last = lines[COMMENT_MAX_LINES - 1];
+  return [...lines.slice(0, COMMENT_MAX_LINES - 1), `${last.length >= max ? last.slice(0, max - 1) : last}…`];
+}
+
+/** Top of the card to the first row: where relationship anchors start counting. */
+export function tableHeaderHeight(table: Table, style: CardStyle = "classic") {
+  if (style === "classic") return TABLE_COLOR_STRIP_HEIGHT + TABLE_HEADER_HEIGHT;
+  const lines = commentLines(table).length;
+  return DOCUMENT_HEADER_HEIGHT + (lines ? lines * COMMENT_LINE_HEIGHT + 2 * COMMENT_PADDING : 0);
+}
+
+export function tableHeight(table: Table, style: CardStyle = "classic") {
+  return tableHeaderHeight(table, style) + table.columns.length * TABLE_FIELD_HEIGHT;
 }
 
 /** Clear of everything already on the canvas, so an import never lands on top of it. */
