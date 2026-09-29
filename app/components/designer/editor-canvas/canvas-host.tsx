@@ -22,8 +22,8 @@ import {
   type FocusTarget,
 } from "@/app/lib/selection";
 import { shortcutHint, type ShortcutId } from "@/app/lib/shortcuts";
-import type { Table } from "@/app/lib/schema";
-import { HEADER_HEIGHT, ROW_HEIGHT } from "../constants";
+import { tableHeaderHeight, type Table } from "@/app/lib/schema";
+import { ROW_HEIGHT } from "../constants";
 import { facingSide } from "../edge-routing";
 
 export type CanvasHostProps = {
@@ -159,7 +159,7 @@ export function CanvasHost({
 
     return {
       x: origin.x + (direction === 1 ? width : 0),
-      y: origin.y + HEADER_HEIGHT + index * ROW_HEIGHT + ROW_HEIGHT / 2,
+      y: origin.y + tableHeaderHeight(table, settings.cardStyle) + index * ROW_HEIGHT + ROW_HEIGHT / 2,
       direction,
     };
   };

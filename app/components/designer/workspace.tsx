@@ -958,6 +958,14 @@ export default function Workspace({
         })),
     },
     {
+      label: `Use ${relationSettings.cardStyle === "document" ? "classic" : "document"} table cards`,
+      onSelect: () =>
+        setRelationSettings((current) => ({
+          ...current,
+          cardStyle: current.cardStyle === "document" ? "classic" : "document",
+        })),
+    },
+    {
       label: `${relationSettings.showMinimap ? "Hide" : "Show"} minimap`,
       onSelect: () =>
         setRelationSettings((current) => ({

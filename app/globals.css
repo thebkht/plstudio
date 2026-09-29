@@ -2187,6 +2187,93 @@ button {
   color: #7a4fb5;
 }
 
+/*
+ * Document cards: the printed-ERD look the export draws. The header is filled
+ * with the table's own colour (`--card-color`, with `--card-ink` picked for
+ * contrast), the comment sits in a tinted block beneath it, and the rows read
+ * as DDL -- monospace, with the key columns badged in text. Heights come from
+ * `tableHeaderHeight`, so the anchors the edges are drawn to stay true.
+ */
+/* Base weight, so hover and selection still take the border. */
+.table-card:where(.document) {
+  border-color: var(--card-color);
+}
+.table-card.document .table-strip {
+  display: none;
+}
+.table-card.document .table-head {
+  height: 40px;
+  border-bottom: 0;
+  background: var(--card-color);
+  color: var(--card-ink);
+}
+.table-card.document .table-name {
+  font-size: var(--text-sm);
+}
+.table-card.document .table-strategy {
+  color: inherit;
+  opacity: 0.75;
+}
+.table-comment {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--card-color) 35%, transparent);
+  background: color-mix(in srgb, var(--card-color) 8%, var(--table-surface));
+  color: var(--table-muted);
+  font-size: 11.5px;
+  line-height: 16px;
+}
+.table-comment span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.table-card.document .table-row {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 11.5px;
+}
+.row-badge {
+  flex: 0 0 24px;
+  height: 16px;
+  border-radius: 4px;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+.row-badge[data-kind="pk"] {
+  background: #fef3c7;
+  color: #b45309;
+}
+.row-badge[data-kind="fk"] {
+  background: #dbeafe;
+  color: #2563eb;
+}
+.row-badge[data-kind="uq"] {
+  background: #ede9fe;
+  color: #7c3aed;
+}
+.dark .row-badge[data-kind="pk"] {
+  background: #422006;
+  color: #fbbf24;
+}
+.dark .row-badge[data-kind="fk"] {
+  background: #172554;
+  color: #60a5fa;
+}
+.dark .row-badge[data-kind="uq"] {
+  background: #2e1065;
+  color: #a78bfa;
+}
+/* The document style's curves, in the export's blue. `:where` keeps this at the
+   base rule's weight, so hover, selection, the heatmap and impact still win. */
+:where(.edges.document) .relationship-path {
+  stroke: color-mix(in srgb, #2563eb 80%, transparent);
+  stroke-width: 1.5;
+}
+
 .danger {
   color: var(--destructive) !important;
 }

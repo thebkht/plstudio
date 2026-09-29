@@ -39,7 +39,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { HoverCard } from "@/components/ui/hover-card";
-import { TABLE_FIELD_HEIGHT, tableHeight, typeString, uniqueGroupColumnIds, type Column, type SchemaGroup, type Table } from "@/app/lib/schema";
+import { DOCUMENT_HEADER_HEIGHT, TABLE_FIELD_HEIGHT, commentLines, inkOn, tableHeaderHeight, tableHeight, typeString, uniqueGroupColumnIds, type CardStyle, type Column, type SchemaGroup, type Table } from "@/app/lib/schema";
 import { typeColorVar } from "@/app/lib/datatype-color";
 import { ColumnCard, ShortcutKeys, TableSummaryCard } from "../primitives";
 
@@ -56,6 +56,7 @@ const ColumnRow = memo(function ColumnRow({
   columnIndex,
   totalColumns,
   inUniqueGroup,
+  isDocument,
   hoverDisabled,
   readOnly,
   foreignKeyTarget,
@@ -69,6 +70,8 @@ const ColumnRow = memo(function ColumnRow({
   totalColumns: number;
   /** Whether one of the table's multi-column unique constraints names it. */
   inUniqueGroup: boolean;
+  /** Document cards badge the key columns in text and spell names as the DDL does. */
+  isDocument: boolean;
   hoverDisabled: boolean;
   readOnly: boolean;
   foreignKeyTarget: ForeignKeyTarget;
@@ -101,15 +104,21 @@ const ColumnRow = memo(function ColumnRow({
         onPointerDown={(event) => !event.altKey && onStartLink(event, table.id, column.id, columnIndex)}
         aria-hidden="false"
       />
-      <span className="row-name">{column.name.toUpperCase()}</span>
+      {isDocument && (
+        // Always present, even empty, so every name starts at the same x.
+        <span className="row-badge" data-kind={column.pk ? "pk" : column.fk ? "fk" : column.unique || inUniqueGroup ? "uq" : undefined}>
+          {column.pk ? "PK" : column.fk ? "FK" : column.unique || inUniqueGroup ? "UQ" : ""}
+        </span>
+      )}
+      <span className="row-name">{isDocument ? column.name.toLowerCase() : column.name.toUpperCase()}</span>
       <span className="row-meta">
-        {column.pk && <HugeiconsIcon icon={Key01Icon} size={13} aria-hidden="true" />}
-        {column.fk && (
+        {!isDocument && column.pk && <HugeiconsIcon icon={Key01Icon} size={13} aria-hidden="true" />}
+        {!isDocument && column.fk && (
           <HugeiconsIcon icon={Link01Icon} size={13} className="fk-dot" aria-hidden="true" />
         )}
         {/* The same glyph the side panel's Unique flag uses; the tint is what
             separates a column's own unique from one inside a group. */}
-        {(column.unique || inUniqueGroup) && !column.pk && (
+        {!isDocument && (column.unique || inUniqueGroup) && !column.pk && (
           <HugeiconsIcon
             icon={FingerPrintIcon}
             size={13}
@@ -123,7 +132,7 @@ const ColumnRow = memo(function ColumnRow({
           </span>
         )}
         <span className="row-type" style={{ color: typeColorVar(column.type) }}>
-          {typeString(column)}
+          {isDocument ? typeString(column).toLowerCase() : typeString(column)}
         </span>
         {!readOnly && totalColumns > 1 && onGrabRow && (
           <button
@@ -172,6 +181,7 @@ export const TableCard = memo(function TableCard({
   onDeleteTable,
   onShowImpact,
   reorderColumns,
+  cardStyle,
 }: {
   table: Table;
   x: number;
@@ -215,6 +225,7 @@ export const TableCard = memo(function TableCard({
   onDeleteTable: (tableId: string) => void;
   /** Alt-click on a row, or the row's context-menu item. */
   onShowImpact: (tableId: string, columnId: string) => void;
+  cardStyle: CardStyle;
   reorderColumns?: (tableId: string, from: number, to: number) => void;
 }) {
   const [draggingColumnId, setDraggingColumnId] = useState<string | null>(null);
@@ -225,6 +236,8 @@ export const TableCard = memo(function TableCard({
   // Built once per card rather than scanned per row: a card is redrawn on every
   // drag frame and the constraints change about once a session.
   const uniqueGroups = useMemo(() => uniqueGroupColumnIds(table), [table]);
+  const isDocument = cardStyle === "document";
+  const comment = useMemo(() => (isDocument ? commentLines(table) : []), [isDocument, table]);
   const rowSlotsRef = useRef(new Map<string, HTMLDivElement>());
   const gestureRef = useRef<{
     pointerId: number;
@@ -339,7 +352,7 @@ export const TableCard = memo(function TableCard({
   return (
     <ContextMenuTrigger onOpenChange={(open) => open && onSelect(table.id)}>
       <div
-        className={`table-card ${selected ? "selected" : ""} ${multiSelected ? "multi-selected" : ""} ${moving ? "moving" : ""} ${heldByName ? "peer-held" : ""}`}
+        className={`table-card ${isDocument ? "document" : ""} ${selected ? "selected" : ""} ${multiSelected ? "multi-selected" : ""} ${moving ? "moving" : ""} ${heldByName ? "peer-held" : ""}`}
         // Focus dimming finds cards by attribute rather than by prop, so a card
         // outside the neighbourhood is never re-rendered to be dimmed.
         data-table-id={table.id}
@@ -357,9 +370,10 @@ export const TableCard = memo(function TableCard({
            * relationship anchors are derived from, so a skipped card reserves
            * exactly the box it will occupy when it scrolls back into view.
            */
-          containIntrinsicHeight: `${tableHeight(table)}px`,
+          containIntrinsicHeight: `${tableHeight(table, cardStyle)}px`,
           willChange: moving ? "transform" : undefined,
           ...(heldByColor ? ({ "--peer-color": heldByColor } as React.CSSProperties) : {}),
+          ...(isDocument ? ({ "--card-color": table.color.a, "--card-ink": inkOn(table.color.a) } as React.CSSProperties) : {}),
         }}
         onPointerDown={(event) => {
           event.stopPropagation();
@@ -385,7 +399,7 @@ export const TableCard = memo(function TableCard({
             />
           }
         >
-          <span className="table-name">{table.name.toUpperCase()}</span>
+          <span className="table-name">{isDocument ? table.name.toLowerCase() : table.name.toUpperCase()}</span>
           <span className="table-strategy">
             {table.keyStrategy === "sequence-trigger"
               ? "SEQ+TRG"
@@ -394,6 +408,12 @@ export const TableCard = memo(function TableCard({
                 : ""}
           </span>
         </HoverCard>
+        {/* Sized from the same function the anchors are, so edges land on their rows. */}
+        {isDocument && comment.length > 0 && (
+          <div className="table-comment" style={{ height: tableHeaderHeight(table, cardStyle) - DOCUMENT_HEADER_HEIGHT }}>
+            {comment.map((line, index) => <span key={index}>{line}</span>)}
+          </div>
+        )}
         {table.columns.map((column, columnIndex) => (
           <div
             key={column.id}
@@ -406,6 +426,7 @@ export const TableCard = memo(function TableCard({
               columnIndex={columnIndex}
               totalColumns={table.columns.length}
               inUniqueGroup={uniqueGroups.has(column.id)}
+              isDocument={isDocument}
               hoverDisabled={hoverDisabled || draggingColumnId !== null}
               readOnly={readOnly}
               foreignKeyTarget={foreignKeyTarget}

@@ -51,7 +51,7 @@ import { Minimap } from "./minimap";
 import { MemoCard } from "./memo-card";
 import { HeatLegend, IndexSuggestions } from "./index-suggestions";
 import { ImpactPanel } from "./impact-panel";
-import { RelationshipEdge } from "./relationship-edge";
+import { CrowMarkers, RelationshipEdge } from "./relationship-edge";
 import { SchemaGroupCard, SchemaGroupMenu } from "./schema-group";
 import { SelectionToolbar } from "./selection-toolbar";
 import { TableCard } from "./table-card";
@@ -420,7 +420,8 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
           and paints outside its own box (`overflow: visible`), so an edge
           between two cards a long way out still draws.
         */}
-          <svg className="edges" aria-hidden="true">
+          <svg className={`edges ${settings.cardStyle === "document" ? "document" : ""}`} aria-hidden="true">
+            {settings.cardStyle === "document" && <CrowMarkers />}
             {edges.map(({ id, relationship, from, to }) => {
               const [fromCardinality, toCardinality] =
                 relationshipCardinalities(relationship);
@@ -453,6 +454,7 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
                   }
                   showCardinality={settings.showCardinality}
                   showLabel={settings.showRelationshipLabels}
+                  curved={settings.cardStyle === "document"}
                 />
               );
             })}
@@ -497,6 +499,7 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
                 onMakeJunction={g.makeJunction}
                 onDeleteTable={deleteTable}
                 onShowImpact={showImpact}
+                cardStyle={settings.cardStyle}
                 reorderColumns={reorderColumns}
               />
             );
@@ -571,6 +574,7 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
             tables={schema.tables}
             groups={schema.groups}
             memos={schema.memos}
+            cardStyle={settings.cardStyle}
           />
         )}
         <Dock

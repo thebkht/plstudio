@@ -1,4 +1,4 @@
-import { groupMembers, normalizeGroups, normalizeRelationships, tableHeight, tableWidth, type Memo, type Relationship, type Schema, type SchemaGroup, type Table } from "./schema";
+import { groupMembers, normalizeGroups, normalizeRelationships, tableHeight, tableWidth, type CardStyle, type Memo, type Relationship, type Schema, type SchemaGroup, type Table } from "./schema";
 
 /**
  * What the canvas has selected, and everything that follows from it: marquee
@@ -72,7 +72,8 @@ export function pruneSelection(schema: Schema, selection: CanvasSelection): Canv
     : { tables, memos, groups };
 }
 
-const tableBox = (table: Table): Rect => ({ x: table.x, y: table.y, width: tableWidth(table), height: tableHeight(table) });
+/** A card's box in the style the canvas draws it -- a document card runs taller by its comment. */
+const tableBox = (table: Table, style: CardStyle = "classic"): Rect => ({ x: table.x, y: table.y, width: tableWidth(table), height: tableHeight(table, style) });
 const memoBox = (memo: Memo): Rect => ({ x: memo.x, y: memo.y, width: memo.width, height: memo.height });
 const groupBox = (group: SchemaGroup): Rect => ({ x: group.x, y: group.y, width: group.width, height: group.height });
 
@@ -98,9 +99,9 @@ export const rectFromPoints = (x0: number, y0: number, x1: number, y1: number): 
  * *enclosed whole*: crossing its interior is how you pick out the cards inside
  * without carrying off the schema they sit in.
  */
-export function marqueeSelection(schema: Schema, rect: Rect, base: CanvasSelection = EMPTY_SELECTION): CanvasSelection {
+export function marqueeSelection(schema: Schema, rect: Rect, base: CanvasSelection = EMPTY_SELECTION, style: CardStyle = "classic"): CanvasSelection {
   return {
-    tables: union(base.tables, schema.tables.filter((table) => overlaps(rect, tableBox(table))).map((table) => table.id)),
+    tables: union(base.tables, schema.tables.filter((table) => overlaps(rect, tableBox(table, style))).map((table) => table.id)),
     memos: union(base.memos, (schema.memos ?? []).filter((memo) => overlaps(rect, memoBox(memo))).map((memo) => memo.id)),
     groups: union(base.groups, (schema.groups ?? []).filter((group) => contains(rect, groupBox(group))).map((group) => group.id)),
   };
@@ -124,18 +125,18 @@ export function movingEntities(schema: Schema, selection: CanvasSelection) {
   return { tables, memos, groups };
 }
 
-const selectionBoxes = (schema: Schema, selection: CanvasSelection): Rect[] => {
+const selectionBoxes = (schema: Schema, selection: CanvasSelection, style: CardStyle): Rect[] => {
   const moving = movingEntities(schema, selection);
   return [
-    ...schema.tables.filter((table) => moving.tables.has(table.id)).map(tableBox),
+    ...schema.tables.filter((table) => moving.tables.has(table.id)).map((table) => tableBox(table, style)),
     ...(schema.memos ?? []).filter((memo) => moving.memos.has(memo.id)).map(memoBox),
     ...(schema.groups ?? []).filter((group) => moving.groups.has(group.id)).map(groupBox),
   ];
 };
 
 /** The box drawn around the whole selection, or `null` when nothing is selected. */
-export function selectionBounds(schema: Schema, selection: CanvasSelection): Rect | null {
-  const boxes = selectionBoxes(schema, selection);
+export function selectionBounds(schema: Schema, selection: CanvasSelection, style: CardStyle = "classic"): Rect | null {
+  const boxes = selectionBoxes(schema, selection, style);
   if (!boxes.length) return null;
   const x = Math.min(...boxes.map((box) => box.x));
   const y = Math.min(...boxes.map((box) => box.y));

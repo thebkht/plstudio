@@ -11,6 +11,7 @@ import { useTransformControls } from "@/app/hooks";
 import {
   GROUP_PALETTE,
   tableHeight,
+  type CardStyle,
   tableWidth,
   type Memo,
   type SchemaGroup,
@@ -40,8 +41,10 @@ function MinimapComponent({
   tables,
   groups,
   memos,
+  cardStyle,
 }: {
   tables: Table[];
+  cardStyle: CardStyle;
   /** Passed as they sit on the schema, possibly absent: a fresh `[]` per render would defeat `memo`. */
   groups: SchemaGroup[] | undefined;
   memos: Memo[] | undefined;
@@ -53,7 +56,7 @@ function MinimapComponent({
   const boxes: (Box & { fill: string; kind: string })[] = [
     ...(groups ?? []).map((group) => ({ ...group, fill: GROUP_PALETTE[group.color].border, kind: "group" })),
     ...(memos ?? []).map((item) => ({ ...item, fill: (MEMO_COLORS.find((color) => color.id === item.color) ?? MEMO_COLORS[0]).border, kind: "memo" })),
-    ...tables.map((table) => ({ x: table.x, y: table.y, width: tableWidth(table), height: tableHeight(table), fill: table.color.a, kind: "table" })),
+    ...tables.map((table) => ({ x: table.x, y: table.y, width: tableWidth(table), height: tableHeight(table, cardStyle), fill: table.color.a, kind: "table" })),
   ];
   const edge = (pick: (box: Box) => number, pickEnd: (box: Box) => number) =>
     boxes.length ? [Math.min(...boxes.map(pick)), Math.max(...boxes.map(pickEnd))] : [0, 0];

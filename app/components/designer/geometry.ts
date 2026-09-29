@@ -8,6 +8,7 @@ import {
   tableHeight,
   tableWidth,
   type Relationship,
+  type CardStyle,
   type Schema,
   type Table,
 } from "@/app/lib/schema";
@@ -84,6 +85,7 @@ export const insideGroup = (
   table: Table,
   index: number,
   at?: { x: number; y: number },
+  style: CardStyle = "classic",
 ) => {
   const place = (start: number, span: number, size: number, offset: number) => {
     const low = start + 12;
@@ -99,7 +101,7 @@ export const insideGroup = (
     y: place(
       rect.y + GROUP_HEADER_HEIGHT,
       rect.height - GROUP_HEADER_HEIGHT,
-      tableHeight(table),
+      tableHeight(table, style),
       at ? at.y - rect.y - GROUP_HEADER_HEIGHT - 12 : 6 + (index % 4) * 40,
     ),
   };
@@ -216,9 +218,9 @@ const tidyColumns = (count: number) =>
  * table that belongs to nothing can never come to rest inside a group's box and
  * be adopted by it. `schemaId` is read here and never written.
  */
-export function tidyLayout(schema: Schema): Schema {
+export function tidyLayout(schema: Schema, style: CardStyle = "classic"): Schema {
   const next = cloneSchema(schema);
-  const boxOf = (table: Table) => ({ width: tableWidth(table), height: tableHeight(table) });
+  const boxOf = (table: Table) => ({ width: tableWidth(table), height: tableHeight(table, style) });
   const links: LayoutLink[] = (next.relationships ?? []).map((relationship) => ({
     from: relationship.startTableId,
     to: relationship.endTableId,

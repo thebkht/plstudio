@@ -51,6 +51,7 @@ import {
   prefixTableName,
   primaryKeyColumns,
   stripTablePrefix,
+  tableHeaderHeight,
   tableHeight,
   tableWidth,
   type Schema,
@@ -61,6 +62,7 @@ import {
   type Relationship,
 } from "@/app/lib/schema";
 import {
+  useDesignerSettings,
   useLayout,
   useSchema,
   useSelect,
@@ -70,7 +72,6 @@ import {
   DRAG_THRESHOLD,
   GROUP_MIN_HEIGHT,
   GROUP_MIN_WIDTH,
-  HEADER_HEIGHT,
   MAX_ZOOM,
   MEMO_MAX_HEIGHT,
   MEMO_MAX_WIDTH,
@@ -158,6 +159,15 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
     selectTable,
   } = useSelect();
   const { setPanelTab, setSidebarOpen } = useLayout();
+  /*
+   * The card style decides how tall a card is, and so where its rows, its
+   * collisions and its bounds fall. Read through a ref, like the rest of the
+   * state the long-lived listeners need, so a style change re-subscribes nothing.
+   */
+  const { settings } = useDesignerSettings();
+  const cardStyleRef = useRef(settings.cardStyle);
+  cardStyleRef.current = settings.cardStyle;
+  const heightOf = useCallback((table: Table) => tableHeight(table, cardStyleRef.current), []);
   /*
    * Controls only. The hook *drives* the camera and never renders from it, so
    * reading `useTransform()` here would re-render the whole canvas on every
@@ -362,7 +372,7 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
    */
   const multiFrame = useMemo(() => {
     if (selectionCount(selection) < 2) return null;
-    const bounds = selectionBounds(schema, selection);
+    const bounds = selectionBounds(schema, selection, settings.cardStyle);
     if (!bounds) return null;
     return dragSelection
       ? {
@@ -371,7 +381,7 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
           y: bounds.y + dragSelection.dy,
         }
       : bounds;
-  }, [dragSelection, schema, selection]);
+  }, [dragSelection, schema, selection, settings.cardStyle]);
 
   /**
    * A table's on-screen position: the in-flight one while it moves, else its
@@ -506,7 +516,7 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
         x: position.x,
         y:
           position.y +
-          HEADER_HEIGHT +
+          tableHeaderHeight(table, cardStyleRef.current) +
           columnIndex * ROW_HEIGHT +
           ROW_HEIGHT / 2,
       };
@@ -661,13 +671,14 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
             base,
             schema.tables.filter((item) => item.schemaId === target.id).length,
             at,
+            settings.cardStyle,
           ),
         }
       : base;
     commit({ ...schema, tables: [...schema.tables, table] });
     selectTable(table.id);
   };
-  const autoLayout = () => commit(tidyLayout(schema));
+  const autoLayout = () => commit(tidyLayout(schema, settings.cardStyle));
   const fitView = () => {
     if (
       !canvasRef.current ||
@@ -691,7 +702,7 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
       ...(schema.groups ?? []).map((group) => group.x + group.width),
     );
     const maxY = Math.max(
-      ...schema.tables.map((table) => table.y + tableHeight(table)),
+      ...schema.tables.map((table) => table.y + heightOf(table)),
       ...(schema.groups ?? []).map((group) => group.y + group.height),
     );
     const next = Math.max(
@@ -730,7 +741,7 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
       ...tables.map((table) => table.x + tableWidth(table)),
     );
     const maxY = Math.max(
-      ...tables.map((table) => table.y + tableHeight(table)),
+      ...tables.map((table) => table.y + heightOf(table)),
     );
     const next = Math.max(
       MIN_ZOOM,
@@ -759,8 +770,8 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
       const hits = (position: Vec, other: Table) =>
         position.x < other.x + tableWidth(other) + TABLE_GAP &&
         position.x + tableWidth(table) + TABLE_GAP > other.x &&
-        position.y < other.y + tableHeight(other) + TABLE_GAP &&
-        position.y + tableHeight(table) + TABLE_GAP > other.y;
+        position.y < other.y + heightOf(other) + TABLE_GAP &&
+        position.y + heightOf(table) + TABLE_GAP > other.y;
       const overlapping = (position: Vec) =>
         tables.find((other) => other.id !== id && hits(position, other));
       /**
@@ -772,8 +783,8 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
         const moves = [
           { x: other.x - tableWidth(table) - TABLE_GAP, y: position.y },
           { x: other.x + tableWidth(other) + TABLE_GAP, y: position.y },
-          { x: position.x, y: other.y - tableHeight(table) - TABLE_GAP },
-          { x: position.x, y: other.y + tableHeight(other) + TABLE_GAP },
+          { x: position.x, y: other.y - heightOf(table) - TABLE_GAP },
+          { x: position.x, y: other.y + heightOf(other) + TABLE_GAP },
         ];
         return moves.reduce((best, move) =>
           Math.hypot(move.x - position.x, move.y - position.y) <
@@ -943,7 +954,7 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
           const inside = enclosedBy(
             { x: group.x, y: group.y, width: nextWidth, height: nextHeight },
             table.x + tableWidth(table) / 2,
-            table.y + tableHeight(table) / 2,
+            table.y + heightOf(table) / 2,
           );
           return { ...table, schemaId: inside ? id : undefined };
         }),
@@ -1095,6 +1106,7 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
             schemaRef.current,
             swept,
             gesture.base ?? EMPTY_SELECTION,
+            cardStyleRef.current,
           );
           scheduleMove(() => {
             setMarquee(swept);
@@ -1383,7 +1395,7 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
       const target = resolveTablePosition(table.id, projected.x, projected.y);
       const tableCenter = {
         x: target.x + tableWidth(table) / 2,
-        y: target.y + tableHeight(table) / 2,
+        y: target.y + heightOf(table) / 2,
       };
       const targetGroup = (schemaRef.current.groups ?? []).find((group) =>
         enclosedBy(liveGroupRef.current(group), tableCenter.x, tableCenter.y),

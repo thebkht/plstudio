@@ -2,7 +2,7 @@
 
 import { memo } from "react";
 import { MARKER_DISTANCE } from "../constants";
-import { edgePath } from "../edge-routing";
+import { CROW_MANY, CROW_MARKER_SIZE, CROW_ONE, crowMarker, curvePath, edgePath } from "../edge-routing";
 
 /**
  * One relationship as SVG. Up to nine nodes per edge and a nine-command path
@@ -42,6 +42,7 @@ export const RelationshipEdge = memo(function RelationshipEdge({
   active,
   showCardinality,
   showLabel,
+  curved,
 }: {
   edgeId: string;
   fromX: number;
@@ -59,17 +60,17 @@ export const RelationshipEdge = memo(function RelationshipEdge({
   active: boolean;
   showCardinality: boolean;
   showLabel: boolean;
+  /** The document style: a curve with crow's-foot ends, needing no bend. */
+  curved: boolean;
 }) {
   // Every edge leaves its anchor sideways and runs clear of the card before it
   // turns, so the line always emerges from the column's own edge and passes
   // through that end's marker. Where it then turns is `bendX`, which is not
   // this edge's to decide: a bend that reads well is one no other trunk and no
   // card is already sitting on, and only the router sees all of them.
-  const path = edgePath(
-    { x: fromX, y: fromY, direction: fromDirection },
-    { x: toX, y: toY, direction: toDirection },
-    bendX,
-  );
+  const from = { x: fromX, y: fromY, direction: fromDirection };
+  const to = { x: toX, y: toY, direction: toDirection };
+  const path = curved ? curvePath(from, to) : edgePath(from, to, bendX);
   // The SVG paints before the cards, so the outward normal is the only
   // direction that clears the card a marker belongs to.
   const fromMarkerX = fromX + fromDirection * MARKER_DISTANCE;
@@ -78,8 +79,14 @@ export const RelationshipEdge = memo(function RelationshipEdge({
     <g className="relationship" data-edge-id={edgeId}>
       {/* Invisible fat stroke so the thin line is easy to hover. */}
       <path d={path} className="relationship-hit" />
-      <path d={path} className={`relationship-path ${active ? "active" : ""}`} />
-      {showCardinality && (
+      <path
+        d={path}
+        className={`relationship-path ${active ? "active" : ""}`}
+        // Crow's feet say the cardinality themselves, so they replace the pills rather than joining them.
+        markerStart={curved ? `url(#crow-${crowMarker(fromCardinality)})` : undefined}
+        markerEnd={curved ? `url(#crow-${crowMarker(toCardinality)})` : undefined}
+      />
+      {showCardinality && !curved && (
         <>
           <rect className="relationship-marker" x={fromMarkerX - 14} y={fromY - 12} width="28" height="24" rx="12" />
           <text className="relationship-marker-text" x={fromMarkerX} y={fromY}>{fromCardinality}</text>
@@ -90,7 +97,7 @@ export const RelationshipEdge = memo(function RelationshipEdge({
       {/* On the bend, not between the anchors: the midpoint of a C-shaped route
           lands nowhere near the line. */}
       {showLabel && (
-        <text className="relationship-label" x={bendX} y={(fromY + toY) / 2} textAnchor="middle">
+        <text className="relationship-label" x={curved ? (fromX + toX) / 2 : bendX} y={(fromY + toY) / 2} textAnchor="middle">
           <title>{label}</title>
           {ellipsize(label)}
         </text>
@@ -98,3 +105,30 @@ export const RelationshipEdge = memo(function RelationshipEdge({
     </g>
   );
 });
+
+/**
+ * The crow's-foot ends the document style's curves reference, defined once per
+ * edge layer. `context-stroke` paints each end in its own line's colour, so a
+ * highlighted edge highlights its feet with it.
+ */
+export function CrowMarkers() {
+  return (
+    <defs>
+      {([["one", CROW_ONE], ["many", CROW_MANY]] as const).map(([id, d]) => (
+        <marker
+          key={id}
+          id={`crow-${id}`}
+          viewBox={`0 0 ${CROW_MARKER_SIZE} ${CROW_MARKER_SIZE}`}
+          refX={CROW_MARKER_SIZE}
+          refY={CROW_MARKER_SIZE / 2}
+          markerWidth={CROW_MARKER_SIZE}
+          markerHeight={CROW_MARKER_SIZE}
+          markerUnits="userSpaceOnUse"
+          orient="auto-start-reverse"
+        >
+          <path d={d} fill="none" stroke="context-stroke" strokeWidth={1.5} />
+        </marker>
+      ))}
+    </defs>
+  );
+}

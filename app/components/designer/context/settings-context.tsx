@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { isMacPlatform } from "@/app/lib/shortcuts";
+import { CARD_STYLES, type CardStyle } from "@/app/lib/schema";
 
 export type DesignerSettings = {
   showCardinality: boolean;
@@ -17,6 +18,8 @@ export type DesignerSettings = {
   dimUnrelated: boolean;
   autoSave: boolean;
   showMinimap: boolean;
+  /** How tables are drawn on this user's canvas; the export is always `document`. */
+  cardStyle: CardStyle;
 };
 
 const DEFAULT_SETTINGS: DesignerSettings = {
@@ -25,6 +28,7 @@ const DEFAULT_SETTINGS: DesignerSettings = {
   dimUnrelated: false,
   autoSave: false,
   showMinimap: true,
+  cardStyle: "classic",
 };
 
 export type SettingsContextValue = {
@@ -50,7 +54,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         window.localStorage.getItem("plstudio-settings") ||
         window.localStorage.getItem("drawsql-settings");
       if (saved)
-        setSettings((current) => ({ ...current, ...JSON.parse(saved) }));
+        setSettings((current) => {
+          const next = { ...current, ...JSON.parse(saved) };
+          // Card geometry depends on it, so a value from a future build falls back rather than through.
+          return CARD_STYLES.includes(next.cardStyle) ? next : { ...next, cardStyle: current.cardStyle };
+        });
     } catch {
       /* Ignore malformed local settings. */
     }
