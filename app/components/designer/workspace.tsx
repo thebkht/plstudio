@@ -1459,6 +1459,7 @@ export default function Workspace({
         onOpenChange={setSidebarOpen}
       >
         <SidePanel
+          readOnly={readOnly}
           relationshipCount={relationshipRows.length}
           tablesTab={
             <TablesTab

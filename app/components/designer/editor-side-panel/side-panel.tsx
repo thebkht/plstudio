@@ -22,12 +22,14 @@ import { useLayout, useSchema } from "@/app/hooks";
 import type { PanelMode, PanelTab } from "../constants";
 import { CodeView } from "./code-view";
 import { Issues } from "./issues";
+import { QueriesTab } from "./queries-tab/queries-tab";
 
 export type SidePanelProps = {
   /** Count shown on the relationships tab and in the footer. */
   relationshipCount: number;
   tablesTab: ReactNode;
   relationshipsTab: ReactNode;
+  readOnly: boolean;
 };
 
 /**
@@ -39,6 +41,7 @@ export function SidePanel({
   relationshipCount,
   tablesTab,
   relationshipsTab,
+  readOnly,
 }: SidePanelProps) {
   const { schema } = useSchema();
   const {
@@ -83,6 +86,9 @@ export function SidePanel({
             <TabsTrigger id="relationships">
               Relationships ({relationshipCount})
             </TabsTrigger>
+            <TabsTrigger id="queries">
+              Queries ({(schema.queries ?? []).length})
+            </TabsTrigger>
           </TabsList>
         </Tabs>
       </SidebarHeader>
@@ -92,6 +98,8 @@ export function SidePanel({
           <CodeView />
         ) : panelTab === "tables" ? (
           tablesTab
+        ) : panelTab === "queries" ? (
+          <QueriesTab readOnly={readOnly} />
         ) : (
           relationshipsTab
         )}

@@ -759,6 +759,99 @@ button {
   flex: 0 0 auto;
   min-width: 132px;
 }
+
+/* Queries tab. The findings read as a list of claims, each one a click from the tables it names. */
+.queries-panel-body > * + * {
+  margin-top: 14px;
+}
+.queries-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 2px;
+}
+.queries-add .sql-draft {
+  min-height: 96px;
+  max-height: 240px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+}
+.query-finding {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--surface-0);
+  text-align: left;
+}
+.query-finding-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  background: transparent;
+  text-align: left;
+}
+.query-finding code {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.query-sql.code {
+  max-height: 120px;
+  padding: 6px 0;
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Canvas space, so it rides the card; it straddles the corner rather than covering the name. */
+.index-suggestion {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 4;
+  translate: -50% -50%;
+}
+.index-suggestion > [data-slot="button"] {
+  border-color: var(--heat-3);
+  background: var(--background);
+}
+.index-suggestion-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.index-suggestion-row code {
+  flex: 1;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.heat-legend {
+  position: absolute;
+  top: calc(var(--appbar-height) + 14px);
+  right: 22px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: var(--background);
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.heat-swatch {
+  width: 14px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--heat);
+}
 .relationship-row {
   width: 100%;
   display: flex;

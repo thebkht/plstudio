@@ -44,10 +44,11 @@ import type { ShortcutId } from "@/app/lib/shortcuts";
 import { enclosedBy, relationshipCardinalities } from "../geometry";
 import { idealBend, routeEdges } from "../edge-routing";
 import { ShortcutKeys } from "../primitives";
-import { useDesignerSettings, useSchema, useSelect } from "@/app/hooks";
+import { useDesignerSettings, useOverlay, useSchema, useSelect } from "@/app/hooks";
 import { Dock } from "./dock";
 import { Minimap } from "./minimap";
 import { MemoCard } from "./memo-card";
+import { HeatLegend, IndexSuggestions } from "./index-suggestions";
 import { RelationshipEdge } from "./relationship-edge";
 import { SchemaGroupCard, SchemaGroupMenu } from "./schema-group";
 import { SelectionToolbar } from "./selection-toolbar";
@@ -201,8 +202,9 @@ export type CanvasProps = {
 };
 
 export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
-  const { schema, groupsById, peers, addColumn, deleteTable, reorderColumns } =
+  const { schema, groupsById, peers, addColumn, addIndex, deleteTable, reorderColumns } =
     useSchema();
+  const { heatmap, analysis } = useOverlay();
   const {
     selection,
     single,
@@ -514,8 +516,19 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
               }}
             />
           )}
+          {heatmap && (
+            <IndexSuggestions
+              tables={schema.tables}
+              suggestions={analysis.suggestions}
+              readOnly={readOnly}
+              livePosition={g.livePosition}
+              liveWidth={g.liveWidth}
+              onAdd={addIndex}
+            />
+          )}
           <PeerCursors peers={peers} />
         </div>
+        {heatmap && <HeatLegend />}
 
         {/*
         Anchored to the frame but drawn in screen space and never scaled:
