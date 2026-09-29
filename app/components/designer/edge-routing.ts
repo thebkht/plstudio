@@ -190,3 +190,30 @@ export function edgePath(from: Omit<EdgeEnd, "tableId">, to: Omit<EdgeEnd, "tabl
   const radius = Math.min(10, Math.abs(bendX - from.x) / 2, Math.abs(to.x - bendX) / 2, Math.abs(deltaY) / 2);
   return `M ${from.x} ${from.y} H ${bendX - exitDirection * radius} Q ${bendX} ${from.y} ${bendX} ${from.y + verticalDirection * radius} V ${to.y - verticalDirection * radius} Q ${bendX} ${to.y} ${bendX + enterDirection * radius} ${to.y} H ${to.x}`;
 }
+
+/** How far a curve's control points reach out of their cards, at the least. */
+export const CURVE_MIN_REACH = 48;
+
+/**
+ * The document style's edge: one cubic out of each anchor along its flank's
+ * normal, the way a printed ERD draws them. It needs no router -- a curve
+ * crossing a card reads as passing over it, where a right-angled trunk reads
+ * as running into it -- so it is a function of its two anchors alone.
+ */
+export function curvePath(from: Omit<EdgeEnd, "tableId">, to: Omit<EdgeEnd, "tableId">) {
+  const reach = Math.max(CURVE_MIN_REACH, Math.abs(to.x - from.x) / 2);
+  const r = (value: number) => Math.round(value * 100) / 100;
+  return `M ${r(from.x)} ${r(from.y)} C ${r(from.x + from.direction * reach)} ${r(from.y)} ${r(to.x + to.direction * reach)} ${r(to.y)} ${r(to.x)} ${r(to.y)}`;
+}
+
+/**
+ * Crow's-foot ends, drawn arriving at a card: +x points into it and the
+ * reference point is its edge. `orient="auto-start-reverse"` turns the same
+ * glyph round for the start of a path, so one definition serves both ends.
+ * Shared by the canvas (as JSX) and the export (as a string).
+ */
+export const CROW_MARKER_SIZE = 12;
+export const CROW_ONE = "M5 1 V11 M9 1 V11";
+export const CROW_MANY = "M1 6 L12 1 M1 6 L12 11 M1 6 L12 6";
+/** Which glyph a cardinality label ends in: `1` is one, anything else (n, m, 0..*) many. */
+export const crowMarker = (label: string) => (label === "1" ? "one" : "many");
