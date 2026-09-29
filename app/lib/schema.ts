@@ -406,6 +406,25 @@ export function primaryKeyColumns(table: Table) {
 }
 
 /**
+ * Every index Oracle will have on `table`, in column order: the primary key's,
+ * each unique's, and the plain ones. What an index suggestion or a redundancy
+ * warning checks a column list against -- a key covers any list it starts with.
+ */
+export function tableKeys(table: Table) {
+  const pk = primaryKeyColumns(table).map((column) => column.id);
+  return [
+    ...(pk.length ? [{ id: "pk", label: "the primary key", columnIds: pk }] : []),
+    ...table.columns.filter((column) => column.unique).map((column) => ({ id: column.id, label: `unique ${column.name}`, columnIds: [column.id] })),
+    ...(table.uniques ?? []).map((constraint, index) => ({ id: constraint.id, label: constraint.name?.trim() || `unique constraint ${index + 1}`, columnIds: constraint.columnIds })),
+    ...(table.indexes ?? []).map((index, position) => ({ id: index.id, label: index.name?.trim() || `index ${position + 1}`, columnIds: index.columnIds })),
+  ];
+}
+
+/** Whether `key` starts with `columnIds`, so its index serves a lookup on them. */
+export const keyCovers = (key: string[], columnIds: string[]) =>
+  key.length >= columnIds.length && columnIds.every((id, at) => key[at] === id);
+
+/**
  * Card geometry. Mirrored by the same constants in Designer.tsx — relationship
  * anchor routing depends on the two agreeing, so change them together.
  */
