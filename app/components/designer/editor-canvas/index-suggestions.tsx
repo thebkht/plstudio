@@ -80,15 +80,16 @@ export function IndexSuggestions({
     });
 }
 
-/** The ramp's key, in screen space so it stays readable at any zoom. */
+/** The ramp's key, in screen space so it stays readable at any zoom. Each level is an order of magnitude of executions. */
 export function HeatLegend() {
   return (
     <div className="heat-legend" aria-hidden="true">
-      <span>Cold</span>
-      {[1, 2, 3, 4].map((level) => (
-        <span key={level} className="heat-swatch" data-heat={level} />
+      {["1×", "10×", "100×", "1k×"].map((label, index) => (
+        <span key={label} className="heat-legend-step">
+          <span className="heat-swatch" data-heat={index + 1} />
+          {label}
+        </span>
       ))}
-      <span>Hot</span>
     </div>
   );
 }

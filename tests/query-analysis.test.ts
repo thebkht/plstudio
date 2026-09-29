@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyzeQueries, resolveQuery, splitQueries, tableIndex } from "@/app/lib/query-analysis";
+import { analyzeQueries, heatLevel, resolveQuery, splitQueries, tableIndex } from "@/app/lib/query-analysis";
 import { makeColumn, makeDemoSchema, makeIndex, makeSavedQuery, makeTable, normalizeRelationships, type Schema } from "@/app/lib/schema";
 
 /** The demo's STUDENT <- ENROLLMENT foreign key, plus a COURSE table joined without one. */
@@ -71,8 +71,15 @@ describe("analyzeQueries", () => {
     expect(analysis.tableHeat.get(schema.tables[STUDENT].id)).toBe(31);
     expect(analysis.tableHeat.get(schema.tables[ENROLLMENT].id)).toBe(30);
     expect(analysis.edgeHeat.get(relationship.id)).toBe(30);
-    expect(analysis.tableLevels.get(schema.tables[STUDENT].id)).toBe(4);
+    expect(analysis.tableLevels.get(schema.tables[STUDENT].id)).toBe(2);
     expect(analysis.tableLevels.has(schema.tables[COURSE].id)).toBe(false);
+  });
+
+  it("levels heat by order of magnitude, so a lone query run once stays cool", () => {
+    expect([1, 9, 10, 99, 100, 999, 1000, 5_000_000].map(heatLevel)).toEqual([1, 1, 2, 2, 3, 3, 4, 4]);
+    const schema = fixture();
+    schema.queries = [makeSavedQuery("select * from course")];
+    expect(analyzeQueries(schema).tableLevels.get(schema.tables[COURSE].id)).toBe(1);
   });
 
   it("surfaces a join with no foreign key behind it", () => {

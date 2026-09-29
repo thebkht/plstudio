@@ -227,7 +227,7 @@ export type QueryAnalysis = {
   perQuery: Map<string, ResolvedQuery>;
   tableHeat: Map<string, number>;
   edgeHeat: Map<string, number>;
-  /** 1–4 relative to the hottest, absent for untouched. */
+  /** 1–4 by order of magnitude of executions, absent for untouched. */
   tableLevels: Map<string, number>;
   edgeLevels: Map<string, number>;
   implicitJoins: ImplicitJoin[];
@@ -236,11 +236,15 @@ export type QueryAnalysis = {
 
 const bump = <K>(map: Map<K, number>, key: K, by: number) => map.set(key, (map.get(key) ?? 0) + by);
 
-/** Quartiles of the hottest, so one runaway query does not flatten the rest to 1. */
-const levels = (heat: Map<string, number>) => {
-  const max = Math.max(0, ...heat.values());
-  return new Map([...heat].filter(([, value]) => value > 0).map(([key, value]) => [key, Math.max(1, Math.ceil((4 * value) / max))] as const));
-};
+/**
+ * Absolute, one level per order of magnitude: 1–9 executions, 10–99, 100–999,
+ * 1000 and up. Relative to the hottest, a lone query run once painted its
+ * table as hot as a production workload does -- the level has to mean traffic.
+ */
+export const heatLevel = (executions: number) => Math.min(4, Math.floor(Math.log10(Math.max(1, executions))) + 1);
+
+const levels = (heat: Map<string, number>) =>
+  new Map([...heat].filter(([, value]) => value > 0).map(([key, value]) => [key, heatLevel(value)] as const));
 
 /** Relationship id by both orderings of each of its column pairs. */
 function relationshipLookup(relationships: Relationship[]) {

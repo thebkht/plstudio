@@ -918,6 +918,12 @@ button {
   overflow: hidden;
 }
 
+.heat-legend-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 4px;
+}
 .heat-swatch {
   width: 14px;
   height: 8px;
