@@ -74,6 +74,7 @@ import {
 import { type MenuItem } from "@/app/components/designer/primitives";
 import { ColumnList } from "./editor-side-panel/tables-tab/column-list";
 import { UniqueConstraints } from "./editor-side-panel/tables-tab/unique-constraints";
+import { Indexes } from "./editor-side-panel/tables-tab/indexes";
 import type { ImportMessage } from "./editor-header/modal/import";
 import {
   useCanvasCommands,
@@ -138,6 +139,9 @@ export default function Workspace({
     addUnique,
     patchUnique,
     deleteUnique,
+    addIndex,
+    patchIndex,
+    deleteIndex,
     tablesById,
     groupsById,
     issues,
@@ -1091,6 +1095,14 @@ export default function Workspace({
               addUnique={addUnique}
               patchUnique={patchUnique}
               deleteUnique={deleteUnique}
+            />
+
+            <Indexes
+              table={table}
+              readOnly={readOnly}
+              addIndex={addIndex}
+              patchIndex={patchIndex}
+              deleteIndex={deleteIndex}
             />
 
             <div className="flex gap-2 flex-col">
