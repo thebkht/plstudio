@@ -1,5 +1,5 @@
 export const ORACLE_VERSION = "12.2+" as const;
-export const SCHEMA_FORMAT_VERSION = 6 as const;
+export const SCHEMA_FORMAT_VERSION = 7 as const;
 
 export const ORACLE_TYPES = [
   "VARCHAR2",
@@ -73,6 +73,17 @@ export type UniqueConstraint = {
   columnIds: string[];
 };
 
+/**
+ * A plain (non-unique) `create index`. Uniqueness stays with `Column.unique` and
+ * `UniqueConstraint`, which already get their index from the constraint.
+ */
+export type TableIndex = {
+  id: string;
+  /** Blank means the generator mints `<table>_i<n>`. */
+  name?: string;
+  columnIds: string[];
+};
+
 export type Table = {
   id: string;
   name: string;
@@ -87,6 +98,8 @@ export type Table = {
   columns: Column[];
   /** Multi-column unique constraints. Absent and empty mean the same thing. */
   uniques?: UniqueConstraint[];
+  /** Non-unique indexes. Absent and empty mean the same thing. */
+  indexes?: TableIndex[];
 };
 
 export type Memo = {
@@ -184,6 +197,10 @@ export function makeColumn(partial: Partial<Column> = {}): Column {
 
 export function makeUniqueConstraint(columnIds: string[] = [], name = ""): UniqueConstraint {
   return { id: nextId("uk"), name: name || undefined, columnIds };
+}
+
+export function makeIndex(columnIds: string[] = [], name = ""): TableIndex {
+  return { id: nextId("idx"), name: name || undefined, columnIds };
 }
 
 /** The columns of `table` that any of its unique constraints names. */
@@ -407,36 +424,37 @@ export function contentEdges(schema: Schema) {
 }
 
 /**
- * Prune unique constraints against the columns that actually exist. A member
- * column being deleted has to shrink its constraint rather than break it, so a
- * missing id is dropped silently and a constraint left with nothing is dropped
- * whole. Repeated column sets collapse -- Oracle would reject the second index.
+ * Prune column sets -- unique constraints and indexes alike -- against the
+ * columns that actually exist. A member column being deleted has to shrink its
+ * set rather than break it, so a missing id is dropped silently and a set left
+ * with nothing is dropped whole. Repeated column sets collapse -- Oracle would
+ * reject the second index.
  */
-function normalizeUniques(table: Table): UniqueConstraint[] | undefined {
+function normalizeColumnSets<T extends UniqueConstraint | TableIndex>(table: Table, value: T[] | undefined): T[] | undefined {
   const columnIds = new Set(table.columns.map((column) => column.id));
   const sets = new Set<string>();
-  const uniques = (Array.isArray(table.uniques) ? table.uniques : []).flatMap((value) => {
-    if (!value || typeof value !== "object") return [];
-    const constraint = value as Partial<UniqueConstraint>;
-    if (typeof constraint.id !== "string" || !constraint.id) return [];
-    const members = [...new Set((Array.isArray(constraint.columnIds) ? constraint.columnIds : []).filter((id) => typeof id === "string" && columnIds.has(id)))];
+  const kept = (Array.isArray(value) ? value : []).flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const set = item as Partial<T>;
+    if (typeof set.id !== "string" || !set.id) return [];
+    const members = [...new Set((Array.isArray(set.columnIds) ? set.columnIds : []).filter((id) => typeof id === "string" && columnIds.has(id)))];
     if (!members.length) return [];
     // Order is the DDL's, so the key is order-sensitive on purpose: `(a, b)`
     // and `(b, a)` index the same rows but read differently to the user.
-    const key = members.join(" ");
+    const key = members.join(" ");
     if (sets.has(key)) return [];
     sets.add(key);
-    const name = typeof constraint.name === "string" ? constraint.name.trim() : "";
-    return [{ id: constraint.id, name: name || undefined, columnIds: members }];
+    const name = typeof set.name === "string" ? set.name.trim() : "";
+    return [{ id: set.id, name: name || undefined, columnIds: members } as T];
   });
-  return uniques.length ? uniques : undefined;
+  return kept.length ? kept : undefined;
 }
 
 /**
  * Drop garbage manual widths (nulls, NaN, values from a future version) and
  * clamp the survivors, so a bad `width` degrades to auto rather than to a
- * zero-width card. Unique constraints are pruned against the surviving columns
- * in the same pass.
+ * zero-width card. Unique constraints and indexes are pruned against the
+ * surviving columns in the same pass.
  */
 export function normalizeTables(schema: Schema): Schema {
   const next = cloneSchema(schema);
@@ -450,11 +468,12 @@ export function normalizeTables(schema: Schema): Schema {
     const columns = table.columns.map((column) =>
       column.size && !typeUsesSize(column.type) ? { ...column, size: "" } : column,
     );
-    const uniques = normalizeUniques(table);
-    if (width === undefined) return { ...table, columns, uniques };
+    const uniques = normalizeColumnSets(table, table.uniques);
+    const indexes = normalizeColumnSets(table, table.indexes);
+    if (width === undefined) return { ...table, columns, uniques, indexes };
     return typeof width === "number" && Number.isFinite(width)
-      ? { ...table, columns, uniques, width: clampTableWidth(width) }
-      : { ...table, columns, uniques, width: undefined };
+      ? { ...table, columns, uniques, indexes, width: clampTableWidth(width) }
+      : { ...table, columns, uniques, indexes, width: undefined };
   });
   return next;
 }

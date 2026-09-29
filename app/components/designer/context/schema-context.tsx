@@ -14,6 +14,7 @@ import {
 } from "@/app/lib/collab/useCollaborativeSchema";
 import {
   makeColumn,
+  makeIndex,
   makeUniqueConstraint,
   nextId,
   normalizeRelationships,
@@ -22,6 +23,7 @@ import {
   type Schema,
   type SchemaGroup,
   type Table,
+  type TableIndex,
   type UniqueConstraint,
 } from "@/app/lib/schema";
 import { validateSchema } from "@/app/lib/validation";
@@ -73,6 +75,14 @@ export type SchemaContextValue = {
     patch: Partial<UniqueConstraint>,
   ) => void;
   deleteUnique: (tableId: string, uniqueId: string) => void;
+  /** `columnIds` pre-fills the index, which is how a suggestion is accepted. */
+  addIndex: (tableId: string, columnIds?: string[]) => void;
+  patchIndex: (
+    tableId: string,
+    indexId: string,
+    patch: Partial<TableIndex>,
+  ) => void;
+  deleteIndex: (tableId: string, indexId: string) => void;
   tablesById: Map<string, Table>;
   groupsById: Map<string, SchemaGroup>;
   columnsById: Map<string, { table: Table; column: Column }>;
@@ -83,12 +93,12 @@ export type SchemaContextValue = {
 
 export const SchemaContext = createContext<SchemaContextValue | null>(null);
 
-/** Shrink every constraint that names `columnId`, dropping the ones left empty. */
-const dropColumnFromUniques = (
-  uniques: UniqueConstraint[] | undefined,
+/** Shrink every constraint or index that names `columnId`, dropping the ones left empty. */
+const dropColumnFromSets = <T extends UniqueConstraint | TableIndex>(
+  sets: T[] | undefined,
   columnId: string,
 ) =>
-  uniques
+  sets
     ?.map((constraint) => ({
       ...constraint,
       columnIds: constraint.columnIds.filter((id) => id !== columnId),
@@ -284,7 +294,8 @@ export function SchemaProvider({
                    * the editor renders a chip per member and the generator
                    * drops a constraint it cannot fully resolve.
                    */
-                  uniques: dropColumnFromUniques(table.uniques, columnId),
+                  uniques: dropColumnFromSets(table.uniques, columnId),
+                  indexes: dropColumnFromSets(table.indexes, columnId),
                 }
               : {
                   ...table,
@@ -339,7 +350,7 @@ export function SchemaProvider({
     [commitWith],
   );
 
-  /** Every mutation below rewrites `uniques` whole — see `dropColumnFromUniques`. */
+  /** Every mutation below rewrites `uniques` whole — see `dropColumnFromSets`. */
   const withUniques = useCallback(
     (
       tableId: string,
@@ -378,6 +389,44 @@ export function SchemaProvider({
         uniques.filter((constraint) => constraint.id !== uniqueId),
       ),
     [withUniques],
+  );
+
+  /** The same shape as `withUniques`, for `indexes`. */
+  const withIndexes = useCallback(
+    (tableId: string, mutate: (indexes: TableIndex[]) => TableIndex[]) =>
+      commitWith((current) => ({
+        ...current,
+        tables: current.tables.map((table) =>
+          table.id === tableId
+            ? { ...table, indexes: mutate(table.indexes ?? []) }
+            : table,
+        ),
+      })),
+    [commitWith],
+  );
+
+  const addIndex = useCallback(
+    (tableId: string, columnIds: string[] = []) =>
+      withIndexes(tableId, (indexes) => [...indexes, makeIndex(columnIds)]),
+    [withIndexes],
+  );
+
+  const patchIndex = useCallback(
+    (tableId: string, indexId: string, patch: Partial<TableIndex>) =>
+      withIndexes(tableId, (indexes) =>
+        indexes.map((index) =>
+          index.id === indexId ? { ...index, ...patch } : index,
+        ),
+      ),
+    [withIndexes],
+  );
+
+  const deleteIndex = useCallback(
+    (tableId: string, indexId: string) =>
+      withIndexes(tableId, (indexes) =>
+        indexes.filter((index) => index.id !== indexId),
+      ),
+    [withIndexes],
   );
 
   const tablesById = useMemo(
@@ -446,6 +495,9 @@ export function SchemaProvider({
       addUnique,
       patchUnique,
       deleteUnique,
+      addIndex,
+      patchIndex,
+      deleteIndex,
       tablesById,
       groupsById,
       columnsById,
@@ -475,6 +527,9 @@ export function SchemaProvider({
       addUnique,
       patchUnique,
       deleteUnique,
+      addIndex,
+      patchIndex,
+      deleteIndex,
       tablesById,
       groupsById,
       columnsById,

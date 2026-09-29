@@ -43,7 +43,7 @@ export const isEmptyDoc = (ydoc: Y.Doc) => {
 
 /**
  * Structural equality for the only shapes that reach a record field: primitives,
- * plain objects (`color`, `fk`) and arrays of those (`uniques`, `fields`).
+ * plain objects (`color`, `fk`) and arrays of those (`uniques`, `indexes`, `fields`).
  * It short-circuits on the first mismatch and on reference equality at every
  * level, where the `JSON.stringify` it replaces serialised both sides in full --
  * for every field of every record, on every commit.
@@ -146,6 +146,7 @@ function writeTable(map: Y.Map<unknown>, table: Table) {
     // Plain JSON like `relationship.fields`: a unique constraint is added,
     // emptied or deleted whole, so per-field granularity would buy nothing.
     uniques: table.uniques,
+    indexes: table.indexes,
   });
   if (!(map.get("columns") instanceof Y.Array)) map.set("columns", new Y.Array<Y.Map<unknown>>());
   reconcileList(map.get("columns") as Y.Array<Y.Map<unknown>>, table.columns, writeColumn);
@@ -192,7 +193,7 @@ const readRecord = <T>(map: Y.Map<unknown>, keys: readonly (keyof T & string)[])
   }, {} as T);
 
 const COLUMN_KEYS = ["id", "name", "type", "size", "notNull", "pk", "unique", "defaultValue", "check", "comment"] as const;
-const TABLE_KEYS = ["id", "name", "x", "y", "color", "keyStrategy", "schemaId", "comment", "width", "uniques"] as const;
+const TABLE_KEYS = ["id", "name", "x", "y", "color", "keyStrategy", "schemaId", "comment", "width", "uniques", "indexes"] as const;
 const RELATIONSHIP_KEYS = ["id", "startTableId", "startFieldId", "endTableId", "endFieldId", "fields", "name", "cardinality", "manyLabel", "updateConstraint", "deleteConstraint"] as const;
 const GROUP_KEYS = ["id", "name", "keyword", "x", "y", "width", "height", "color"] as const;
 const MEMO_KEYS = ["id", "text", "x", "y", "width", "height", "color", "schemaId"] as const;

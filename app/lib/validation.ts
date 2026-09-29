@@ -90,6 +90,23 @@ export function validateSchema(schema: Schema): ValidationIssue[] {
       else if (constraint.columnIds.length === 1) issues.push({ severity: "warning", message: `${table.name}: ${label} covers one column; use the column's Unique flag instead.`, tableId: table.id });
       else if (constraint.columnIds.length === pkIds.size && constraint.columnIds.every((columnId) => pkIds.has(columnId))) issues.push({ severity: "warning", message: `${table.name}: ${label} repeats the primary key, which already enforces it.`, tableId: table.id });
     });
+    /*
+     * An index is redundant when another key's columns already start with its
+     * own: Oracle can range-scan that key's index on the leading columns alone.
+     */
+    const keys = [
+      { label: "the primary key", columnIds: pk.map((column) => column.id) },
+      ...table.columns.filter((column) => column.unique).map((column) => ({ label: `unique ${column.name}`, columnIds: [column.id] })),
+      ...(table.uniques ?? []).map((constraint, index) => ({ label: constraint.name?.trim() || `unique constraint ${index + 1}`, columnIds: constraint.columnIds })),
+    ];
+    (table.indexes ?? []).forEach((index, position) => {
+      const label = index.name?.trim() || `index ${position + 1}`;
+      if (index.name?.trim()) issues.push(...identifierIssues(index.name, `Index ${table.name}.${index.name}`).map((issue) => ({ ...issue, tableId: table.id })));
+      if (!index.columnIds.length) return issues.push({ severity: "error", message: `${table.name}: ${label} has no columns.`, tableId: table.id });
+      const others = [...keys, ...(table.indexes ?? []).filter((other) => other !== index).map((other, at) => ({ label: other.name?.trim() || `index ${at + (at >= position ? 2 : 1)}`, columnIds: other.columnIds }))];
+      const cover = others.find((other) => other.columnIds.length >= index.columnIds.length && index.columnIds.every((id, at) => other.columnIds[at] === id));
+      if (cover) issues.push({ severity: "warning", message: `${table.name}: ${label} is already covered by ${cover.label}.`, tableId: table.id });
+    });
     table.columns.forEach((column) => {
       issues.push(...identifierIssues(column.name, `Column ${table.name}.${column.name}`).map((issue) => ({ ...issue, tableId: table.id, columnId: column.id })));
       const checkIssue = validateCheckExpression(column.check);

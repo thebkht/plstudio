@@ -4,6 +4,7 @@ import {
   commentLines,
   createTableLines,
   ddlModel,
+  indexLines,
   sequenceLines,
   type DDLColumn,
   type DDLConstraint,
@@ -102,6 +103,25 @@ export function generateMigration(from: Schema, to: Schema): Migration {
     [...targets.values()].flat().forEach((constraint) => add(to, constraint));
   });
 
+  // Indexes by the columns they cover, in the target's ids, the way constraints are matched.
+  const dropIndexes: string[] = [];
+  const renameIndexes: string[] = [];
+  const addIndexes: string[] = [];
+  tables.pairs.forEach(({ from, to }) => {
+    const targets = new Map<string, DDLTable["indexes"]>();
+    to.indexes.forEach((index) => {
+      const key = index.columnIds.join(",");
+      targets.set(key, [...(targets.get(key) ?? []), index]);
+    });
+    from.indexes.forEach((index) => {
+      const columns = index.columnIds.map((id) => columnId.get(`${from.id}\u0000${id}`));
+      const same = columns.includes(undefined) ? undefined : targets.get(columns.join(","))?.shift();
+      if (!same) return dropIndexes.push(`drop index ${index.name};`);
+      if (same.name !== index.name) renameIndexes.push(`alter index ${index.name} rename to ${same.name};`);
+    });
+    [...targets.values()].flat().forEach((index) => addIndexes.push(statement(indexLines(to, index))));
+  });
+
   const dropTables = tables.removed.flatMap((table) => {
     warnings.push(`Drops table ${table.name} and all of its data.`);
     return [
@@ -159,6 +179,7 @@ export function generateMigration(from: Schema, to: Schema): Migration {
     statement([
       ...createTableLines(table),
       ...table.constraints.filter((constraint) => constraint.kind !== "fk").flatMap((constraint) => ["", ...addConstraintLines(table, constraint)]),
+      ...table.indexes.flatMap((index) => ["", ...indexLines(table, index)]),
       ...(commentLines(table).length ? ["", ...commentLines(table)] : []),
       ...(table.sequence ? ["", ...sequenceLines(table.sequence)] : []),
     ]),
@@ -168,13 +189,16 @@ export function generateMigration(from: Schema, to: Schema): Migration {
   const sections: [string, string[]][] = [
     ["Drop foreign keys", dropKeys],
     ["Drop constraints", dropConstraints],
+    ["Drop indexes", dropIndexes],
     ["Drop tables", dropTables],
     ["Rename", renames],
     ["Drop columns", dropColumns],
     ["Add and modify columns", alterColumns],
     ["Rename constraints", renameConstraints],
+    ["Rename indexes", renameIndexes],
     ["Create tables", creates],
     ["Add constraints", addConstraints],
+    ["Add indexes", addIndexes],
     ["Add foreign keys", addKeys],
     ["Sequences", sequences],
     ["Comments", comments],

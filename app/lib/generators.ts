@@ -62,6 +62,9 @@ export type DDLConstraint = {
   notes?: string[];
 };
 
+/** A plain `create index`, kept apart from `constraints` so their numbering never moves. */
+export type DDLIndex = { name: string; columnIds: string[]; columns: string[] };
+
 export type DDLTable = {
   id: string;
   name: string;
@@ -69,6 +72,7 @@ export type DDLTable = {
   dataTablespace: string;
   indexTablespace: string;
   constraints: DDLConstraint[];
+  indexes: DDLIndex[];
   comment: string;
   /** Minted only for `sequence-trigger` tables with a single NUMBER key. */
   sequence?: string;
@@ -177,6 +181,15 @@ export function ddlModel(schema: Schema): DDLTable[] {
         notes,
       });
     });
+    // Minted after the table's constraints, so a diagram with no indexes names
+    // everything exactly as it did before indexes existed.
+    const indexes = (table.indexes ?? [])
+      .filter((index) => index.columnIds.length && index.columnIds.every((id) => byId.has(id)))
+      .map((index, position): DDLIndex => ({
+        name: shorten(index.name?.trim() || `${tableName}_i${position + 1}`, usedNames),
+        columnIds: index.columnIds,
+        columns: names(index.columnIds),
+      }));
     return {
       id: table.id,
       name: tableName,
@@ -184,6 +197,7 @@ export function ddlModel(schema: Schema): DDLTable[] {
       dataTablespace: group ? ` tablespace ${tablespace}_data` : "",
       indexTablespace: group ? ` tablespace ${tablespace}_index` : "",
       constraints,
+      indexes,
       comment: table.comment?.trim() ?? "",
     };
   });
@@ -235,6 +249,11 @@ export function addConstraintLines(table: Pick<DDLTable, "name" | "indexTablespa
   }
 }
 
+/** One `create index` statement. */
+export function indexLines(table: Pick<DDLTable, "name" | "indexTablespace">, index: DDLIndex) {
+  return [`create index ${index.name} on ${table.name} (${index.columns.join(", ")})${table.indexTablespace};`];
+}
+
 export function sequenceLines(name: string) {
   return [`create sequence ${name}`, "start with 1", "increment by 1", "nocache", "nocycle;"];
 }
@@ -255,6 +274,7 @@ export function generateDDL(schema: Schema) {
   tables.forEach((table) => {
     out.push(`--drop table ${table.name};`, "--", ...createTableLines(table), "--");
     table.constraints.forEach((constraint) => out.push(...addConstraintLines(table, constraint), "--"));
+    table.indexes.forEach((index) => out.push(...indexLines(table, index), "--"));
     out.push(...commentLines(table), "");
   });
   const sequences = tables.flatMap((table) => (table.sequence ? [table.sequence] : []));

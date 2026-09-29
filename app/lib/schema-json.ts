@@ -1,5 +1,5 @@
 import { findColumn, findTable, type AppendResult, type ParseResult } from "./parser";
-import { APPEND_GAP, contentEdges, KEY_STRATEGIES, makeColumn, nextId, normalizeGroups, normalizeMemos, normalizeRelationships, normalizeTables, ORACLE_TYPES, PALETTE, SCHEMA_FORMAT_VERSION, type Column, type ForeignKeyRef, type KeyStrategy, type OracleType, type Relationship, type Schema, type SchemaGroup, type Table, type UniqueConstraint } from "./schema";
+import { APPEND_GAP, contentEdges, KEY_STRATEGIES, makeColumn, nextId, normalizeGroups, normalizeMemos, normalizeRelationships, normalizeTables, ORACLE_TYPES, PALETTE, SCHEMA_FORMAT_VERSION, type Column, type ForeignKeyRef, type KeyStrategy, type OracleType, type Relationship, type Schema, type SchemaGroup, type Table, type TableIndex, type UniqueConstraint } from "./schema";
 
 /**
  * The lossless counterpart to `generateDDL`. DDL carries none of the canvas --
@@ -88,18 +88,18 @@ function readColumn(value: unknown, table: string, index: number, warnings: stri
 }
 
 /** Shape-checked only; `normalizeTables` is what prunes members and empties. */
-function readUniques(value: unknown): UniqueConstraint[] | undefined {
+function readColumnSets<T extends UniqueConstraint | TableIndex>(value: unknown): T[] | undefined {
   if (!Array.isArray(value)) return undefined;
-  const uniques = value.flatMap((item) => {
+  const sets = value.flatMap((item): T[] => {
     const raw = record(item);
     if (!raw || typeof raw.id !== "string" || !raw.id || !Array.isArray(raw.columnIds)) return [];
     return [{
       id: raw.id,
       name: typeof raw.name === "string" && raw.name.trim() ? raw.name.trim() : undefined,
       columnIds: raw.columnIds.filter((columnId): columnId is string => typeof columnId === "string"),
-    }];
+    } as T];
   });
-  return uniques.length ? uniques : undefined;
+  return sets.length ? sets : undefined;
 }
 
 function readTable(value: unknown, index: number, warnings: string[]): Table | null {
@@ -134,7 +134,8 @@ function readTable(value: unknown, index: number, warnings: string[]): Table | n
     // `normalizeTables` clamps whatever survives; anything unusable degrades to auto.
     width: typeof raw.width === "number" && Number.isFinite(raw.width) ? raw.width : undefined,
     columns,
-    uniques: readUniques(raw.uniques),
+    uniques: readColumnSets<UniqueConstraint>(raw.uniques),
+    indexes: readColumnSets<TableIndex>(raw.indexes),
   };
 }
 
@@ -317,6 +318,11 @@ export function mergeSchemaJson(base: Schema, text: string): AppendResult {
       ...constraint,
       id: nextId("uk"),
       columnIds: constraint.columnIds.map((columnId) => columnIds.get(columnId) ?? columnId),
+    })),
+    indexes: table.indexes?.map((index) => ({
+      ...index,
+      id: nextId("idx"),
+      columnIds: index.columnIds.map((columnId) => columnIds.get(columnId) ?? columnId),
     })),
   }));
   const addedGroups = groups.map((group) => ({ ...group, id: groupIds.get(group.id) ?? group.id, x: group.x + dx, y: group.y + dy }));

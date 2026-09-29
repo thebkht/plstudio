@@ -93,7 +93,7 @@ Three things Postgres used to do implicitly and the store now does explicitly �
 - **`writeAtomic`** — temp file + `rename`, so a reader never sees half-written JSON.
 - **`deleteProject`** — walks to the Yjs blob and the share file itself, replacing `ON DELETE CASCADE`. `ProjectRecord.shareTokenHash` is the back-pointer that replaces `project_share`'s unique foreign key.
 
-`PUT` implements optimistic concurrency: if the stored `revision` differs from the client's it returns **409 `REVISION_CONFLICT`** with the current record, unless `{ overwrite: true }` is passed. The new revision is `max(stored, incoming) + 1`. `SCHEMA_FORMAT_VERSION` (currently `6`) is stamped server-side on every write — bump it in `app/lib/schema.ts` when the JSON shape changes.
+`PUT` implements optimistic concurrency: if the stored `revision` differs from the client's it returns **409 `REVISION_CONFLICT`** with the current record, unless `{ overwrite: true }` is passed. The new revision is `max(stored, incoming) + 1`. `SCHEMA_FORMAT_VERSION` (currently `7`) is stamped server-side on every write — bump it in `app/lib/schema.ts` when the JSON shape changes.
 
 `scripts/migrate-from-neon.ts` imports an existing Postgres database into `DATA_DIR` (`DATABASE_URL=… pnpm tsx scripts/migrate-from-neon.ts`, `--force` to re-import). It reads only, so it can be re-run and verified before anything is dropped. `pg` is a devDependency for its sake alone. `scripts/migrate-storage-layout.ts` (`pnpm tsx scripts/migrate-storage-layout.ts`, `--force` to overwrite a taken destination) renames the older flat `projects/<projectId>.json` files into their owner directory; it only touches top-level `*.json`, so re-running it does nothing.
 

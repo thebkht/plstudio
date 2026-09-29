@@ -1,4 +1,4 @@
-import { APPEND_GAP, contentEdges, makeColumn, makeTable, makeUniqueConstraint, nextId, normalizeIdentifier, normalizeRelationships, PALETTE, SCHEMA_FORMAT_VERSION, type Column, type ForeignKeyRef, type OracleType, type Schema, type Table } from "./schema";
+import { APPEND_GAP, contentEdges, makeColumn, makeIndex, makeTable, makeUniqueConstraint, nextId, normalizeIdentifier, normalizeRelationships, PALETTE, SCHEMA_FORMAT_VERSION, type Column, type ForeignKeyRef, type OracleType, type Schema, type Table } from "./schema";
 import { isMermaidER, parseMermaidER, appendMermaidER, generateMermaidER } from "./mermaid";
 
 export type ParseResult = { schema: Schema | null; warnings: string[]; errors: string[] };
@@ -314,6 +314,34 @@ export function parseCreateTable(sql: string, options: ParseOptions = {}): Parse
     else if (constraint.kind === "check") applyCheck(tableName, constraint.expression);
     else if (constraint.kind === "fk") foreignKeys.push({ tableName, constraintName: constraint.name, columns: constraint.columns, targetName: constraint.targetName, targetColumns: constraint.targetColumns, deleteAction: constraint.deleteAction });
     else warnings.push(`${tableName}: skipped unsupported table constraint: ${raw}`);
+  }
+
+  /*
+   * `create [unique] index`. A unique one is the same thing as a unique
+   * constraint as far as the model goes; anything fancier than a plain column
+   * list (function-based, bitmap options aside) is reported and skipped.
+   */
+  const indexRegex = new RegExp(`CREATE\\s+(UNIQUE\\s+|BITMAP\\s+)?INDEX\\s+(${QUALIFIED})\\s+ON\\s+(${QUALIFIED})\\s*\\(`, "gi");
+  let index: RegExpExecArray | null;
+  while ((index = indexRegex.exec(sql))) {
+    const open = index.index + index[0].length - 1;
+    const close = matchParen(sql, open);
+    if (close < 0) break;
+    indexRegex.lastIndex = close + 1;
+    const tableName = bareName(index[3]);
+    const indexName = bareName(index[2]);
+    const table = findTable(tables, tableName);
+    if (!table) continue;
+    const inner = sql.slice(open + 1, close);
+    const columnNames = identList(inner.replace(/\s+(?:ASC|DESC)\b/gi, ""));
+    const columns = columnNames.map((name) => findColumn(table, name));
+    // `upper(name)` would otherwise read as the bare column `name`.
+    if (/[()]/.test(inner) || !columns.length || columns.some((column) => !column)) {
+      warnings.push(`${tableName}: skipped index ${indexName}; only plain column indexes are supported.`);
+      continue;
+    }
+    if (/UNIQUE/i.test(index[1] ?? "")) applyUnique(tableName, indexName, columnNames);
+    else table.indexes = [...(table.indexes ?? []), makeIndex(columns.map((column) => column!.id), indexName)];
   }
 
   const importedRelationships: Array<Record<string, unknown>> = [];
