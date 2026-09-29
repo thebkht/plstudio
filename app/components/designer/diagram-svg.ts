@@ -1,39 +1,61 @@
 import {
+  COMMENT_LINE_HEIGHT,
+  COMMENT_PADDING,
+  DOCUMENT_HEADER_HEIGHT,
   GROUP_PALETTE,
+  TABLE_FIELD_HEIGHT,
+  commentLines,
   normalizeRelationships,
-  TABLE_COLOR_STRIP_HEIGHT,
-  TABLE_HEADER_HEIGHT,
+  tableHeaderHeight,
   tableHeight,
   tableWidth,
   typeString,
   uniqueGroupColumnIds,
+  wrapText,
   type MemoColor,
   type Schema,
+  type SchemaGroup,
   type Table,
 } from "@/app/lib/schema";
-import { HEADER_HEIGHT, MARKER_DISTANCE, ROW_HEIGHT } from "./constants";
-import { edgePath, facingSide, idealBend, routeEdges, type EdgeInput } from "./edge-routing";
+import { CROW_MANY, CROW_MARKER_SIZE, CROW_ONE, crowMarker, curvePath, facingSide } from "./edge-routing";
 import { relationshipCardinalities } from "./geometry";
 
 /**
  * The diagram as a standalone SVG document, drawn from the domain model rather
  * than screenshotted from the DOM: the canvas is transformed, culled with
  * `content-visibility` and themed through custom properties, none of which
- * survives serialization. Geometry is the canvas's own -- the same card
- * constants, the same router and the same edge path -- so the picture matches
- * what is on screen. Pure and deterministic; `svgToPng` rasterizes it.
+ * survives serialization.
+ *
+ * It is always the *document* card style -- a printed ERD: colour-filled
+ * headers, the table comment under them, monospace columns with PK/FK/UQ
+ * badges, curved relationships with crow's-foot ends, and a title, summary
+ * and legend above it. Positions are the canvas's, reflowed only where a
+ * taller document card would otherwise run into the one below it
+ * (`reflowDiagram`). Pure and deterministic; `svgToPng` rasterizes it.
  */
 export type DiagramTheme = "light" | "dark";
 
 const THEMES = {
-  light: { background: "#ffffff", card: "#ffffff", border: "#d6d3d1", text: "#1c1917", muted: "#78716c", rule: "#f0eeec", edge: "#8a8580", badge: "#f5f5f4", key: "#b45309" },
-  dark: { background: "#1c1917", card: "#292524", border: "#44403c", text: "#fafaf9", muted: "#a8a29e", rule: "#35302d", edge: "#8a8580", badge: "#3a3431", key: "#f59e0b" },
+  light: {
+    background: "#ffffff", card: "#ffffff", text: "#0f172a", muted: "#64748b", rule: "#eef2f6", edge: "#2563eb",
+    pk: ["#fef3c7", "#b45309"], fk: ["#dbeafe", "#2563eb"], uq: ["#ede9fe", "#7c3aed"],
+  },
+  dark: {
+    background: "#0f1115", card: "#1a1d23", text: "#f1f5f9", muted: "#94a3b8", rule: "#262a31", edge: "#60a5fa",
+    pk: ["#422006", "#fbbf24"], fk: ["#172554", "#60a5fa"], uq: ["#2e1065", "#a78bfa"],
+  },
 } as const;
 
 const FONT = `ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+const MONO = `ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
 const PADDING = 48;
-/** Rough advance of a 13px sans glyph -- enough to keep text inside its card. */
+/** Rough advances: a 13px sans glyph, and an 11.5px monospace one. */
 const CHAR_WIDTH = 7.4;
+const MONO_WIDTH = 6.9;
+/** Room above the diagram for the title, summary and legend. */
+const CHROME_HEIGHT = 64;
+/** A group's name sits above its box, as the heading of its lane. */
+const LANE_TITLE_HEIGHT = 26;
 
 export const escapeXml = (value: string) =>
   value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[char]!);
@@ -43,23 +65,14 @@ const fit = (text: string, width: number, charWidth = CHAR_WIDTH) => {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 };
 
-/**
- * Greedy word wrap to `width`, the way the memo's textarea wraps on screen.
- * A word longer than a whole line is broken across lines rather than lost.
- */
-const wrap = (text: string, width: number, charWidth = CHAR_WIDTH) => {
-  const max = Math.max(1, Math.floor(width / charWidth));
-  return text.split("\n").flatMap((paragraph) =>
-    paragraph.split(/\s+/).filter(Boolean).reduce<string[]>((lines, word) => {
-      const pieces = word.match(new RegExp(`.{1,${max}}`, "g")) ?? [word];
-      pieces.forEach((piece) => {
-        const last = lines[lines.length - 1];
-        if (last !== undefined && last.length + 1 + piece.length <= max) lines[lines.length - 1] = `${last} ${piece}`;
-        else lines.push(piece);
-      });
-      return lines;
-    }, []).concat(paragraph.trim() ? [] : [""]),
-  );
+const round = (value: number) => Math.round(value * 100) / 100;
+
+/** Black or white, whichever reads on `hex` -- the palette runs from navy to mint. */
+const inkOn = (hex: string) => {
+  const match = hex.match(/^#?([0-9a-f]{6})$/i);
+  if (!match) return "#ffffff";
+  const [r, g, b] = [0, 2, 4].map((at) => parseInt(match[1].slice(at, at + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? "#0f172a" : "#ffffff";
 };
 
 /**
@@ -76,15 +89,87 @@ const MEMO_SWATCHES: Record<MemoColor, { surface: string; edge: string }> = {
 const MEMO_INK = "#322c28";
 const MEMO_LINE = 18;
 
-const round = (value: number) => Math.round(value * 100) / 100;
-
 type Box = { x: number; y: number; width: number; height: number };
+type Block = { id: string; x: number; y: number; width: number; before: number; after: number };
+
+/**
+ * New tops for blocks that may each have grown. A block sitting clear below
+ * another it shares columns with keeps the gap it had, measured from that
+ * block's new bottom; blocks that already overlapped are left alone -- the user
+ * put them there. One pass in top-to-bottom order, so growth cascades.
+ */
+export function pushDown(blocks: Block[]) {
+  const placed: (Block & { top: number })[] = [];
+  const tops = new Map<string, number>();
+  [...blocks]
+    .sort((a, b) => a.y - b.y || a.x - b.x || (a.id < b.id ? -1 : 1))
+    .forEach((block) => {
+      const top = placed.reduce((lowest, other) => {
+        const shareColumns = block.x < other.x + other.width && other.x < block.x + block.width;
+        const gap = block.y - (other.y + other.before);
+        return shareColumns && gap >= 0 ? Math.max(lowest, other.top + other.after + gap) : lowest;
+      }, block.y);
+      tops.set(block.id, top);
+      placed.push({ ...block, top });
+    });
+  return tops;
+}
+
+/**
+ * Where everything sits in the export. Document cards run taller than classic
+ * ones by their comment block, so positions laid out on a classic canvas are
+ * reflowed: first each group's members among themselves, growing the group to
+ * keep its bottom margin, then the groups, loose tables and memos as blocks,
+ * a moved group carrying its members. The canvas is never touched.
+ */
+export function reflowDiagram(schema: Schema) {
+  const groups = schema.groups ?? [];
+  const groupIds = new Set(groups.map((group) => group.id));
+  const table = new Map(schema.tables.map((item) => [item.id, { x: item.x, y: item.y }]));
+  const block = (item: Table): Block => ({ id: item.id, x: item.x, y: item.y, width: tableWidth(item), before: tableHeight(item, "classic"), after: tableHeight(item, "document") });
+
+  const grown = new Map<string, SchemaGroup>();
+  groups.forEach((group) => {
+    const members = schema.tables.filter((item) => item.schemaId === group.id);
+    const tops = pushDown(members.map(block));
+    tops.forEach((top, id) => (table.get(id)!.y = top));
+    const bottom = (items: number[]) => Math.max(group.y, ...items);
+    const margin = Math.max(0, group.y + group.height - bottom(members.map((item) => item.y + tableHeight(item, "classic"))));
+    const reach = bottom(members.map((item) => tops.get(item.id)! + tableHeight(item, "document")));
+    grown.set(group.id, { ...group, height: Math.max(group.height, reach + margin - group.y) });
+  });
+
+  const loose = schema.tables.filter((item) => !groupIds.has(item.schemaId ?? ""));
+  const memos = schema.memos ?? [];
+  const tops = pushDown([
+    ...groups.map((group) => ({ id: group.id, x: group.x, y: group.y, width: group.width, before: group.height, after: grown.get(group.id)!.height })),
+    ...loose.map(block),
+    ...memos.map((memo) => ({ id: memo.id, x: memo.x, y: memo.y, width: memo.width, before: memo.height, after: memo.height })),
+  ]);
+  groups.forEach((group) => {
+    const dy = tops.get(group.id)! - group.y;
+    grown.get(group.id)!.y += dy;
+    schema.tables.filter((item) => item.schemaId === group.id).forEach((item) => (table.get(item.id)!.y += dy));
+  });
+  loose.forEach((item) => (table.get(item.id)!.y = tops.get(item.id)!));
+  return {
+    tables: table,
+    groups: groups.map((group) => grown.get(group.id)!),
+    memos: memos.map((memo) => ({ ...memo, y: tops.get(memo.id)! })),
+  };
+}
+
+const markerDefs = (color: string) =>
+  `<defs>${[["one", CROW_ONE], ["many", CROW_MANY]]
+    .map(([id, d]) => `<marker id="crow-${id}" viewBox="0 0 ${CROW_MARKER_SIZE} ${CROW_MARKER_SIZE}" refX="${CROW_MARKER_SIZE}" refY="${CROW_MARKER_SIZE / 2}" markerWidth="${CROW_MARKER_SIZE}" markerHeight="${CROW_MARKER_SIZE}" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="${d}" fill="none" stroke="${color}" stroke-width="1.5"/></marker>`)
+    .join("")}</defs>`;
 
 export function renderDiagramSVG(schema: Schema, { theme = "light" }: { theme?: DiagramTheme } = {}) {
   const colors = THEMES[theme];
   const canonical = schema.relationships?.length ? schema : normalizeRelationships(schema);
+  const layout = reflowDiagram(canonical);
   const tablesById = new Map(canonical.tables.map((table) => [table.id, table]));
-  const boxOf = (table: Table): Box => ({ x: table.x, y: table.y, width: tableWidth(table), height: tableHeight(table) });
+  const boxOf = (table: Table): Box => ({ ...layout.tables.get(table.id)!, width: tableWidth(table), height: tableHeight(table, "document") });
 
   const edges = (canonical.relationships ?? []).flatMap((relationship) => {
     const from = tablesById.get(relationship.startTableId);
@@ -95,45 +180,73 @@ export function renderDiagramSVG(schema: Schema, { theme = "light" }: { theme?: 
     if (!from || !to || fromIndex < 0 || toIndex < 0) return [];
     const end = (table: Table, index: number, other: Table) => {
       const box = boxOf(table);
-      const direction = facingSide(box.x, box.width, other.x, tableWidth(other));
-      return { x: box.x + (direction === 1 ? box.width : 0), y: box.y + HEADER_HEIGHT + index * ROW_HEIGHT + ROW_HEIGHT / 2, direction, tableId: table.id };
+      const otherBox = boxOf(other);
+      const direction = facingSide(box.x, box.width, otherBox.x, otherBox.width);
+      return { x: box.x + (direction === 1 ? box.width : 0), y: box.y + tableHeaderHeight(table, "document") + index * TABLE_FIELD_HEIGHT + TABLE_FIELD_HEIGHT / 2, direction };
     };
-    return [{ id: relationship.id, relationship, from: end(from, fromIndex, to), to: end(to, toIndex, from) }];
+    return [{ relationship, name: `${from.name}.${from.columns[fromIndex].name} → ${to.name}.${to.columns[toIndex].name}`, from: end(from, fromIndex, to), to: end(to, toIndex, from) }];
   });
-  const routes = routeEdges(
-    edges.map(({ id, from, to }): EdgeInput => ({ id, from, to })),
-    canonical.tables.map((table) => ({ id: table.id, ...boxOf(table) })),
-  );
-  const bends = new Map(edges.map((edge) => [edge.id, routes.get(edge.id) ?? idealBend(edge.from, edge.to)]));
 
   const boxes: Box[] = [
     ...canonical.tables.map(boxOf),
-    ...(canonical.groups ?? []),
-    ...(canonical.memos ?? []),
-    // Markers sit outside the cards and trunks can run past them.
-    ...edges.flatMap((edge) => [edge.from, edge.to].map((end) => ({ x: end.x + end.direction * MARKER_DISTANCE - 16, y: end.y - 14, width: 32, height: 28 }))),
-    ...edges.map((edge) => ({ x: bends.get(edge.id)! - 1, y: Math.min(edge.from.y, edge.to.y), width: 2, height: Math.abs(edge.to.y - edge.from.y) })),
+    ...layout.groups.map((group) => ({ ...group, y: group.y - LANE_TITLE_HEIGHT, height: group.height + LANE_TITLE_HEIGHT })),
+    ...layout.memos,
+    // A curve bulges past its anchors by at most its reach.
+    ...edges.flatMap((edge) => [edge.from, edge.to].map((end) => ({ x: end.x + Math.min(0, end.direction) * 60, y: end.y - 8, width: 60, height: 16 }))),
   ];
+  const empty = !canonical.tables.length;
   const minX = boxes.length ? Math.min(...boxes.map((box) => box.x)) - PADDING : 0;
-  const minY = boxes.length ? Math.min(...boxes.map((box) => box.y)) - PADDING : 0;
+  const top = boxes.length ? Math.min(...boxes.map((box) => box.y)) - PADDING : 0;
+  const minY = empty ? top : top - CHROME_HEIGHT;
   const width = boxes.length ? Math.max(...boxes.map((box) => box.x + box.width)) + PADDING - minX : PADDING * 2;
-  const height = boxes.length ? Math.max(...boxes.map((box) => box.y + box.height)) + PADDING - minY : PADDING * 2;
+  const height = (boxes.length ? Math.max(...boxes.map((box) => box.y + box.height)) + PADDING : PADDING * 2) - minY;
 
-  const groups = (canonical.groups ?? []).map((group) => {
+  /* Title, summary and legend, in the band above the diagram. */
+  const relationships = edges.length;
+  const summary = [
+    `${canonical.tables.length} ${canonical.tables.length === 1 ? "table" : "tables"}`,
+    `${relationships} ${relationships === 1 ? "relationship" : "relationships"}`,
+    ...(layout.groups.length ? [`${layout.groups.length} ${layout.groups.length === 1 ? "group" : "groups"}`] : []),
+  ].join(" · ");
+  const chromeX = minX + PADDING;
+  const chromeY = minY + PADDING;
+  const legendX = Math.max(chromeX + 380, minX + width - PADDING - 420);
+  const badge = (x: number, y: number, label: string, [fill, ink]: readonly [string, string]) =>
+    `<rect x="${round(x)}" y="${round(y - 8)}" width="24" height="16" rx="4" fill="${fill}"/><text x="${round(x + 12)}" y="${round(y)}" font-size="9.5" font-weight="700" text-anchor="middle" dominant-baseline="central" fill="${ink}" font-family='${MONO}'>${label}</text>`;
+  const chrome = empty
+    ? []
+    : [
+        `<text x="${round(chromeX)}" y="${round(chromeY + 4)}" font-size="22" font-weight="700" letter-spacing="-0.4" fill="${colors.text}">${escapeXml(fit(canonical.name, legendX - chromeX - 24, 12))}</text>`,
+        `<text x="${round(chromeX)}" y="${round(chromeY + 26)}" font-size="12" fill="${colors.muted}">${escapeXml(summary)}</text>`,
+        `<g font-size="11.5" fill="${colors.text}">`,
+        `<path d="M ${round(legendX)} ${round(chromeY - 4)} H ${round(legendX + 64)}" stroke="${colors.edge}" stroke-width="1.5" marker-start="url(#crow-many)" marker-end="url(#crow-one)"/>`,
+        `<text x="${round(legendX + 76)}" y="${round(chromeY - 4)}" dominant-baseline="central">Foreign key (many → one)</text>`,
+        badge(legendX + 250, chromeY - 4, "PK", colors.pk),
+        `<text x="${round(legendX + 282)}" y="${round(chromeY - 4)}" dominant-baseline="central">Primary key</text>`,
+        badge(legendX + 250, chromeY + 18, "FK", colors.fk),
+        `<text x="${round(legendX + 282)}" y="${round(chromeY + 18)}" dominant-baseline="central">Foreign key</text>`,
+        badge(legendX + 360, chromeY - 4, "UQ", colors.uq),
+        `<text x="${round(legendX + 392)}" y="${round(chromeY - 4)}" dominant-baseline="central">Unique</text>`,
+        `<text x="${round(legendX + 76)}" y="${round(chromeY + 18)}" dominant-baseline="central" fill="${colors.muted}">? nullable</text>`,
+        `</g>`,
+      ];
+
+  const groups = layout.groups.map((group) => {
     const palette = GROUP_PALETTE[group.color];
-    const fill = theme === "dark" ? `${palette.border}26` : palette.background;
+    const fill = theme === "dark" ? `${palette.border}1f` : palette.background;
+    const title = [group.keyword, group.name].filter(Boolean).join(" · ").toUpperCase();
     return [
       `<g>`,
-      `<rect x="${group.x}" y="${group.y}" width="${group.width}" height="${group.height}" rx="14" fill="${fill}" stroke="${palette.border}" stroke-width="1.5"/>`,
-      `<text x="${group.x + 16}" y="${group.y + 26}" font-size="13" font-weight="600" fill="${theme === "dark" ? palette.border : palette.text}">${escapeXml(fit([group.keyword, group.name].filter(Boolean).join(" · "), group.width - 32))}</text>`,
+      `<text x="${group.x + 2}" y="${group.y - 10}" font-size="12.5" font-weight="700" letter-spacing="0.6" fill="${theme === "dark" ? palette.border : palette.text}">${escapeXml(fit(title, group.width - 4, 8.4))}</text>`,
+      `<rect x="${group.x}" y="${group.y}" width="${group.width}" height="${round(group.height)}" rx="12" fill="${fill}" stroke="${palette.border}" stroke-opacity="0.55"/>`,
       `</g>`,
     ].join("");
   });
 
-  const memos = (canonical.memos ?? []).map((memo) => {
+  const memos = layout.memos.map((memo) => {
     const swatch = MEMO_SWATCHES[memo.color] ?? MEMO_SWATCHES.yellow;
     const room = Math.max(1, Math.floor((memo.height - 40) / MEMO_LINE));
-    const all = wrap(memo.text, memo.width - 28);
+    const all = wrapText(memo.text, (memo.width - 28) / CHAR_WIDTH);
     // Cut where the card ends, and say so on the last line that fits.
     const lines = all.length > room ? [...all.slice(0, room - 1), fit(`${all[room - 1]}…`, memo.width - 28)] : all;
     return [
@@ -146,49 +259,52 @@ export function renderDiagramSVG(schema: Schema, { theme = "light" }: { theme?: 
     ].join("");
   });
 
-  const markers = (x: number, y: number, label: string) =>
-    `<rect x="${round(x - 14)}" y="${round(y - 12)}" width="28" height="24" rx="12" fill="${colors.card}" stroke="${colors.edge}"/>` +
-    `<text x="${round(x)}" y="${round(y)}" font-size="11" text-anchor="middle" dominant-baseline="central" fill="${colors.text}">${escapeXml(label)}</text>`;
   const lines = edges.map((edge) => {
     const [fromCardinality, toCardinality] = relationshipCardinalities(edge.relationship);
-    const bend = bends.get(edge.id)!;
-    return [
-      `<g>`,
-      `<path d="${edgePath(edge.from, edge.to, round(bend))}" fill="none" stroke="${colors.edge}" stroke-width="1.5"/>`,
-      markers(edge.from.x + edge.from.direction * MARKER_DISTANCE, edge.from.y, fromCardinality),
-      markers(edge.to.x + edge.to.direction * MARKER_DISTANCE, edge.to.y, toCardinality),
-      `</g>`,
-    ].join("");
+    return `<path d="${curvePath(edge.from, edge.to)}" fill="none" stroke="${colors.edge}" stroke-width="1.3" marker-start="url(#crow-${crowMarker(fromCardinality)})" marker-end="url(#crow-${crowMarker(toCardinality)})"><title>${escapeXml(edge.name)}</title></path>`;
   });
 
   const cards = canonical.tables.map((table, index) => {
     const { x, y, width: cardWidth, height: cardHeight } = boxOf(table);
+    const accent = table.color.a;
+    const ink = inkOn(accent);
     const composite = uniqueGroupColumnIds(table);
     const clip = `card-${index}`;
+    const comment = commentLines(table);
+    const headerHeight = tableHeaderHeight(table, "document");
+    const strategy = table.keyStrategy === "sequence-trigger" ? "SEQ+TRG" : table.keyStrategy === "identity" ? "IDENTITY" : "";
     const rows = table.columns.map((column, row) => {
-      const top = y + HEADER_HEIGHT + row * ROW_HEIGHT;
-      const middle = top + ROW_HEIGHT / 2;
-      const badge = column.pk ? "PK" : column.fk ? "FK" : column.unique || composite.has(column.id) ? "UQ" : "";
+      const top = y + headerHeight + row * TABLE_FIELD_HEIGHT;
+      const middle = top + TABLE_FIELD_HEIGHT / 2;
+      const kind = column.pk ? "pk" : column.fk ? "fk" : column.unique || composite.has(column.id) ? "uq" : null;
       const type = typeString(column).toLowerCase();
-      const nameX = x + (badge ? 44 : 14);
-      const nameRoom = cardWidth - (nameX - x) - 14 - type.length * 6.6 - 10;
+      const nameX = x + 40;
+      const nameRoom = cardWidth - 40 - 12 - type.length * MONO_WIDTH - 8;
       return [
-        `<line x1="${x}" y1="${top}" x2="${x + cardWidth}" y2="${top}" stroke="${colors.rule}"/>`,
-        badge ? `<rect x="${x + 10}" y="${middle - 9}" width="26" height="18" rx="5" fill="${colors.badge}"/><text x="${x + 23}" y="${middle}" font-size="10" font-weight="600" text-anchor="middle" dominant-baseline="central" fill="${column.pk ? colors.key : colors.muted}">${badge}</text>` : "",
-        `<text x="${nameX}" y="${middle}" font-size="13" dominant-baseline="central" fill="${colors.text}"${column.pk ? ` font-weight="600"` : ""}>${escapeXml(fit(column.name.toUpperCase(), nameRoom))}${column.notNull || column.pk ? "" : `<tspan fill="${colors.muted}">?</tspan>`}</text>`,
-        `<text x="${x + cardWidth - 14}" y="${middle}" font-size="12" text-anchor="end" dominant-baseline="central" fill="${colors.muted}">${escapeXml(type)}</text>`,
+        row ? `<line x1="${x}" y1="${top}" x2="${x + cardWidth}" y2="${top}" stroke="${colors.rule}"/>` : "",
+        kind ? badge(x + 10, middle, kind.toUpperCase(), colors[kind]) : "",
+        `<text x="${nameX}" y="${middle}" font-size="11.5" font-family='${MONO}' dominant-baseline="central" fill="${colors.text}"${column.pk ? ` font-weight="700"` : ""}>${escapeXml(fit(column.name.toLowerCase(), nameRoom, MONO_WIDTH))}${column.notNull || column.pk ? "" : `<tspan fill="${colors.muted}" dominant-baseline="central">?</tspan>`}</text>`,
+        `<text x="${x + cardWidth - 12}" y="${middle}" font-size="11" font-family='${MONO}' text-anchor="end" dominant-baseline="central" fill="${colors.muted}">${escapeXml(type)}</text>`,
       ].join("");
     });
     return [
       `<g>`,
-      `<clipPath id="${clip}"><rect x="${x}" y="${y}" width="${cardWidth}" height="${cardHeight}" rx="10"/></clipPath>`,
-      `<rect x="${x}" y="${y}" width="${cardWidth}" height="${cardHeight}" rx="10" fill="${colors.card}"/>`,
+      `<clipPath id="${clip}"><rect x="${x}" y="${y}" width="${cardWidth}" height="${cardHeight}" rx="8"/></clipPath>`,
+      `<rect x="${x}" y="${y}" width="${cardWidth}" height="${cardHeight}" rx="8" fill="${colors.card}"/>`,
       `<g clip-path="url(#${clip})">`,
-      `<rect x="${x}" y="${y}" width="${cardWidth}" height="${TABLE_COLOR_STRIP_HEIGHT}" fill="${escapeXml(table.color.a)}"/>`,
+      `<rect x="${x}" y="${y}" width="${cardWidth}" height="${DOCUMENT_HEADER_HEIGHT}" fill="${escapeXml(accent)}"/>`,
+      comment.length
+        ? `<rect x="${x}" y="${y + DOCUMENT_HEADER_HEIGHT}" width="${cardWidth}" height="${headerHeight - DOCUMENT_HEADER_HEIGHT}" fill="${escapeXml(accent)}" fill-opacity="${theme === "dark" ? 0.16 : 0.07}"/>` +
+          `<line x1="${x}" y1="${y + headerHeight}" x2="${x + cardWidth}" y2="${y + headerHeight}" stroke="${escapeXml(accent)}" stroke-opacity="0.35"/>` +
+          `<text x="${x + 12}" y="${y + DOCUMENT_HEADER_HEIGHT + COMMENT_PADDING + COMMENT_LINE_HEIGHT / 2}" font-size="11.5" fill="${colors.muted}">` +
+          comment.map((line, at) => `<tspan x="${x + 12}" dy="${at ? COMMENT_LINE_HEIGHT : 0}" dominant-baseline="central">${escapeXml(line)}</tspan>`).join("") +
+          `</text>`
+        : "",
       ...rows,
       `</g>`,
-      `<text x="${x + 14}" y="${y + TABLE_COLOR_STRIP_HEIGHT + TABLE_HEADER_HEIGHT / 2}" font-size="14" font-weight="600" dominant-baseline="central" fill="${colors.text}">${escapeXml(fit(table.name.toUpperCase(), cardWidth - 28, 8.2))}</text>`,
-      `<rect x="${x}" y="${y}" width="${cardWidth}" height="${cardHeight}" rx="10" fill="none" stroke="${colors.border}"/>`,
+      `<text x="${x + 12}" y="${y + DOCUMENT_HEADER_HEIGHT / 2}" font-size="13" font-weight="700" dominant-baseline="central" fill="${ink}">${escapeXml(fit(table.name.toLowerCase(), cardWidth - 24 - strategy.length * 6.4, 7.8))}</text>`,
+      strategy ? `<text x="${x + cardWidth - 12}" y="${y + DOCUMENT_HEADER_HEIGHT / 2}" font-size="9.5" font-weight="600" letter-spacing="0.4" text-anchor="end" dominant-baseline="central" fill="${ink}" fill-opacity="0.75">${strategy}</text>` : "",
+      `<rect x="${x}" y="${y}" width="${cardWidth}" height="${cardHeight}" rx="8" fill="none" stroke="${escapeXml(accent)}" stroke-width="1.5"/>`,
       `</g>`,
     ].join("");
   });
@@ -196,7 +312,9 @@ export function renderDiagramSVG(schema: Schema, { theme = "light" }: { theme?: 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${round(width)}" height="${round(height)}" viewBox="${round(minX)} ${round(minY)} ${round(width)} ${round(height)}" font-family='${FONT}'>`,
     `<title>${escapeXml(schema.name)}</title>`,
+    markerDefs(colors.edge),
     `<rect x="${round(minX)}" y="${round(minY)}" width="${round(width)}" height="${round(height)}" fill="${colors.background}"/>`,
+    ...chrome,
     ...groups,
     ...memos,
     ...lines,
