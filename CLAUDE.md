@@ -7,7 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Package manager is **pnpm** (pinned to `pnpm@11.0.9` via `packageManager`).
 
 ```bash
-pnpm dev                      # Next dev server
+pnpm dev                      # Next dev server on port 4000 (not 3000)
+pnpm collab                   # Hocuspocus collab server (collab/server.ts), a separate process
 pnpm build                    # next build --webpack (the --webpack flag is required)
 pnpm typecheck                # tsc --noEmit
 pnpm test                     # vitest run (node environment)
@@ -39,20 +40,20 @@ An Oracle 12.2+ schema designer: a PLStudio-style canvas where you draw tables, 
 - Foreign keys are single-column only. FKs targeting a composite-PK table are a validation error, and `generateDDL` silently skips them.
 - Uniqueness has two forms and they do not overlap: `Column.unique` is a single-column `UNIQUE`, and `Table.uniques` (`UniqueConstraint[]`) is the multi-column one. A composite constraint does *not* set the flag on its members — that would emit one constraint per column. `normalizeTables` prunes a constraint's `columnIds` against the columns that exist, so a deleted column shrinks its constraints rather than breaking them, and `generateDDL` numbers table-level constraints on from the single-column ones so older diagrams generate byte-identical DDL.
 - `keyStrategy` is per-table: `"none"` | `"sequence-trigger"` (emits `CREATE SEQUENCE` + a `BEFORE INSERT` trigger) | `"identity"` (emits `GENERATED ALWAYS AS IDENTITY`, no sequence/trigger). Generated strategies require exactly one `NUMBER` PK; otherwise `keyStrategyArtifacts` returns nothing and validation warns.
-- No table groups/categories in the domain model.
+- `Schema.groups` (`SchemaGroup[]`) are canvas regions, not DDL: a table or memo joins one via `schemaId`. A group's `keyword` is an advisory name prefix stamped on tables *created* in it (or by the explicit apply action) and never enforced afterwards.
 
 ### UI
 
 The editor is laid out like drawDB's: a provider-only entry point, a shell, and one directory per screen region.
 
 - `app/components/designer.tsx` — mounts the provider stack and nothing else (drawDB's `pages/Editor.jsx`).
-- `app/components/designer/workspace.tsx` — the shell (drawDB's `components/Workspace.jsx`). It still owns the canvas gesture layer, the position commits, the menu tree, the save pipeline and the two per-row renderers the side panel takes as render props.
+- `app/components/designer/workspace.tsx` — the shell (drawDB's `components/Workspace.jsx`). It owns the menu tree, the save pipeline and the two per-row renderers the side panel takes as render props — but not the gesture layer (see below).
 - `editor-header/` — `control-panel.tsx` (the appbar) and `modal/`, whose `modal.tsx` switches on the modal union the way drawDB switches on its `MODAL` enum.
-- `editor-canvas/` — one file per drawable: `table-card`, `schema-group`, `memo-card`, `relationship-edge`, plus `dock` and `selection-toolbar`.
-- `editor-side-panel/` — `side-panel.tsx` (shell), `code-view`, `issues`, and a folder per tab (`tables-tab/`, `relationships-tab/`).
+- `editor-canvas/` — one file per drawable (`table-card`, `schema-group`, `memo-card`, `relationship-edge`, …) plus `canvas-host` and `use-canvas-gestures.ts`.
+- `editor-side-panel/` — `side-panel.tsx` (shell), `code-view`, `issues`, and a folder per tab.
 - `designer/constants.ts` and `designer/geometry.ts` — the canvas constants and the pure helpers, dependency-free.
 
-State lives in `designer/context/`, each context paired 1:1 with a hook re-exported from `app/hooks/index.ts` — so components read `useSchema()`, `useSelect()`, `useLayout()`, `useTransform()`, `useSaveState()`, `useDesignerSettings()` rather than taking twenty props. `SchemaProvider` wraps `useCollaborativeSchema` and owns the structural mutations and the derived `tablesById`/`issues`/`ddl`; provider order in `designer.tsx` is a dependency order, since `SchemaProvider` reads the panel mode and marks the document dirty.
+State lives in `designer/context/`, each context paired 1:1 with a hook re-exported from `app/hooks/index.ts` — so components read `useSchema()`, `useSelect()`, `useOverlay()` and so on rather than taking twenty props. `SchemaProvider` wraps `useCollaborativeSchema` and owns the structural mutations and the derived `tablesById`/`issues`/`ddl`; the DDL comes from `use-worker-ddl.ts`, which generates in a Web Worker with the save queue's one-in-flight/coalesce-to-newest shape. `OverlayProvider` derives the query heatmap and column impact analysis from the schema's saved `queries`. Provider order in `designer.tsx` is a dependency order: `SchemaProvider` reads the panel mode and marks the document dirty, and `OverlayProvider` reads `SchemaProvider`.
 
 **High-frequency gesture state (`dragPosition`, `marquee`, the resize values) is deliberately not in a tree-wide context, and not in `workspace.tsx` either** — it lives in `useCanvasGestures`, called by `editor-canvas/canvas-host.tsx`, which sits _below_ the appbar and the side panel. That placement is the whole point: a `pointermove` re-renders the canvas and nothing else. Keeping the hook above them (as it was) re-rendered 25 table editors per frame regardless of how well the children were memoized, because `useContext` re-renders on provider value identity and `React.memo` cannot stop it.
 
@@ -62,7 +63,9 @@ Keep the `xRef.current = x` mirrors too: the long-lived pointer/key listeners re
 
 Canvas geometry (`TABLE_WIDTH`, `TABLE_COLOR_STRIP_HEIGHT`, `TABLE_HEADER_HEIGHT`, `TABLE_FIELD_HEIGHT`) is defined once in `app/lib/schema.ts` alongside `tableHeight()`; `designer/constants.ts` re-derives `HEADER_HEIGHT`/`ROW_HEIGHT` from it. Relationship anchors are derived from these — if the card's visual layout changes, update the constants rather than hardcoding new offsets.
 
-Undo/redo: `commit(next)` pushes the _previous_ schema onto `history` (capped at 50) and clears `future`.
+Cards have two `CardStyle`s: `classic` (colour strip over a white header) and `document` (filled header plus the table comment wrapped beneath it). The canvas draws whichever the user picked in settings; the export always draws `document`. A document card's height depends on its comment, so `tableHeaderHeight(table, style)`/`tableHeight(table, style)` compute the wrap with `commentLines()` rather than measuring the DOM — that is what keeps the canvas, the export and the relationship anchors agreeing. Always pass the style through; the `classic` default is only right for classic cards.
+
+Undo/redo is per-user `Y.UndoManager` (see Realtime collaboration), not a local history stack.
 
 Canvas gestures live in `app/lib/motion.ts` (pure, tested): `Spring` (analytic damped oscillator, re-targetable mid-flight), `VelocityTracker`, `project()` for momentum, `rubberClamp()` for soft bounds. Drags do **not** write to `schema` per frame — the live position sits in `dragPosition` state and is committed once on release, so `validateSchema`/`generateDDL` don't rerun every pointermove. Anything reading a table's on-screen position must go through `livePosition(table)`, not `table.x/y`.
 
@@ -70,7 +73,7 @@ The camera follows the same rule one level up. `applyViewport(pan, zoom)` (`cont
 
 Wheel handling is attached natively with `{ passive: false }` because React registers `wheel` passively, which silently no-ops `preventDefault`. Scroll pans; ctrl/⌘-scroll zooms anchored at the cursor.
 
-`app/globals.css` (~1000 lines) owns all workspace layout, light-mode materials, table-card styling, and responsive breakpoints. It supports `prefers-reduced-motion` and `prefers-reduced-transparency` — keep new styles consistent with that.
+`app/globals.css` (~3300 lines) owns all workspace layout, light-mode materials, table-card styling, and responsive breakpoints. It supports `prefers-reduced-motion` and `prefers-reduced-transparency` — keep new styles consistent with that.
 
 ### Persistence
 
@@ -114,14 +117,13 @@ Every write goes through `app/lib/save-queue.ts` (`createSaveQueue`, tested in `
 
 `nextId()` mints UUIDs because ids must be unique across *clients*, not just per session.
 
-`getDb()` creates `auth.db` if it is missing; every route catches storage failures and returns 503/400 rather than crashing.
-`PATCH` renames use the same optimistic revision scheme as `PUT`; a successful rename bumps the revision and updates `schemaJson.name`.
+`getDb()` creates `auth.db` if it is missing; every route catches storage failures and returns 503/400 rather than crashing. The client-less `PATCH` rename route uses the same optimistic revision scheme as `PUT`.
 
 ## Conventions
 
 - Path alias `@/*` maps to the repo root, configured in both `tsconfig.json` and `vitest.config.ts`.
 - Application component filenames use kebab-case (`designer.tsx`, `collab-presence.tsx`, and so on), directories too (`editor-canvas/`, `tables-tab/`). Component identifiers remain PascalCase. This is where we depart from drawDB, which uses PascalCase for both — only the directory _shape_ is borrowed. Shadcn components under `components/ui` are already kebab-case and are left as generated.
-- UI components come from shadcn with the `aria-vega` style and Base UI / react-aria-components underneath (`components.json`). Icon library is configured as `hugeicons`, but `Designer.tsx` currently imports from `lucide-react`.
+- UI components come from shadcn with the `aria-vega` style and Base UI / react-aria-components underneath (`components.json`). Icons are `hugeicons` (`@hugeicons/react` + `@hugeicons/core-free-icons`); don't introduce `lucide-react`.
 - Tests live in `tests/` and target the pure domain layer (generators, parser, validation) — not the React tree.
 - Code style is dense: single-line arrow functions and chained array methods over intermediate variables. Match it.
 - Commit messages: no `Co-Authored-By` trailers.
