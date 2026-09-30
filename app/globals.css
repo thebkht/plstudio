@@ -904,7 +904,6 @@ button {
   border-radius: var(--radius-group);
   background: var(--grouped-surface);
   box-shadow: 0 0 0 0.5px var(--separator);
-  margin-top: 32px;
 }
 .entity-list:empty {
   display: none;
@@ -1612,8 +1611,11 @@ button {
 .relationship-panel-body {
   gap: 8px;
 }
+/* 8px under the tab bar, the same as the tables tab's search; a little more
+   below, so the field reads as a control over the list rather than its first row. */
 .relationship-search {
   flex: 0 0 auto;
+  margin: 8px 0 10px;
 }
 .relationship-editor {
   background: var(--grouped-surface);
