@@ -27,7 +27,10 @@
   --chart-3: oklch(0.6 0.118 184.704);
   --chart-4: oklch(0.511 0.096 186.391);
   --chart-5: oklch(0.437 0.078 188.216);
-  --radius: 0.875rem;
+  /* The base corner. Every surface radius is written as a share of it --
+     `calc(var(--radius) * N / 14)`, N being its size when the base was 14px --
+     so changing this one value rescales them all in proportion. */
+  --radius: 0.625rem;
   --sidebar: var(--grouped-bg);
   --sidebar-foreground: oklch(0.147 0.004 49.25);
   --sidebar-primary: oklch(0.6 0.114 228.5);
@@ -94,7 +97,7 @@
   --tint-fill: color-mix(in oklch, var(--primary) 12%, transparent);
   --row-height: 2.75rem;
   --row-height-compact: 2.25rem;
-  --radius-group: 12px;
+  --radius-group: calc(var(--radius) * 12 / 14);
   --material-bar: color-mix(in srgb, var(--surface-0) 72%, transparent);
   --material-blur: blur(20px) saturate(180%);
 
@@ -328,7 +331,7 @@ button {
   flex: 0 0 38px;
   display: grid;
   place-items: center;
-  border-radius: 10px;
+  border-radius: calc(var(--radius) * 10 / 14);
   background: var(--brand-ink);
   color: #fff;
   text-decoration: none;
@@ -764,7 +767,7 @@ button {
   display: inline-flex;
   gap: 2px;
   padding: 2px;
-  border-radius: 9px;
+  border-radius: calc(var(--radius) * 9 / 14);
   background: color-mix(in srgb, var(--ink-1) 6%, transparent);
 }
 .segmented [data-slot="toggle-group-item"] {
@@ -802,7 +805,7 @@ button {
 .search-field[data-slot="input-group"] {
   height: 32px;
   border: 0;
-  border-radius: 9px;
+  border-radius: calc(var(--radius) * 9 / 14);
   background: color-mix(in srgb, var(--ink-1) 6%, transparent);
   box-shadow: none;
 }
@@ -838,7 +841,7 @@ button {
   min-height: 28px;
   padding: 4px 8px;
   border: 0;
-  border-radius: 8px;
+  border-radius: calc(var(--radius) * 8 / 14);
   background: transparent;
   color: var(--ink-2);
   text-align: left;
@@ -1036,7 +1039,7 @@ button {
 }
 .column-slot.lifted {
   z-index: 50;
-  border-radius: 10px;
+  border-radius: calc(var(--radius) * 10 / 14);
   box-shadow:
     0 0 0 0.5px var(--separator),
     var(--shadow-pop);
@@ -1497,7 +1500,7 @@ button {
   gap: 10px;
   padding: 12px;
   border: 1px solid var(--hairline);
-  border-radius: 16px;
+  border-radius: calc(var(--radius) * 16 / 14);
   background: var(--background);
   box-shadow: 0 10px 25px rgb(0 0 0 / 0.12);
 }
@@ -1531,7 +1534,7 @@ button {
   align-items: flex-start;
   gap: 2px;
   padding: 6px 8px;
-  border-radius: 9px;
+  border-radius: calc(var(--radius) * 9 / 14);
   background: transparent;
   text-align: left;
 }
@@ -1575,7 +1578,7 @@ button {
   padding: 10px;
   margin-bottom: 4px;
   border: 0;
-  border-radius: 9px;
+  border-radius: calc(var(--radius) * 9 / 14);
   background: transparent;
   color: var(--ink-1);
   text-align: left;
@@ -1807,7 +1810,7 @@ button {
   z-index: 10;
   overflow: hidden;
   border: 1px solid var(--hairline);
-  border-radius: 12px;
+  border-radius: calc(var(--radius) * 12 / 14);
   /* A material the canvas shows through, not a white card: at 88% it read as
      opaque. Thin enough that the grid and nearby cards blur through, with
      saturation lifted so what shows through keeps its colour. The gesture and
@@ -1879,7 +1882,7 @@ button {
   gap: 2px;
   padding: 6px;
   border: 1px solid var(--hairline);
-  border-radius: 14px;
+  border-radius: calc(var(--radius) * 14 / 14);
   background: color-mix(in srgb, var(--surface-0) 88%, transparent);
   -webkit-backdrop-filter: blur(18px) saturate(160%);
   backdrop-filter: blur(18px) saturate(160%);
@@ -1896,10 +1899,10 @@ button {
   backdrop-filter: none;
   background: var(--surface-0);
 }
-/* Concentric with the dock: its 14px corner less its 6px padding. */
+/* Concentric with the dock: its corner less its 6px padding (floored, so a small base keeps a visible round). */
 .dock [data-slot="button"],
 .dock .dock-disabled {
-  border-radius: 8px;
+  border-radius: max(4px, calc(var(--radius) - 6px));
 }
 /* Dock toggles (the hand tool) read as pressed the way column flags do. */
 .dock [aria-pressed="true"] {
@@ -2058,7 +2061,7 @@ button {
   z-index: 5;
   pointer-events: none;
   border: 1px dashed color-mix(in oklch, var(--primary) 70%, transparent);
-  border-radius: 8px;
+  border-radius: calc(var(--radius) * 8 / 14);
   margin: -8px 0 0 -8px;
   padding: 8px;
   box-sizing: content-box;
@@ -2093,7 +2096,7 @@ button {
   margin: -46px 0 0 0;
   translate: -50% 0;
   border: 1px solid var(--hairline);
-  border-radius: 12px;
+  border-radius: calc(var(--radius) * 12 / 14);
   background: color-mix(in srgb, var(--surface-0) 88%, transparent);
   -webkit-backdrop-filter: blur(18px) saturate(160%);
   backdrop-filter: blur(18px) saturate(160%);
@@ -2109,7 +2112,7 @@ button {
 }
 .selection-toolbar button {
   padding: 5px 9px;
-  border-radius: 8px;
+  border-radius: calc(var(--radius) * 8 / 14);
   font-size: 12px;
   font-weight: 500;
   color: var(--ink-1);
@@ -2135,7 +2138,7 @@ button {
   top: 0;
   overflow: visible;
   border: 2px solid;
-  border-radius: 12px;
+  border-radius: calc(var(--radius) * 12 / 14);
   box-shadow: 0 8px 20px rgb(50 70 80 / 8%);
   transform-origin: 0 0;
   pointer-events: none;
@@ -2164,7 +2167,7 @@ button {
   gap: 7px;
   padding: 0 10px;
   border: 2px solid;
-  border-radius: 12px 12px 0 0;
+  border-radius: calc(var(--radius) * 12 / 14) calc(var(--radius) * 12 / 14) 0 0;
   cursor: move;
   user-select: none;
   touch-action: none;
@@ -2476,7 +2479,7 @@ button {
      skipping its rendering while it holds focus is not worth the few nodes. */
   contain: layout paint style;
   border: 2px solid;
-  border-radius: 10px;
+  border-radius: calc(var(--radius) * 10 / 14);
   color: var(--memo-ink);
   box-shadow: 0 10px 18px rgb(51 43 34 / 13%);
   transform-origin: 0 0;
@@ -2627,7 +2630,7 @@ button {
   contain: layout paint style;
   content-visibility: auto;
   border: 2px solid var(--table-border);
-  border-radius: 8px;
+  border-radius: calc(var(--radius) * 8 / 14);
   background: var(--table-surface);
   color: var(--table-ink);
   /*
@@ -3076,7 +3079,7 @@ button {
   gap: 2px;
   width: 100%;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: calc(var(--radius) * 8 / 14);
   text-align: left;
 }
 .history-item:hover {
@@ -3129,7 +3132,7 @@ button {
   max-height: 60vh;
   object-fit: contain;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: calc(var(--radius) * 10 / 14);
   background: repeating-conic-gradient(var(--muted) 0 25%, transparent 0 50%) 0 0 / 16px 16px;
 }
 .code code,
@@ -3156,7 +3159,7 @@ button {
   min-height: 250px;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: calc(var(--radius) * 10 / 14);
   background: color-mix(in oklch, var(--background) 92%, var(--primary));
 }
 .sql-highlight,
@@ -3531,7 +3534,7 @@ button {
   width: 35px;
   height: 35px;
   place-items: center;
-  border-radius: 10px;
+  border-radius: calc(var(--radius) * 10 / 14);
   background: var(--brand-ink);
   color: white;
   box-shadow: 0 5px 12px rgb(18 73 94 / 20%);
@@ -3611,7 +3614,7 @@ button {
 .template-card {
   overflow: hidden;
   border: 1px solid #e4e4e7;
-  border-radius: 13px;
+  border-radius: calc(var(--radius) * 13 / 14);
   background: #f8f8f8;
   transition:
     transform 0.25s ease,

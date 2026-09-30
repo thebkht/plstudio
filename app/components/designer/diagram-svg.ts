@@ -160,6 +160,13 @@ const markerDefs = (color: string) =>
     .map(([id, d]) => `<marker id="crow-${id}" viewBox="0 0 ${CROW_MARKER_SIZE} ${CROW_MARKER_SIZE}" refX="${CROW_MARKER_SIZE}" refY="${CROW_MARKER_SIZE / 2}" markerWidth="${CROW_MARKER_SIZE}" markerHeight="${CROW_MARKER_SIZE}" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="${d}" fill="none" stroke="${color}" stroke-width="1.5"/></marker>`)
     .join("")}</defs>`;
 
+/**
+ * The canvas's corner radii, which CSS derives from `--radius` (now 10px) as
+ * shares of the old 14px base. The export draws in plain SVG, so it applies the
+ * same ratio here; change both together.
+ */
+const corner = (px: number) => Math.round(px * (10 / 14) * 10) / 10;
+
 export function renderDiagramSVG(schema: Schema, { theme = "light" }: { theme?: DiagramTheme } = {}) {
   const colors = THEMES[theme];
   const canonical = schema.relationships?.length ? schema : normalizeRelationships(schema);
@@ -236,7 +243,7 @@ export function renderDiagramSVG(schema: Schema, { theme = "light" }: { theme?: 
     return [
       `<g>`,
       `<text x="${group.x + 2}" y="${group.y - 10}" font-size="12.5" font-weight="700" letter-spacing="0.6" fill="${theme === "dark" ? palette.border : palette.text}">${escapeXml(fit(title, group.width - 4, 8.4))}</text>`,
-      `<rect x="${group.x}" y="${group.y}" width="${group.width}" height="${round(group.height)}" rx="12" fill="${fill}" stroke="${palette.border}" stroke-opacity="0.55"/>`,
+      `<rect x="${group.x}" y="${group.y}" width="${group.width}" height="${round(group.height)}" rx="${corner(12)}" fill="${fill}" stroke="${palette.border}" stroke-opacity="0.55"/>`,
       `</g>`,
     ].join("");
   });
@@ -249,7 +256,7 @@ export function renderDiagramSVG(schema: Schema, { theme = "light" }: { theme?: 
     const lines = all.length > room ? [...all.slice(0, room - 1), fit(`${all[room - 1]}…`, memo.width - 28)] : all;
     return [
       `<g>`,
-      `<rect x="${memo.x}" y="${memo.y}" width="${memo.width}" height="${memo.height}" rx="10" fill="${theme === "dark" ? `${swatch.edge}26` : swatch.surface}" stroke="${swatch.edge}"/>`,
+      `<rect x="${memo.x}" y="${memo.y}" width="${memo.width}" height="${memo.height}" rx="${corner(10)}" fill="${theme === "dark" ? `${swatch.edge}26` : swatch.surface}" stroke="${swatch.edge}"/>`,
       `<text x="${memo.x + 14}" y="${memo.y + 34}" font-size="13" fill="${theme === "dark" ? colors.text : MEMO_INK}">`,
       ...lines.map((line, index) => `<tspan x="${memo.x + 14}" dy="${index ? MEMO_LINE : 0}">${escapeXml(line)}</tspan>`),
       `</text>`,
@@ -287,8 +294,8 @@ export function renderDiagramSVG(schema: Schema, { theme = "light" }: { theme?: 
     });
     return [
       `<g>`,
-      `<clipPath id="${clip}"><rect x="${x}" y="${y}" width="${cardWidth}" height="${cardHeight}" rx="8"/></clipPath>`,
-      `<rect x="${x}" y="${y}" width="${cardWidth}" height="${cardHeight}" rx="8" fill="${colors.card}"/>`,
+      `<clipPath id="${clip}"><rect x="${x}" y="${y}" width="${cardWidth}" height="${cardHeight}" rx="${corner(8)}"/></clipPath>`,
+      `<rect x="${x}" y="${y}" width="${cardWidth}" height="${cardHeight}" rx="${corner(8)}" fill="${colors.card}"/>`,
       `<g clip-path="url(#${clip})">`,
       `<rect x="${x}" y="${y}" width="${cardWidth}" height="${DOCUMENT_HEADER_HEIGHT}" fill="${escapeXml(accent)}"/>`,
       comment.length
@@ -302,7 +309,7 @@ export function renderDiagramSVG(schema: Schema, { theme = "light" }: { theme?: 
       `</g>`,
       `<text x="${x + 12}" y="${y + DOCUMENT_HEADER_HEIGHT / 2}" font-size="13" font-weight="700" dominant-baseline="central" fill="${ink}">${escapeXml(fit(table.name.toLowerCase(), cardWidth - 24 - strategy.length * 6.4, 7.8))}</text>`,
       strategy ? `<text x="${x + cardWidth - 12}" y="${y + DOCUMENT_HEADER_HEIGHT / 2}" font-size="9.5" font-weight="600" letter-spacing="0.4" text-anchor="end" dominant-baseline="central" fill="${ink}" fill-opacity="0.75">${strategy}</text>` : "",
-      `<rect x="${x}" y="${y}" width="${cardWidth}" height="${cardHeight}" rx="8" fill="none" stroke="${escapeXml(accent)}" stroke-width="1.5"/>`,
+      `<rect x="${x}" y="${y}" width="${cardWidth}" height="${cardHeight}" rx="${corner(8)}" fill="none" stroke="${escapeXml(accent)}" stroke-width="1.5"/>`,
       `</g>`,
     ].join("");
   });
