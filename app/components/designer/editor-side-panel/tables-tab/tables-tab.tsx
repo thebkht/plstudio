@@ -116,7 +116,8 @@ export function TablesTab({
             </EmptyHeader>
           </Empty>
         ) : !hasGroups ? (
-          filteredTables.map((table) => renderTable(table))
+          // One inset group, rows divided by hairlines -- not a card per table.
+          <div className="entity-list">{filteredTables.map((table) => renderTable(table))}</div>
         ) : (
           sections.map((section) => {
             const expanded =
@@ -163,7 +164,7 @@ export function TablesTab({
                 <CollapsibleContent>
                   <div className="entity-group-body">
                     {section.tables.length ? (
-                      section.tables.map((table) => renderTable(table))
+                      <div className="entity-list">{section.tables.map((table) => renderTable(table))}</div>
                     ) : (
                       <p className="entity-group-empty">
                         No tables yet — assign one under Schema group.

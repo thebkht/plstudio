@@ -69,13 +69,15 @@ export function RelationshipsTab({ rows, renderRow }: RelationshipsTabProps) {
           </EmptyHeader>
         </Empty>
       ) : (
-        rows
-          .filter((row) =>
-            row.name
-              .toUpperCase()
-              .includes(relationshipQuery.trim().toUpperCase()),
-          )
-          .map((row) => renderRow(row))
+        <div className="entity-list">
+          {rows
+            .filter((row) =>
+              row.name
+                .toUpperCase()
+                .includes(relationshipQuery.trim().toUpperCase()),
+            )
+            .map((row) => renderRow(row))}
+        </div>
       )}
     </ScrollArea>
   );
