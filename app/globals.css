@@ -904,6 +904,7 @@ button {
   border-radius: var(--radius-group);
   background: var(--grouped-surface);
   box-shadow: 0 0 0 0.5px var(--separator);
+  margin-top: 32px;
 }
 .entity-list:empty {
   display: none;
@@ -1839,8 +1840,12 @@ button {
   width: calc(var(--wrap-w, 0px) * var(--inverse-zoom, 1) * var(--mm-scale));
   height: calc(var(--wrap-h, 0px) * var(--inverse-zoom, 1) * var(--mm-scale));
   transform: translate(
-    calc(var(--mm-x) - var(--pan-x, 0px) * var(--inverse-zoom, 1) * var(--mm-scale)),
-    calc(var(--mm-y) - var(--pan-y, 0px) * var(--inverse-zoom, 1) * var(--mm-scale))
+    calc(
+      var(--mm-x) - var(--pan-x, 0px) * var(--inverse-zoom, 1) * var(--mm-scale)
+    ),
+    calc(
+      var(--mm-y) - var(--pan-y, 0px) * var(--inverse-zoom, 1) * var(--mm-scale)
+    )
   );
   border: 1.5px solid var(--primary);
   border-radius: 3px;
@@ -2423,10 +2428,26 @@ button {
 .canvas-wrap.heatmap .relationship[data-heat] .relationship-marker {
   fill: var(--heat);
 }
-[data-heat="1"] { --heat: var(--heat-1); --heat-ring: 2px; --heat-stroke: 3px; }
-[data-heat="2"] { --heat: var(--heat-2); --heat-ring: 4px; --heat-stroke: 4px; }
-[data-heat="3"] { --heat: var(--heat-3); --heat-ring: 6px; --heat-stroke: 5px; }
-[data-heat="4"] { --heat: var(--heat-4); --heat-ring: 8px; --heat-stroke: 6px; }
+[data-heat="1"] {
+  --heat: var(--heat-1);
+  --heat-ring: 2px;
+  --heat-stroke: 3px;
+}
+[data-heat="2"] {
+  --heat: var(--heat-2);
+  --heat-ring: 4px;
+  --heat-stroke: 4px;
+}
+[data-heat="3"] {
+  --heat: var(--heat-3);
+  --heat-ring: 6px;
+  --heat-stroke: 5px;
+}
+[data-heat="4"] {
+  --heat: var(--heat-4);
+  --heat-ring: 8px;
+  --heat-stroke: 6px;
+}
 /* Untouched tables step back, so the hot path reads at a glance. */
 .canvas-wrap.heatmap .table-card:not([data-heat]) {
   opacity: 0.6;
@@ -2651,7 +2672,11 @@ button {
    half-strength rather than dashed: a dashed outline reads as a placeholder or
    a drop target, and selection then only has to finish the same colour. */
 .table-card:hover {
-  border-color: color-mix(in srgb, var(--table-accent) 45%, var(--table-border));
+  border-color: color-mix(
+    in srgb,
+    var(--table-accent) 45%,
+    var(--table-border)
+  );
 }
 .table-card.selected {
   border-style: solid;
@@ -2985,7 +3010,8 @@ button {
   display: flex;
   flex-direction: column;
   padding: 10px 12px;
-  border-bottom: 1px solid color-mix(in srgb, var(--card-color) 35%, transparent);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--card-color) 35%, transparent);
   background: color-mix(in srgb, var(--card-color) 8%, var(--table-surface));
   color: var(--table-muted);
   font-size: 11.5px;
@@ -3133,7 +3159,8 @@ button {
   object-fit: contain;
   border: 1px solid var(--border);
   border-radius: calc(var(--radius) * 10 / 14);
-  background: repeating-conic-gradient(var(--muted) 0 25%, transparent 0 50%) 0 0 / 16px 16px;
+  background: repeating-conic-gradient(var(--muted) 0 25%, transparent 0 50%) 0
+    0 / 16px 16px;
 }
 .code code,
 .sql-highlight code {
