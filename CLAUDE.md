@@ -130,7 +130,7 @@ Every write goes through `app/lib/save-queue.ts` (`createSaveQueue`, tested in `
 
 - Path alias `@/*` maps to the repo root, configured in both `tsconfig.json` and `vitest.config.ts`.
 - Application component filenames use kebab-case (`designer.tsx`, `collab-presence.tsx`, and so on), directories too (`editor-canvas/`, `tables-tab/`). Component identifiers remain PascalCase. This is where we depart from drawDB, which uses PascalCase for both — only the directory _shape_ is borrowed. Shadcn components under `components/ui` are already kebab-case and are left as generated.
-- UI components come from shadcn with the `aria-vega` style and Base UI / react-aria-components underneath (`components.json`). Icons are `hugeicons` (`@hugeicons/react` + `@hugeicons/core-free-icons`); don't introduce `lucide-react`.
+- UI components come from shadcn with the `aria-vega` style and Base UI / react-aria-components underneath (`components.json`). Icons are `lucide-react`, imported by their `…Icon` names (`TrashIcon`, not `Trash`); a component that takes an icon as a prop types it `LucideIcon` and renders it as `<Icon />`. The stroke is set once, globally, in `globals.css` (`.lucide`), not per icon. Hugeicons was removed; don't reintroduce it.
 - Tests live in `tests/` and target the pure domain layer (generators, parser, validation) — not the React tree.
 - Code style is dense: single-line arrow functions and chained array methods over intermediate variables. Match it.
 - Commit messages: no `Co-Authored-By` trailers.

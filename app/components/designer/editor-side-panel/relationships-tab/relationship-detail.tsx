@@ -10,8 +10,7 @@
  * alone at the bottom, where it cannot be pressed on the way to anything else.
  */
 
-import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowDataTransferHorizontalIcon, ArrowRight02Icon, Delete02Icon, MinusSignCircleIcon, PlusSignIcon } from "@hugeicons/core-free-icons";
+import { ArrowLeftRightIcon, ArrowRightIcon, CircleMinusIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RELATIONSHIP_CONSTRAINTS, type Cardinality, type Relationship, type Table } from "@/app/lib/schema";
@@ -65,12 +64,12 @@ export function RelationshipDetail({
           <span className="inset-row-label">Tables</span>
           <span className="inset-row-value relationship-tables" title={`${startName} references ${endName}`}>
             <span className="relationship-table">{startName}</span>
-            <HugeiconsIcon icon={ArrowRight02Icon} size={13} className="relationship-tables-arrow" aria-label="references" />
+            <ArrowRightIcon size={13} className="relationship-tables-arrow" aria-label="references" />
             <span className="relationship-table">{endName}</span>
           </span>
           {!readOnly && (
             <button type="button" className="row-icon-button tint" aria-label="Swap which table holds the foreign key" title="Swap direction" onClick={onSwap}>
-              <HugeiconsIcon icon={ArrowDataTransferHorizontalIcon} size={15} />
+              <ArrowLeftRightIcon size={15} />
             </button>
           )}
         </div>
@@ -114,7 +113,7 @@ export function RelationshipDetail({
           {pairs.length > 1 && <span className="inset-group-count">{pairs.length}</span>}
           {canAddPair && (
             <button type="button" className="row-icon-button tint" aria-label="Add a column pair" onClick={addPair}>
-              <HugeiconsIcon icon={PlusSignIcon} size={16} />
+              <PlusIcon size={16} />
             </button>
           )}
         </h3>
@@ -123,7 +122,7 @@ export function RelationshipDetail({
             <div className="inset-row relationship-pair" key={`${pair.startFieldId}-${pair.endFieldId}-${index}`}>
               {pairs.length > 1 && !readOnly && (
                 <button type="button" className="row-icon-button destructive" aria-label={`Remove column pair ${index + 1}`} onClick={() => onPatch({ fields: pairs.filter((_, at) => at !== index) })}>
-                  <HugeiconsIcon icon={MinusSignCircleIcon} size={15} />
+                  <CircleMinusIcon size={15} />
                 </button>
               )}
               <Select className="relationship-pair-side" aria-label={`Column in ${startName}`} isDisabled={readOnly} selectedKey={pair.startFieldId} onSelectionChange={(key) => setPair(index, { startFieldId: String(key) })}>
@@ -132,7 +131,7 @@ export function RelationshipDetail({
                   {startTable?.columns.map((column) => <SelectItem key={column.id} id={column.id}>{column.name.toUpperCase()}</SelectItem>)}
                 </SelectGroup></SelectContent>
               </Select>
-              <HugeiconsIcon icon={ArrowRight02Icon} size={13} className="relationship-tables-arrow" aria-hidden="true" />
+              <ArrowRightIcon size={13} className="relationship-tables-arrow" aria-hidden="true" />
               <Select className="relationship-pair-side" aria-label={`Column in ${endName}`} isDisabled={readOnly} selectedKey={pair.endFieldId} onSelectionChange={(key) => setPair(index, { endFieldId: String(key) })}>
                 <SelectTrigger className="inset-field mono"><SelectValue /></SelectTrigger>
                 <SelectContent className="code-menu"><SelectGroup>
@@ -148,7 +147,7 @@ export function RelationshipDetail({
       {!readOnly && (
         <div className="inset-group">
           <button type="button" className="inset-row inset-row-action destructive relationship-delete" onClick={onDelete}>
-            <HugeiconsIcon icon={Delete02Icon} size={15} aria-hidden="true" />
+            <Trash2Icon size={15} aria-hidden="true" />
             Delete relationship
           </button>
         </div>

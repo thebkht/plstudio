@@ -4,16 +4,7 @@ import {
   memo as reactMemo,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  CursorRectangleSelectionIcon,
-  DatabaseIcon,
-  Delete02Icon,
-  PaintBoardIcon,
-  StickyNote01Icon,
-  Table01Icon,
-  Tag01Icon,
-} from "@hugeicons/core-free-icons";
+import { DatabaseIcon, PaletteIcon, SquareDashedMousePointerIcon, StickyNoteIcon, TableIcon, TagIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   ContextMenuGroup,
@@ -107,7 +98,7 @@ function SchemaGroupCardComponent({
         }}
         onPointerDown={(event) => onHeadPointerDown(event, group)}
       >
-        <HugeiconsIcon icon={DatabaseIcon} size={15} aria-hidden="true" />
+        <DatabaseIcon size={15} aria-hidden="true" />
         {/* Ahead of the name, in the order it reads on the cards below. */}
         <input
           className="schema-group-keyword"
@@ -165,7 +156,7 @@ function SchemaGroupCardComponent({
               isDisabled={readOnly}
               onClick={() => onDelete(group.id)}
             >
-              <HugeiconsIcon icon={Delete02Icon} />
+              <Trash2Icon/>
             </Button>
             <Tooltip>Delete group</Tooltip>
           </TooltipTrigger>
@@ -220,18 +211,18 @@ export function SchemaGroupMenu({
           isDisabled={readOnly}
           onAction={() => onAddTable(group.id)}
         >
-          <HugeiconsIcon icon={Table01Icon} />
+          <TableIcon/>
           Add table to this schema
         </ContextMenuItem>
         <ContextMenuItem
           isDisabled={readOnly}
           onAction={() => onAddMemo(group.id)}
         >
-          <HugeiconsIcon icon={StickyNote01Icon} />
+          <StickyNoteIcon/>
           Add memo to this schema
         </ContextMenuItem>
         <ContextMenuItem onAction={() => onSelectMembers(group.id)}>
-          <HugeiconsIcon icon={CursorRectangleSelectionIcon} />
+          <SquareDashedMousePointerIcon/>
           {/* It selects the memos and the rectangle too, so it cannot
                   claim to select only the tables. */}
           Select everything in this schema
@@ -241,7 +232,7 @@ export function SchemaGroupMenu({
                 disagree, and both show which colour is currently on. */}
         <ContextMenuSub>
           <ContextMenuSubTrigger isDisabled={readOnly}>
-            <HugeiconsIcon icon={PaintBoardIcon} />
+            <PaletteIcon/>
             Color
             <span
               className="schema-group-color-dot ml-auto"
@@ -276,7 +267,7 @@ export function SchemaGroupMenu({
           isDisabled={readOnly || !pendingPrefix}
           onAction={() => onApplyKeyword(group.id)}
         >
-          <HugeiconsIcon icon={Tag01Icon} />
+          <TagIcon/>
           {/* Disabled rows still have to say what they mean: "Prefix no
                   tables with MLL_" reads as an action nobody asked for, where
                   the real message is that there is nothing left to do. */}
@@ -294,7 +285,7 @@ export function SchemaGroupMenu({
           isDisabled={readOnly}
           onAction={() => onDelete(group.id)}
         >
-          <HugeiconsIcon icon={Delete02Icon} />
+          <Trash2Icon/>
           Delete schema group
         </ContextMenuItem>
       </ContextMenuGroup>

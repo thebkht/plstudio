@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Cancel01Icon, Target02Icon } from "@hugeicons/core-free-icons";
+import { TargetIcon, XIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useCanvasCommands, useOverlay, useSchema } from "@/app/hooks";
@@ -49,12 +48,12 @@ export function ImpactPanel() {
   return (
     <section className="impact-panel" aria-label={`Impact of ${table.name}.${column.name}`}>
       <header className="impact-panel-head">
-        <HugeiconsIcon icon={Target02Icon} size={16} aria-hidden="true" />
+        <TargetIcon size={16} aria-hidden="true" />
         <h2>
           <code>{table.name.toUpperCase()}.{column.name.toUpperCase()}</code>
         </h2>
         <Button size="icon-sm" variant="ghost" aria-label="Close impact analysis" onClick={() => setImpactTarget(null)}>
-          <HugeiconsIcon icon={Cancel01Icon} />
+          <XIcon/>
         </Button>
       </header>
       <p className="hint">

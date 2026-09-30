@@ -1,15 +1,8 @@
 "use client";
 
 import { useMemo, useRef, useState, type ChangeEvent } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { toast } from "sonner";
-import {
-  Cancel01Icon,
-  Copy01Icon,
-  Download04Icon,
-  FolderOpenIcon,
-  Tick02Icon,
-} from "@hugeicons/core-free-icons";
+import { CheckIcon, CopyIcon, DownloadIcon, FolderOpenIcon, XIcon } from "lucide-react";
 import { generateDDL, generateDML, generateMermaidER } from "@/app/lib/generators";
 import { generateMigration } from "@/app/lib/migration";
 import { parseCreateTable } from "@/app/lib/parser";
@@ -200,17 +193,17 @@ export const ExportModal = ({
           </TabsList>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" aria-label="Copy export" isDisabled={!output} onClick={copyOutput}>
-              <HugeiconsIcon icon={copied ? Tick02Icon : Copy01Icon} />
+              {copied ? <CheckIcon /> : <CopyIcon />}
             </Button>
             <Button variant="ghost" size="icon" aria-label="Download export" isDisabled={!output} onClick={download}>
-              <HugeiconsIcon icon={Download04Icon} />
+              <DownloadIcon/>
             </Button>
           </div>
         </div>
         {/* A JSON or Mermaid export is a snapshot of the diagram, not generated Oracle SQL, so an Oracle DDL error does not block it. */}
         {errors.length > 0 && !isJson && !isMermaid && !isImage && (
           <Alert variant="destructive" className="mt-4">
-            <HugeiconsIcon icon={Cancel01Icon} />
+            <XIcon/>
             <AlertTitle>
               Export blocked: {errors[0].message} ({errors.length} error(s))
             </AlertTitle>
@@ -242,13 +235,13 @@ export const ExportModal = ({
               onChange={openBaseline}
             />
             <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
-              <HugeiconsIcon icon={FolderOpenIcon} data-icon="inline-start" />
+              <FolderOpenIcon data-icon="inline-start" />
               {baseline ? "Change baseline" : "Load baseline"}
             </Button>
           </div>
           {baselineError && (
             <Alert variant="destructive" className="mt-3">
-              <HugeiconsIcon icon={Cancel01Icon} />
+              <XIcon/>
               <AlertTitle>{baselineError}</AlertTitle>
             </Alert>
           )}
@@ -286,11 +279,11 @@ export const ExportModal = ({
             </ToggleGroup>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" isDisabled={!svg} onClick={download}>
-                <HugeiconsIcon icon={Download04Icon} data-icon="inline-start" />
+                <DownloadIcon data-icon="inline-start" />
                 SVG
               </Button>
               <Button variant="outline" size="sm" isDisabled={!svg || rendering} onClick={downloadPng}>
-                <HugeiconsIcon icon={Download04Icon} data-icon="inline-start" />
+                <DownloadIcon data-icon="inline-start" />
                 {rendering ? "Rendering…" : "PNG"}
               </Button>
             </div>

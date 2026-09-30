@@ -15,20 +15,7 @@
  */
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ColumnInsertIcon,
-  Copy01Icon,
-  Delete02Icon,
-  DragDropVerticalIcon,
-  FingerPrintIcon,
-  GitMergeIcon,
-  HorizontalResizeIcon,
-  Key01Icon,
-  Link01Icon,
-  PanelLeftOpenIcon,
-  Target02Icon,
-} from "@hugeicons/core-free-icons";
+import { CopyIcon, FingerprintIcon, GitMergeIcon, GripVerticalIcon, KeyRoundIcon, LinkIcon, ListPlusIcon, MoveHorizontalIcon, PanelLeftOpenIcon, TargetIcon, Trash2Icon } from "lucide-react";
 import {
   ContextMenu,
   ContextMenuGroup,
@@ -112,16 +99,14 @@ const ColumnRow = memo(function ColumnRow({
       )}
       <span className="row-name">{isDocument ? column.name.toLowerCase() : column.name.toUpperCase()}</span>
       <span className="row-meta">
-        {!isDocument && column.pk && <HugeiconsIcon icon={Key01Icon} size={13} aria-hidden="true" />}
+        {!isDocument && column.pk && <KeyRoundIcon size={13} aria-hidden="true" />}
         {!isDocument && column.fk && (
-          <HugeiconsIcon icon={Link01Icon} size={13} className="fk-dot" aria-hidden="true" />
+          <LinkIcon size={13} className="fk-dot" aria-hidden="true" />
         )}
         {/* The same glyph the side panel's Unique flag uses; the tint is what
             separates a column's own unique from one inside a group. */}
         {!isDocument && (column.unique || inUniqueGroup) && !column.pk && (
-          <HugeiconsIcon
-            icon={FingerPrintIcon}
-            size={13}
+          <FingerprintIcon size={13}
             className={inUniqueGroup ? "uk-group" : "uk-dot"}
             aria-hidden="true"
           />
@@ -143,7 +128,7 @@ const ColumnRow = memo(function ColumnRow({
             onPointerDown={(event) => onGrabRow(event, column.id, columnIndex)}
             onKeyDown={(event) => onRowKeyDown?.(event, column.id, columnIndex)}
           >
-            <HugeiconsIcon icon={DragDropVerticalIcon} size={13} aria-hidden="true" />
+            <GripVerticalIcon size={13} aria-hidden="true" />
           </button>
         )}
       </span>
@@ -460,16 +445,16 @@ export const TableCard = memo(function TableCard({
         <ContextMenuLabel className="code-menu">{table.name.toUpperCase()}</ContextMenuLabel>
         <ContextMenuGroup>
           <ContextMenuItem onAction={() => onEditInPanel(table.id)}>
-            <HugeiconsIcon icon={PanelLeftOpenIcon} />
+            <PanelLeftOpenIcon/>
             Edit in side panel
           </ContextMenuItem>
           <ContextMenuItem onAction={() => onCopyDDL(table.id)}>
-            <HugeiconsIcon icon={Copy01Icon} />
+            <CopyIcon/>
             Copy CREATE TABLE
           </ContextMenuItem>
           {menuColumn && (
             <ContextMenuItem onAction={() => onShowImpact(table.id, menuColumn.id)}>
-              <HugeiconsIcon icon={Target02Icon} />
+              <TargetIcon/>
               Show impact of {menuColumn.name.toUpperCase()}
             </ContextMenuItem>
           )}
@@ -477,7 +462,7 @@ export const TableCard = memo(function TableCard({
         <ContextMenuSeparator />
         <ContextMenuGroup>
           <ContextMenuItem isDisabled={readOnly} onAction={() => onAddColumn(table.id)}>
-            <HugeiconsIcon icon={ColumnInsertIcon} />
+            <ListPlusIcon/>
             Add column
             <ContextMenuShortcut>
               <ShortcutKeys id="addColumn" isMac={isMac} />
@@ -487,11 +472,11 @@ export const TableCard = memo(function TableCard({
             isDisabled={readOnly || table.width === undefined}
             onAction={() => onResetWidth(table.id)}
           >
-            <HugeiconsIcon icon={HorizontalResizeIcon} />
+            <MoveHorizontalIcon/>
             Reset width
           </ContextMenuItem>
           <ContextMenuItem isDisabled={readOnly} onAction={() => onMakeJunction(table.id)}>
-            <HugeiconsIcon icon={GitMergeIcon} />
+            <GitMergeIcon/>
             Add junction table
             <ContextMenuShortcut>
               <ShortcutKeys id="junction" isMac={isMac} />
@@ -505,7 +490,7 @@ export const TableCard = memo(function TableCard({
             isDisabled={readOnly}
             onAction={() => onDeleteTable(table.id)}
           >
-            <HugeiconsIcon icon={Delete02Icon} />
+            <Trash2Icon/>
             Delete table
             <ContextMenuShortcut>
               <ShortcutKeys id="deleteSelection" isMac={isMac} />

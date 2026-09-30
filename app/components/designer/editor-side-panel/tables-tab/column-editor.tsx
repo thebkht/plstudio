@@ -10,16 +10,7 @@
  */
 
 import { memo, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ArrowRight01Icon,
-  Delete02Icon,
-  DragDropVerticalIcon,
-  FingerPrintIcon,
-  Key01Icon,
-  Link01Icon,
-  Target02Icon,
-} from "@hugeicons/core-free-icons";
+import { ChevronRightIcon, FingerprintIcon, GripVerticalIcon, KeyRoundIcon, LinkIcon, TargetIcon, Trash2Icon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -77,7 +68,7 @@ export const ColumnEditor = memo(function ColumnEditor({
             onPointerDown={(event) => onGrab(event, column.id)}
             onKeyDown={(event) => onGrabKeyDown?.(event, column.id)}
           >
-            <HugeiconsIcon icon={DragDropVerticalIcon} size={14} aria-hidden="true" />
+            <GripVerticalIcon size={14} aria-hidden="true" />
           </button>
         ) : (
           <span className="column-grip-spacer" aria-hidden="true" />
@@ -92,12 +83,12 @@ export const ColumnEditor = memo(function ColumnEditor({
           <span className="column-row-name">{name}</span>
           <span className="column-row-type">{typeLabel(column)}</span>
           <span className="column-row-flags">
-            {column.pk && <HugeiconsIcon icon={Key01Icon} size={13} className="pk" aria-label="Primary key" />}
-            {column.fk && <HugeiconsIcon icon={Link01Icon} size={13} aria-label="Foreign key" />}
-            {column.unique && <HugeiconsIcon icon={FingerPrintIcon} size={13} aria-label="Unique" />}
+            {column.pk && <KeyRoundIcon size={13} className="pk" aria-label="Primary key" />}
+            {column.fk && <LinkIcon size={13} aria-label="Foreign key" />}
+            {column.unique && <FingerprintIcon size={13} aria-label="Unique" />}
             {!column.notNull && !column.pk && <span className="column-row-null" aria-label="Nullable">?</span>}
           </span>
-          <HugeiconsIcon icon={ArrowRight01Icon} size={14} className="column-row-chevron" aria-hidden="true" />
+          <ChevronRightIcon size={14} className="column-row-chevron" aria-hidden="true" />
         </button>
       </div>
       {expanded && (
@@ -143,7 +134,7 @@ export const ColumnEditor = memo(function ColumnEditor({
                     patch({ pk, fk: pk ? null : column.fk, notNull: !keys.has("null"), unique: keys.has("unique") });
                   }}
                 >
-                  <ToggleGroupItem id="pk" aria-label="Primary key"><HugeiconsIcon icon={Key01Icon} aria-hidden="true" />PK</ToggleGroupItem>
+                  <ToggleGroupItem id="pk" aria-label="Primary key"><KeyRoundIcon aria-hidden="true" />PK</ToggleGroupItem>
                   <ToggleGroupItem id="null">Null</ToggleGroupItem>
                   <ToggleGroupItem id="unique">Unique</ToggleGroupItem>
                 </ToggleGroup>
@@ -188,12 +179,12 @@ export const ColumnEditor = memo(function ColumnEditor({
             )}
             <div className="inset-row column-detail-actions">
               <button type="button" className="row-text-button" onClick={() => onShowImpact(table.id, column.id)}>
-                <HugeiconsIcon icon={Target02Icon} size={14} aria-hidden="true" />
+                <TargetIcon size={14} aria-hidden="true" />
                 Show dependents
               </button>
               {!readOnly && (
                 <button type="button" className="row-text-button destructive" onClick={() => deleteColumn(table.id, column.id)}>
-                  <HugeiconsIcon icon={Delete02Icon} size={14} aria-hidden="true" />
+                  <Trash2Icon size={14} aria-hidden="true" />
                   Delete column
                 </button>
               )}

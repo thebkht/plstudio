@@ -1,8 +1,7 @@
 "use client";
 
 import { memo as reactMemo, type PointerEvent as ReactPointerEvent } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Delete02Icon, StickyNote01Icon } from "@hugeicons/core-free-icons";
+import { StickyNoteIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -87,7 +86,7 @@ function MemoCardComponent({
         className="memo-toolbar"
         onPointerDown={(event) => onPointerDown(event, memo)}
       >
-        <HugeiconsIcon icon={StickyNote01Icon} size={14} aria-hidden="true" />
+        <StickyNoteIcon size={14} aria-hidden="true" />
         <div
           className="memo-actions"
           onPointerDown={(event) => event.stopPropagation()}
@@ -118,7 +117,7 @@ function MemoCardComponent({
               aria-label="Delete memo"
               onClick={() => onDelete(memo.id)}
             >
-              <HugeiconsIcon icon={Delete02Icon} />
+              <Trash2Icon/>
             </Button>
             <Tooltip>Delete memo</Tooltip>
           </TooltipTrigger>

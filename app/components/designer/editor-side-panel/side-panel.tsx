@@ -1,14 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ArrowLeft01Icon,
-  DatabaseIcon,
-  GridViewIcon,
-  Link01Icon,
-  SourceCodeIcon,
-} from "@hugeicons/core-free-icons";
+import { ChevronLeftIcon, CodeXmlIcon, DatabaseIcon, LayoutGridIcon, LinkIcon } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -73,7 +66,7 @@ export function SidePanel({
       </div>
       <SidebarHeader className="panel-tabs">
         <SidebarTrigger aria-label="Hide side panel">
-          <HugeiconsIcon icon={ArrowLeft01Icon} />
+          <ChevronLeftIcon/>
         </SidebarTrigger>
         <Tabs
           selectedKey={panelTab}
@@ -108,12 +101,12 @@ export function SidePanel({
       <SidebarFooter className="p-0">
         <div className="panel-footer">
           <span className="counter">
-            <HugeiconsIcon icon={DatabaseIcon} aria-hidden="true" />
+            <DatabaseIcon aria-hidden="true" />
             {schema.tables.length}
             <span className="sr-only">tables</span>
           </span>
           <span className="counter">
-            <HugeiconsIcon icon={Link01Icon} aria-hidden="true" />
+            <LinkIcon aria-hidden="true" />
             {relationshipCount}
             <span className="sr-only">relationships</span>
           </span>
@@ -131,11 +124,11 @@ export function SidePanel({
             }}
           >
             <ToggleGroupItem id="structure">
-              <HugeiconsIcon icon={GridViewIcon} data-icon="inline-start" />
+              <LayoutGridIcon data-icon="inline-start" />
               Structure
             </ToggleGroupItem>
             <ToggleGroupItem id="code">
-              <HugeiconsIcon icon={SourceCodeIcon} data-icon="inline-start" />
+              <CodeXmlIcon data-icon="inline-start" />
               Code
             </ToggleGroupItem>
           </ToggleGroup>

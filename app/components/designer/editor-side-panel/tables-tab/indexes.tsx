@@ -6,7 +6,7 @@
  */
 
 import { memo } from "react";
-import { FlashIcon } from "@hugeicons/core-free-icons";
+import { ZapIcon } from "lucide-react";
 import type { Table, TableIndex } from "@/app/lib/schema";
 import { ColumnSets } from "./column-sets";
 
@@ -30,7 +30,7 @@ export const Indexes = memo(function Indexes({
       sets={table.indexes ?? []}
       noun="Index"
       legend="Indexes"
-      icon={FlashIcon}
+      icon={ZapIcon}
       placeholder={(index) => `${table.name.toUpperCase()}_I${index + 1}`}
       hint={(set) => (set.columnIds.length ? null : "Add a column to index.")}
       onAdd={addIndex}

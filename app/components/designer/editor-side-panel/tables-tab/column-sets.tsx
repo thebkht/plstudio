@@ -12,8 +12,7 @@
 
 import { memo } from "react";
 import { Button as AriaButton } from "react-aria-components";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { CancelCircleIcon, Delete02Icon, PlusSignIcon } from "@hugeicons/core-free-icons";
+import { CircleXIcon, PlusIcon, Trash2Icon, type LucideIcon } from "lucide-react";
 import { DropdownMenu, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { typeString, type Table, type TableIndex, type UniqueConstraint } from "@/app/lib/schema";
@@ -27,7 +26,7 @@ export type ColumnSetsProps = {
   /** "Unique constraint", "Index" -- numbered for a set with no name. */
   noun: string;
   legend: string;
-  icon: Parameters<typeof HugeiconsIcon>[0]["icon"];
+  icon: LucideIcon;
   /** The name the generator mints for the set at `index`. */
   placeholder: (index: number) => string;
   /** A note under a set, or `null`. */
@@ -50,6 +49,7 @@ export const ColumnSets = memo(function ColumnSets({
   onPatch,
   onDelete,
 }: ColumnSetsProps) {
+  const Icon = icon;
   const columnName = (columnId: string) => table.columns.find((column) => column.id === columnId)?.name.toUpperCase() ?? columnId;
   if (readOnly && !sets.length) return null;
   return (
@@ -59,7 +59,7 @@ export const ColumnSets = memo(function ColumnSets({
         {Boolean(sets.length) && <span className="inset-group-count">{sets.length}</span>}
         {!readOnly && (
           <button type="button" className="row-icon-button tint" aria-label={`Add ${noun.toLowerCase()} to ${table.name}`} onClick={() => onAdd(table.id)}>
-            <HugeiconsIcon icon={PlusSignIcon} size={16} />
+            <PlusIcon size={16} />
           </button>
         )}
       </h3>
@@ -71,7 +71,7 @@ export const ColumnSets = memo(function ColumnSets({
           <div className="inset-section" key={set.id}>
             <div className="inset-group">
               <div className="inset-row">
-                <HugeiconsIcon icon={icon} size={15} className="inset-row-icon" aria-hidden="true" />
+                <Icon size={15} className="inset-row-icon" aria-hidden="true" />
                 <Input
                   className="inset-field mono leading"
                   aria-label={`Name of ${label} on ${table.name}`}
@@ -82,7 +82,7 @@ export const ColumnSets = memo(function ColumnSets({
                 />
                 {!readOnly && (
                   <button type="button" className="row-icon-button destructive" aria-label={`Delete ${label} on ${table.name}`} onClick={() => onDelete(table.id, set.id)}>
-                    <HugeiconsIcon icon={Delete02Icon} size={15} />
+                    <Trash2Icon size={15} />
                   </button>
                 )}
               </div>
@@ -96,7 +96,7 @@ export const ColumnSets = memo(function ColumnSets({
                         aria-label={`Remove ${columnName(columnId)} from ${label}`}
                         onClick={() => onPatch(table.id, set.id, { columnIds: set.columnIds.filter((id) => id !== columnId) })}
                       >
-                        <HugeiconsIcon icon={CancelCircleIcon} size={13} aria-hidden="true" />
+                        <CircleXIcon size={13} aria-hidden="true" />
                       </button>
                     )}
                   </span>
@@ -112,7 +112,7 @@ export const ColumnSets = memo(function ColumnSets({
                 {!readOnly && Boolean(available.length) && (
                   <DropdownMenuTrigger>
                     <AriaButton className="unique-add" aria-label={`Add a column to ${label}`}>
-                      <HugeiconsIcon icon={PlusSignIcon} size={13} aria-hidden="true" />
+                      <PlusIcon size={13} aria-hidden="true" />
                       Add column
                     </AriaButton>
                     <DropdownMenu placement="bottom start" className="unique-add-menu code-menu w-auto max-h-72" aria-label={`Columns to add to ${label}`}>

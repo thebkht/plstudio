@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { DatabaseIcon, GitForkIcon, Layout01Icon } from "@hugeicons/core-free-icons";
+import { DatabaseIcon, GitForkIcon, LayoutTemplateIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { makeDemoSchema, type Schema } from "@/app/lib/schema";
@@ -49,7 +48,7 @@ export default function TemplateGallery({ workspace }: { workspace?: string }) {
         </Link>
         <Separator orientation="vertical" className="h-6" />
         <div className="templates-title">
-          <HugeiconsIcon icon={Layout01Icon} /> Templates
+          <LayoutTemplateIcon/> Templates
         </div>
         <Link data-slot="button" className={buttonVariants({ variant: "ghost", size: "sm", className: "ml-auto" })} href={homeHref}>
           Back to projects
@@ -74,7 +73,7 @@ export default function TemplateGallery({ workspace }: { workspace?: string }) {
                   <CardDescription>{template.kind}</CardDescription>
                   <CardTitle>{template.name}</CardTitle>
                   <CardAction>
-                    <HugeiconsIcon icon={DatabaseIcon} />
+                    <DatabaseIcon/>
                   </CardAction>
                 </CardHeader>
                 <CardContent>
@@ -85,7 +84,7 @@ export default function TemplateGallery({ workspace }: { workspace?: string }) {
                     {busy === template.name ? (
                       <Spinner data-icon="inline-start" />
                     ) : (
-                      <HugeiconsIcon icon={GitForkIcon} data-icon="inline-start" />
+                      <GitForkIcon data-icon="inline-start" />
                     )}
                     {busy === template.name ? "Creating…" : "Use template"}
                   </Button>

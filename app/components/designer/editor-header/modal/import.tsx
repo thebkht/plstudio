@@ -1,12 +1,7 @@
 "use client";
 
 import { useRef, useState, type ChangeEvent } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ColumnInsertIcon,
-  FileUploadIcon,
-  FolderOpenIcon,
-} from "@hugeicons/core-free-icons";
+import { FileUpIcon, FolderOpenIcon, ListPlusIcon } from "lucide-react";
 import { generateDDL, generateMermaidER } from "@/app/lib/generators";
 import { exportSchemaJson } from "@/app/lib/schema-json";
 import { isMermaidER } from "@/app/lib/mermaid";
@@ -171,7 +166,7 @@ export const ImportModal = ({
             onChange={openFile}
           />
           <Button variant="outline" onClick={() => fileRef.current?.click()}>
-            <HugeiconsIcon icon={FolderOpenIcon} data-icon="inline-start" />
+            <FolderOpenIcon data-icon="inline-start" />
             Open file…
           </Button>
         </div>
@@ -206,11 +201,11 @@ export const ImportModal = ({
           isDisabled={readOnly}
           onClick={() => onReplace(importText, format)}
         >
-          <HugeiconsIcon icon={FileUploadIcon} data-icon="inline-start" />
+          <FileUpIcon data-icon="inline-start" />
           Replace project
         </Button>
         <Button isDisabled={readOnly} onClick={() => onAppend(importText, format)}>
-          <HugeiconsIcon icon={ColumnInsertIcon} data-icon="inline-start" />
+          <ListPlusIcon data-icon="inline-start" />
           Add tables to project
         </Button>
       </DialogFooter>

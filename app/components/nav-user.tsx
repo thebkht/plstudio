@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Logout01Icon } from "@hugeicons/core-free-icons";
+import { LogOutIcon } from "lucide-react";
 import { authClient } from "@/app/lib/auth-client";
 import { Identicon } from "@/app/components/identicon";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -78,7 +77,7 @@ export default function NavUser({
               void authClient.signOut().then(() => router.push("/login"))
             }
           >
-            <HugeiconsIcon icon={Logout01Icon} />
+            <LogOutIcon/>
             Sign out
           </DropdownMenuItem>
         </DropdownMenuGroup>

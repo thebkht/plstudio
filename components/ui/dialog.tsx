@@ -14,8 +14,7 @@ import {
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { HugeiconsIcon } from "@hugeicons/react"
-import { Cancel01Icon } from "@hugeicons/core-free-icons"
+import { XIcon } from "lucide-react";
 
 function DialogTrigger({ ...props }: DialogTriggerPrimitiveProps) {
   return <DialogTriggerPrimitive data-slot="dialog-trigger" {...props} />
@@ -93,7 +92,7 @@ function Dialog({
               className="absolute top-4 right-4 bg-secondary"
               size="icon-sm"
             >
-              <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
+              <XIcon strokeWidth={2} />
               <span className="sr-only">Close</span>
             </DialogClose>
           )}

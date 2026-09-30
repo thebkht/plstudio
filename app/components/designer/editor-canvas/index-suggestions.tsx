@@ -1,8 +1,7 @@
 "use client";
 
 import { Dialog } from "react-aria-components";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { FlashIcon } from "@hugeicons/core-free-icons";
+import { ZapIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -52,7 +51,7 @@ export function IndexSuggestions({
         >
           <PopoverTrigger>
             <Button size="sm" variant="outline" aria-label={`${own.length} suggested ${own.length === 1 ? "index" : "indexes"} for ${table.name}`}>
-              <HugeiconsIcon icon={FlashIcon} data-icon="inline-start" />
+              <ZapIcon data-icon="inline-start" />
               {own.length}
             </Button>
             <Popover placement="right top">

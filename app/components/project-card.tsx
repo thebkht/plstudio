@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, type CSSProperties, type ReactNode } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Delete02Icon, MoreHorizontalIcon } from "@hugeicons/core-free-icons";
+import { EllipsisIcon, Trash2Icon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -68,12 +67,12 @@ export default function ProjectCard({ projectId, href, name, tableCount, updated
           <CardAction>
             <DropdownMenuTrigger>
               <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${name}`}>
-                <HugeiconsIcon icon={MoreHorizontalIcon} />
+                <EllipsisIcon/>
               </Button>
               <DropdownMenu placement="bottom end" className="w-auto min-w-40">
                 <DropdownMenuGroup>
                   <DropdownMenuItem variant="destructive" onAction={() => setConfirming(true)}>
-                    <HugeiconsIcon icon={Delete02Icon} />
+                    <Trash2Icon/>
                     Delete
                   </DropdownMenuItem>
                 </DropdownMenuGroup>

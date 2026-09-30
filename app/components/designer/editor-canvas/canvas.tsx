@@ -11,16 +11,7 @@ import {
   type RefObject,
 } from "react";
 import { toast } from "sonner";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ClipboardIcon,
-  DatabaseIcon,
-  FullScreenIcon,
-  GridIcon,
-  CursorRectangleSelectionIcon,
-  StickyNote01Icon,
-  Table01Icon,
-} from "@hugeicons/core-free-icons";
+import { ClipboardIcon, DatabaseIcon, Grid3x3Icon, MaximizeIcon, SquareDashedMousePointerIcon, StickyNoteIcon, TableIcon } from "lucide-react";
 import {
   ContextMenu,
   ContextMenuGroup,
@@ -616,7 +607,7 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
                     g.addTable(undefined, contextPointRef.current)
                   }
                 >
-                  <HugeiconsIcon icon={Table01Icon} />
+                  <TableIcon/>
                   Add table here
                   <ContextMenuShortcut>
                     <ShortcutKeys id="addTable" isMac={isMac} />
@@ -626,7 +617,7 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
                   isDisabled={readOnly}
                   onAction={() => g.addGroup(contextPointRef.current)}
                 >
-                  <HugeiconsIcon icon={DatabaseIcon} />
+                  <DatabaseIcon/>
                   Add schema group here
                   <ContextMenuShortcut>
                     <ShortcutKeys id="addGroup" isMac={isMac} />
@@ -636,7 +627,7 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
                   isDisabled={readOnly}
                   onAction={() => g.addMemo(contextPointRef.current)}
                 >
-                  <HugeiconsIcon icon={StickyNote01Icon} />
+                  <StickyNoteIcon/>
                   Add memo here
                   <ContextMenuShortcut>
                     <ShortcutKeys id="addMemo" isMac={isMac} />
@@ -649,7 +640,7 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
                   isDisabled={readOnly}
                   onAction={() => void pasteFromClipboard()}
                 >
-                  <HugeiconsIcon icon={ClipboardIcon} />
+                  <ClipboardIcon/>
                   Paste
                   <ContextMenuShortcut>
                     <ShortcutKeys id="pasteSelection" isMac={isMac} />
@@ -663,7 +654,7 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
                   }
                   onAction={() => g.runShortcut("selectAll")}
                 >
-                  <HugeiconsIcon icon={CursorRectangleSelectionIcon} />
+                  <SquareDashedMousePointerIcon/>
                   Select all
                   <ContextMenuShortcut>
                     <ShortcutKeys id="selectAll" isMac={isMac} />
@@ -673,7 +664,7 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
               <ContextMenuSeparator />
               <ContextMenuGroup>
                 <ContextMenuItem onAction={g.fitView}>
-                  <HugeiconsIcon icon={FullScreenIcon} />
+                  <MaximizeIcon/>
                   Fit to screen
                   <ContextMenuShortcut>
                     <ShortcutKeys id="fitView" isMac={isMac} />
@@ -683,7 +674,7 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
                   isDisabled={readOnly || !schema.tables.length}
                   onAction={() => g.runShortcut("tidyLayout")}
                 >
-                  <HugeiconsIcon icon={GridIcon} />
+                  <Grid3x3Icon/>
                   Tidy up layout
                   <ContextMenuShortcut>
                     <ShortcutKeys id="tidyLayout" isMac={isMac} />

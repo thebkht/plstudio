@@ -1,8 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Link01Icon, Search01Icon } from "@hugeicons/core-free-icons";
+import { LinkIcon, SearchIcon } from "lucide-react";
 import {
   Empty,
   EmptyDescription,
@@ -48,7 +47,7 @@ export function RelationshipsTab({ rows, renderRow }: RelationshipsTabProps) {
     <ScrollArea className="panel-body relationship-panel-body">
       <InputGroup className="relationship-search">
         <InputGroupAddon>
-          <HugeiconsIcon icon={Search01Icon} />
+          <SearchIcon/>
         </InputGroupAddon>
         <InputGroupInput
           aria-label="Search relationships"
@@ -61,7 +60,7 @@ export function RelationshipsTab({ rows, renderRow }: RelationshipsTabProps) {
         <Empty>
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <HugeiconsIcon icon={Link01Icon} />
+              <LinkIcon/>
             </EmptyMedia>
             <EmptyTitle>No relationships</EmptyTitle>
             <EmptyDescription>

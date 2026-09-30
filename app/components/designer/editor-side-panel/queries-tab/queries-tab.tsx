@@ -9,14 +9,7 @@
  */
 
 import { useState } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  Delete02Icon,
-  FireIcon,
-  Link01Icon,
-  PlusSignIcon,
-  SourceCodeIcon,
-} from "@hugeicons/core-free-icons";
+import { CodeXmlIcon, FlameIcon, LinkIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -89,7 +82,7 @@ export function QueriesTab({ readOnly }: { readOnly: boolean }) {
           onChange={setHeatmap}
           isDisabled={!queries.length}
         >
-          <HugeiconsIcon icon={FireIcon} data-icon="inline-start" />
+          <FlameIcon data-icon="inline-start" />
           Heatmap
         </Toggle>
         <span className="hint">{queries.length ? `${queries.length} saved ${queries.length === 1 ? "query" : "queries"}` : "No saved queries yet"}</span>
@@ -107,7 +100,7 @@ export function QueriesTab({ readOnly }: { readOnly: boolean }) {
           />
           <p className="hint">One query per statement. Weight one with a <code>-- executions: N</code> line, or paste rows as <code>N⇥sql</code>.</p>
           <Button variant="outline" size="sm" isDisabled={!chunks.length} onClick={addDraft}>
-            <HugeiconsIcon icon={PlusSignIcon} data-icon="inline-start" />
+            <PlusIcon data-icon="inline-start" />
             {chunks.length > 1 ? `Add ${chunks.length} queries` : "Add query"}
           </Button>
         </FieldSet>
@@ -159,7 +152,7 @@ export function QueriesTab({ readOnly }: { readOnly: boolean }) {
               <div className="unique-card" key={query.id}>
                 <InputGroup>
                   <InputGroupAddon>
-                    <HugeiconsIcon icon={SourceCodeIcon} />
+                    <CodeXmlIcon/>
                   </InputGroupAddon>
                   <InputGroupInput
                     aria-label={`Name of ${label}`}
@@ -175,7 +168,7 @@ export function QueriesTab({ readOnly }: { readOnly: boolean }) {
                         aria-label={`Delete ${label}`}
                         onClick={() => withQueries((current) => current.filter((item) => item.id !== query.id))}
                       >
-                        <HugeiconsIcon icon={Delete02Icon} />
+                        <Trash2Icon/>
                       </InputGroupButton>
                     )}
                   </InputGroupAddon>
@@ -192,7 +185,7 @@ export function QueriesTab({ readOnly }: { readOnly: boolean }) {
         <Empty>
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <HugeiconsIcon icon={Link01Icon} />
+              <LinkIcon/>
             </EmptyMedia>
             <EmptyTitle>No saved queries</EmptyTitle>
             <EmptyDescription>

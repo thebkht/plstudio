@@ -7,8 +7,7 @@ import {
 } from "react-aria-components"
 
 import { cn } from "@/lib/utils"
-import { HugeiconsIcon } from "@hugeicons/react"
-import { Tick02Icon } from "@hugeicons/core-free-icons"
+import { CheckIcon } from "lucide-react";
 
 function Checkbox({ className, children, ...props }: CheckboxProps) {
   return (
@@ -29,7 +28,7 @@ function Checkbox({ className, children, ...props }: CheckboxProps) {
               className="grid place-content-center text-current transition-none [&>svg]:size-3.5"
             >
               {(isSelected || isIndeterminate) && (
-                <HugeiconsIcon icon={Tick02Icon} strokeWidth={2} />
+                <CheckIcon strokeWidth={2} />
               )}
             </span>
             {children}

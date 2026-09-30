@@ -1,14 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ArrowDown01Icon,
-  ArrowRight01Icon,
-  Delete02Icon,
-  Link01Icon,
-  PlusSignIcon,
-} from "@hugeicons/core-free-icons";
+import { ChevronDownIcon, ChevronRightIcon, LinkIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { CollabUser } from "@/app/lib/collab/useCollaborativeSchema";
@@ -1008,9 +1001,7 @@ export default function Workspace({
         />
         <strong className="entity-name">{table.name.toUpperCase()}</strong>
         <small className="entity-count">{table.columns.length}</small>
-        <HugeiconsIcon
-          icon={ArrowDown01Icon}
-          className="entity-chevron"
+        <ChevronDownIcon className="entity-chevron"
           aria-hidden="true"
         />
       </CollapsibleTrigger>
@@ -1117,7 +1108,7 @@ export default function Workspace({
                     aria-label={`Add a column to ${table.name}`}
                     onClick={() => addColumn(table.id)}
                   >
-                    <HugeiconsIcon icon={PlusSignIcon} size={16} />
+                    <PlusIcon size={16} />
                   </button>
                 )}
               </h3>
@@ -1155,7 +1146,7 @@ export default function Workspace({
                   className="inset-row inset-row-action"
                   onClick={() => makeJunction(table.id)}
                 >
-                  <HugeiconsIcon icon={Link01Icon} size={16} />
+                  <LinkIcon size={16} />
                   Make junction table
                 </button>
                 <button
@@ -1163,7 +1154,7 @@ export default function Workspace({
                   className="inset-row inset-row-action destructive"
                   onClick={() => deleteTable(table.id)}
                 >
-                  <HugeiconsIcon icon={Delete02Icon} size={16} />
+                  <Trash2Icon size={16} />
                   Delete table
                 </button>
               </div>
@@ -1195,7 +1186,7 @@ export default function Workspace({
         }
       >
         <CollapsibleTrigger className="relationship-row relationship-editor-head">
-          <HugeiconsIcon icon={Link01Icon} aria-hidden="true" />
+          <LinkIcon aria-hidden="true" />
           <span className="relationship-copy">
             <strong>{relationship.name}</strong>
             {/* Code, so mono, and one line: the full path is in the title and
@@ -1204,7 +1195,7 @@ export default function Workspace({
               {row.from} → {row.to} · {row.cardinality}
             </small>
           </span>
-          <HugeiconsIcon icon={ArrowDown01Icon} className="entity-chevron" />
+          <ChevronDownIcon className="entity-chevron" />
         </CollapsibleTrigger>
         <CollapsibleContent>
           {openRelationshipId === relationship.id ? (
@@ -1264,7 +1255,7 @@ export default function Workspace({
 
         {!sidebarOpen && (
           <SidebarTrigger className="panel-reveal" aria-label="Show side panel">
-            <HugeiconsIcon icon={ArrowRight01Icon} />
+            <ChevronRightIcon/>
           </SidebarTrigger>
         )}
 

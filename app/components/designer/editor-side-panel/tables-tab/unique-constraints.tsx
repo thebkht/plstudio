@@ -8,7 +8,7 @@
  */
 
 import { memo } from "react";
-import { FingerPrintIcon } from "@hugeicons/core-free-icons";
+import { FingerprintIcon } from "lucide-react";
 import type { Table, UniqueConstraint } from "@/app/lib/schema";
 import { ColumnSets } from "./column-sets";
 
@@ -32,7 +32,7 @@ export const UniqueConstraints = memo(function UniqueConstraints({
       sets={table.uniques ?? []}
       noun="Unique constraint"
       legend="Unique constraints"
-      icon={FingerPrintIcon}
+      icon={FingerprintIcon}
       placeholder={(index) => `${table.name.toUpperCase()}_U${index + 1}`}
       hint={(set) => (set.columnIds.length < 2 ? "Add a second column — a single column is the column’s own Unique flag." : null)}
       onAdd={addUnique}

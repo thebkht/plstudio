@@ -1,13 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ArrowDown01Icon,
-  DatabaseIcon,
-  PlusSignIcon,
-  Search01Icon,
-} from "@hugeicons/core-free-icons";
+import { ChevronDownIcon, DatabaseIcon, PlusIcon, SearchIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Collapsible,
@@ -70,7 +64,7 @@ export function TablesTab({
       <div className="panel-toolbar">
         <InputGroup className="search-field">
           <InputGroupAddon>
-            <HugeiconsIcon icon={Search01Icon} />
+            <SearchIcon/>
           </InputGroupAddon>
           <InputGroupInput
             aria-label="Search tables"
@@ -87,7 +81,7 @@ export function TablesTab({
             aria-label="Add table"
             onClick={onAddTable}
           >
-            <HugeiconsIcon icon={PlusSignIcon} />
+            <PlusIcon/>
           </Button>
           <Tooltip>Add table</Tooltip>
         </TooltipTrigger>
@@ -97,14 +91,14 @@ export function TablesTab({
           <Empty>
             <EmptyHeader>
               <EmptyMedia variant="icon">
-                <HugeiconsIcon icon={DatabaseIcon} />
+                <DatabaseIcon/>
               </EmptyMedia>
               <EmptyTitle>No tables</EmptyTitle>
               <EmptyDescription>Start building your diagram!</EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
               <Button onClick={onAddTable}>
-                <HugeiconsIcon icon={PlusSignIcon} data-icon="inline-start" />
+                <PlusIcon data-icon="inline-start" />
                 Add table
               </Button>
             </EmptyContent>
@@ -113,7 +107,7 @@ export function TablesTab({
           <Empty>
             <EmptyHeader>
               <EmptyMedia variant="icon">
-                <HugeiconsIcon icon={Search01Icon} />
+                <SearchIcon/>
               </EmptyMedia>
               <EmptyTitle>No matches</EmptyTitle>
               <EmptyDescription>
@@ -162,9 +156,7 @@ export function TablesTab({
                   >
                     {section.tables.length}
                   </span>
-                  <HugeiconsIcon
-                    icon={ArrowDown01Icon}
-                    className="entity-group-chevron"
+                  <ChevronDownIcon className="entity-group-chevron"
                     aria-hidden="true"
                   />
                 </CollapsibleTrigger>

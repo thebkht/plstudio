@@ -1,7 +1,6 @@
 "use client";
 
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Share08Icon } from "@hugeicons/core-free-icons";
+import { ShareIcon } from "lucide-react";
 import BrandMark from "@/app/components/brand-mark";
 import { PeerAvatars } from "@/app/components/collab-presence";
 import NavUser from "@/app/components/nav-user";
@@ -118,7 +117,7 @@ export function ControlPanel({
         </Badge>
         <PeerAvatars peers={peers} status={collabStatus} />
         <Button className="share-btn" onClick={() => setModal("share")}>
-          <HugeiconsIcon icon={Share08Icon} size={15} /> Share
+          <ShareIcon size={15} /> Share
         </Button>
         <NavUser
           user={user}

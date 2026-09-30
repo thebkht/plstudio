@@ -18,7 +18,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import type { LucideIcon } from "lucide-react";
 import { Focusable } from "react-aria-components";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -189,7 +189,7 @@ export const DockButton = memo(function DockButton({
   className,
 }: {
   label: string;
-  icon?: IconSvgElement;
+  icon?: LucideIcon;
   shortcut?: ShortcutId;
   isMac?: boolean;
   /** Toggles rather than commands: renders pressed and announces its state. */
@@ -202,7 +202,8 @@ export const DockButton = memo(function DockButton({
   children?: ReactNode;
   className?: string;
 }) {
-  const content = children ?? (icon && <HugeiconsIcon icon={icon} />);
+  const Icon = icon;
+  const content = children ?? (Icon && <Icon />);
   const tooltip = (
     <Tooltip>
       {label}

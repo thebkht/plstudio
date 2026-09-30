@@ -17,8 +17,7 @@ import {
 } from "react-aria-components"
 
 import { cn } from "@/lib/utils"
-import { HugeiconsIcon } from "@hugeicons/react"
-import { Tick02Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons"
+import { CheckIcon, ChevronRightIcon } from "lucide-react";
 
 function DropdownMenuTrigger({
   ...props
@@ -142,7 +141,7 @@ function DropdownMenuItem({
                 }
               >
                 {isSelected ? (
-                  <HugeiconsIcon icon={Tick02Icon} strokeWidth={2} />
+                  <CheckIcon strokeWidth={2} />
                 ) : null}
               </span>
             ) : null}
@@ -182,7 +181,7 @@ function DropdownMenuSubTrigger({
       {composeRenderProps(children, (children) => (
         <>
           {children}
-          <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} className="ml-auto" />
+          <ChevronRightIcon strokeWidth={2} className="ml-auto" />
         </>
       ))}
     </MenuItemPrimitive>

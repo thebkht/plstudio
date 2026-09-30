@@ -11,8 +11,7 @@ import WorkspaceTopbar from "@/app/components/workspace-topbar";
 import { formatRelative, formatTimestamp } from "@/app/lib/format";
 import { Identicon } from "@/app/components/identicon";
 import { buttonVariants } from "@/components/ui/button-variants";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
+import { ChevronRightIcon } from "lucide-react";
 import {
   Empty,
   EmptyContent,
@@ -64,7 +63,7 @@ export default async function Page() {
                     <span className="workspace-list-role">{workspace.role}</span>
                   </span>
                   {/* A tile that navigates says so, the way a disclosure row does. */}
-                  <HugeiconsIcon icon={ArrowRight01Icon} className="workspace-list-chevron" aria-hidden />
+                  <ChevronRightIcon className="workspace-list-chevron" aria-hidden />
                 </Link>
               </li>
             ))}

@@ -485,6 +485,13 @@ button {
   tab-size: 2;
 }
 
+/* One stroke for every icon. Lucide draws at 2, which at the 13-16px the panel
+   and dock use reads a weight heavier than the text beside it; 1.75 sits with
+   the type. A CSS property, so it overrides the attribute Lucide writes. */
+.lucide {
+  stroke-width: 1.75;
+}
+
 /*
  * Inset grouped lists -- the one structure every settings-like surface in the
  * app is built from. A group is a white surface with no border of its own; the

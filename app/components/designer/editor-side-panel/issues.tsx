@@ -1,7 +1,6 @@
 "use client";
 
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Alert02Icon, ArrowDown01Icon } from "@hugeicons/core-free-icons";
+import { ChevronDownIcon, TriangleAlertIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,15 +23,13 @@ export function Issues() {
       onExpandedChange={setIssuesOpen}
     >
       <CollapsibleTrigger className="issues-head">
-        <HugeiconsIcon
-          icon={Alert02Icon}
-          className={errors.length ? "warn danger" : "warn"}
+        <TriangleAlertIcon className={errors.length ? "warn danger" : "warn"}
         />
         <span>Issues</span>
         <Badge variant={errors.length ? "destructive" : "secondary"}>
           {issues.length}
         </Badge>
-        <HugeiconsIcon icon={ArrowDown01Icon} className="issues-chevron" />
+        <ChevronDownIcon className="issues-chevron" />
       </CollapsibleTrigger>
       <CollapsibleContent>
         <ScrollArea className="issues-list">

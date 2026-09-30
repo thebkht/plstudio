@@ -26,8 +26,7 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
-import { HugeiconsIcon } from "@hugeicons/react"
-import { UnfoldMoreIcon, SearchIcon, Tick02Icon } from "@hugeicons/core-free-icons"
+import { CheckIcon, ChevronsUpDownIcon, SearchIcon } from "lucide-react";
 
 function Select<T extends object, M extends "single" | "multiple" = "single">({
   className,
@@ -97,7 +96,7 @@ function SelectTrigger({
       {...props}
     >
       {children}
-      <HugeiconsIcon icon={UnfoldMoreIcon} strokeWidth={2} className="pointer-events-none size-4 text-muted-foreground" />
+      <ChevronsUpDownIcon strokeWidth={2} className="pointer-events-none size-4 text-muted-foreground" />
     </ButtonPrimitive>
   )
 }
@@ -187,7 +186,7 @@ function SelectInput({ className, ...props }: SearchFieldProps) {
           className="[&::-webkit-search-cancel-button]:hidden"
         />
         <InputGroupAddon>
-          <HugeiconsIcon icon={SearchIcon} strokeWidth={2} className="size-4 shrink-0 opacity-50" />
+          <SearchIcon strokeWidth={2} className="size-4 shrink-0 opacity-50" />
         </InputGroupAddon>
       </InputGroup>
     </SearchField>
@@ -229,7 +228,7 @@ function SelectItem({
           </span>
           <span className="pointer-events-none absolute right-2 flex size-4 items-center justify-center">
             {isSelected ? (
-              <HugeiconsIcon icon={Tick02Icon} strokeWidth={2} className="pointer-events-none" />
+              <CheckIcon strokeWidth={2} className="pointer-events-none" />
             ) : null}
           </span>
         </>

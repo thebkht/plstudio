@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Copy01Icon } from "@hugeicons/core-free-icons";
+import { CopyIcon } from "lucide-react";
 import { toast } from "sonner";
 import { authClient } from "@/app/lib/auth-client";
 import { Alert, AlertTitle } from "@/components/ui/alert";
@@ -156,7 +155,7 @@ export function ShareModal({
                   variant="outline"
                   onClick={() => void copyText(shareLink)}
                 >
-                  <HugeiconsIcon icon={Copy01Icon} data-icon="inline-start" />
+                  <CopyIcon data-icon="inline-start" />
                   Copy
                 </Button>
               </div>
@@ -212,7 +211,7 @@ export function ShareModal({
                     variant="outline"
                     onClick={() => void copyText(workspaceInviteLink)}
                   >
-                    <HugeiconsIcon icon={Copy01Icon} data-icon="inline-start" />
+                    <CopyIcon data-icon="inline-start" />
                     Copy
                   </Button>
                 </div>

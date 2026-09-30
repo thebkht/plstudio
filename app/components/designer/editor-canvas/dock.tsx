@@ -1,20 +1,6 @@
 "use client";
 
-import {
-  ArrowTurnBackwardIcon,
-  ArrowTurnForwardIcon,
-  Download04Icon,
-  FloppyDiskIcon,
-  GridViewIcon,
-  HandGrabIcon,
-  Layers01Icon,
-  Link01Icon,
-  Maximize01Icon,
-  MinusSignIcon,
-  PlusSignIcon,
-  StickyNote01Icon,
-  Table01Icon,
-} from "@hugeicons/core-free-icons";
+import { DownloadIcon, HandIcon, LayersIcon, LayoutGridIcon, LinkIcon, MinusIcon, PlusIcon, Redo2Icon, SaveIcon, ScanIcon, StickyNoteIcon, TableIcon, Undo2Icon } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import {
   useDesignerSettings,
@@ -67,7 +53,7 @@ export function Dock({
       <div role="toolbar" className="dock" aria-label="Canvas controls">
         <DockButton
           label="Hand tool"
-          icon={HandGrabIcon}
+          icon={HandIcon}
           shortcut="toggleHand"
           isMac={isMac}
           isActive={panMode}
@@ -80,7 +66,7 @@ export function Dock({
             where people look to get back to 100%. */}
         <DockButton
           label="Zoom out"
-          icon={MinusSignIcon}
+          icon={MinusIcon}
           shortcut="zoomOut"
           isMac={isMac}
           onClick={() => zoomBy(-0.1)}
@@ -96,14 +82,14 @@ export function Dock({
         </DockButton>
         <DockButton
           label="Zoom in"
-          icon={PlusSignIcon}
+          icon={PlusIcon}
           shortcut="zoomIn"
           isMac={isMac}
           onClick={() => zoomBy(0.1)}
         />
         <DockButton
           label="Fit to screen"
-          icon={Maximize01Icon}
+          icon={ScanIcon}
           shortcut="fitView"
           isMac={isMac}
           onClick={fitView}
@@ -111,7 +97,7 @@ export function Dock({
         <Separator orientation="vertical" />
         <DockButton
           label="Undo"
-          icon={ArrowTurnBackwardIcon}
+          icon={Undo2Icon}
           shortcut="undo"
           isMac={isMac}
           isDisabled={!canUndo}
@@ -120,7 +106,7 @@ export function Dock({
         />
         <DockButton
           label="Redo"
-          icon={ArrowTurnForwardIcon}
+          icon={Redo2Icon}
           shortcut="redo"
           isMac={isMac}
           isDisabled={!canRedo}
@@ -130,28 +116,28 @@ export function Dock({
         <Separator orientation="vertical" />
         <DockButton
           label="Add table"
-          icon={Table01Icon}
+          icon={TableIcon}
           shortcut="addTable"
           isMac={isMac}
           onClick={addTable}
         />
         <DockButton
           label="Add schema group"
-          icon={Layers01Icon}
+          icon={LayersIcon}
           shortcut="addGroup"
           isMac={isMac}
           onClick={addGroup}
         />
         <DockButton
           label="Add memo"
-          icon={StickyNote01Icon}
+          icon={StickyNoteIcon}
           shortcut="addMemo"
           isMac={isMac}
           onClick={addMemo}
         />
         <DockButton
           label="Add junction table"
-          icon={Link01Icon}
+          icon={LinkIcon}
           shortcut="junction"
           isMac={isMac}
           isDisabled={!hasSelectedTable}
@@ -161,21 +147,21 @@ export function Dock({
         <Separator orientation="vertical" />
         <DockButton
           label="Tidy up layout"
-          icon={GridViewIcon}
+          icon={LayoutGridIcon}
           shortcut="tidyLayout"
           isMac={isMac}
           onClick={autoLayout}
         />
         <DockButton
           label="Save"
-          icon={FloppyDiskIcon}
+          icon={SaveIcon}
           shortcut="save"
           isMac={isMac}
           onClick={() => void save()}
         />
         <DockButton
           label="Export"
-          icon={Download04Icon}
+          icon={DownloadIcon}
           shortcut="export"
           isMac={isMac}
           onClick={() => setModal("export")}
