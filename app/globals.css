@@ -81,6 +81,26 @@
   --shadow-pop: 0 10px 24px rgb(0 0 0 / 0.1), 0 2px 6px rgb(0 0 0 / 0.06);
   --shadow-dock: 0 12px 32px rgb(0 0 0 / 0.12), 0 2px 8px rgb(0 0 0 / 0.06);
 
+  /* System type first, so Apple platforms get SF's optical sizes and tracking
+     tables; Inter covers everything else. */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--font-inter),
+    system-ui, sans-serif;
+
+  /* Inset grouped lists (iOS Settings, System Settings). White groups float
+     on a faintly darker base; rows inside them are divided by an inset
+     separator, never boxed. */
+  --grouped-bg: #f2f2f4;
+  --grouped-surface: #ffffff;
+  --separator: color-mix(in srgb, var(--ink-1) 11%, transparent);
+  --tint: var(--primary);
+  --tint-fill: color-mix(in oklch, var(--primary) 12%, transparent);
+  --row-height: 2.75rem;
+  --row-height-compact: 2.25rem;
+  --radius-group: 12px;
+  --material-bar: color-mix(in srgb, var(--surface-0) 72%, transparent);
+  --material-blur: blur(20px) saturate(180%);
+
   /* Brand ramp. One hue (~228deg) carries the wordmark, headings and accents;
      the roles differ by lightness, never by hue. --primary shares that hue, so
      a primary button and the wordmark above it read as the same brand. */
@@ -454,6 +474,288 @@ button {
   tab-size: 2;
 }
 
+/*
+ * Inset grouped lists -- the one structure every settings-like surface in the
+ * app is built from. A group is a white surface with no border of its own; the
+ * rows inside are divided by a separator inset from the leading edge, never
+ * boxed individually. Controls inside a row lose their pill and fill so the
+ * label, not the chrome, carries the row.
+ */
+.inset-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.inset-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 0 4px 0 12px;
+  color: var(--ink-3);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+.inset-group-header > .inset-group-count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+.inset-group-header > .inset-group-count + [data-slot="button"] {
+  margin-left: 0;
+}
+.inset-group-header > [data-slot="button"] {
+  margin-left: auto;
+  color: var(--tint);
+}
+.inset-group-footer {
+  margin: 0;
+  padding: 0 12px;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+}
+.inset-group {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--radius-group);
+  background: var(--grouped-surface);
+  box-shadow: 0 0 0 0.5px var(--separator);
+}
+.inset-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--row-height);
+  padding: 4px 12px;
+  color: var(--ink-1);
+  font-size: 0.8125rem;
+  line-height: var(--leading-tight);
+}
+.inset-row::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 12px;
+  height: 1px;
+  background: var(--separator);
+  transform: scaleY(0.5);
+  transform-origin: bottom;
+  pointer-events: none;
+}
+.inset-row:last-child::after,
+.inset-group > :last-child > .inset-row:last-child::after {
+  display: none;
+}
+.inset-row-label {
+  flex: 0 0 auto;
+  min-width: 5.5rem;
+  color: var(--ink-1);
+}
+.inset-row-value {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  color: var(--ink-3);
+}
+/* A row that is itself a button: the whole width answers the press. */
+.inset-row-action {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--tint);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+.inset-row-action:hover {
+  background: color-mix(in srgb, var(--ink-1) 4%, transparent);
+}
+.inset-row-action:active {
+  background: color-mix(in srgb, var(--ink-1) 8%, transparent);
+}
+.inset-row-action:focus-visible {
+  outline: 2px solid var(--tint);
+  outline-offset: -2px;
+}
+.inset-row-action.destructive {
+  color: var(--destructive);
+}
+.inset-row-action:disabled {
+  color: var(--ink-4);
+  cursor: default;
+}
+
+/*
+ * A control sitting in a row's trailing slot. No pill, no fill: the value
+ * reads as text until it is focused, when a tint ring shows where typing goes.
+ * Unlayered, so it wins over the shadcn utilities without touching the files.
+ */
+.inset-field,
+.inset-field[data-slot="select-trigger"],
+.inset-field[data-slot="input-group"] {
+  height: 30px;
+  min-width: 0;
+  padding-inline: 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink-1);
+  font-size: 0.8125rem;
+  text-align: right;
+}
+.inset-field::placeholder {
+  color: var(--ink-4);
+}
+.inset-field[data-slot="select-trigger"] {
+  justify-content: flex-end;
+  color: var(--ink-3);
+}
+.inset-field[data-slot="select-trigger"] [data-slot="select-value"] {
+  flex: 0 1 auto;
+  min-width: 0;
+  justify-content: flex-end;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.inset-field:hover {
+  background: color-mix(in srgb, var(--ink-1) 4%, transparent);
+}
+.inset-field:focus-visible,
+.inset-field[data-focus-visible],
+.inset-field[data-slot="input-group"]:focus-within {
+  background: var(--surface-1);
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--tint) 45%, transparent);
+  outline: none;
+}
+.inset-field.mono,
+.inset-field .mono {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.75rem;
+}
+.inset-field.leading {
+  text-align: left;
+}
+
+/* A square icon button that lives in a row: quiet until hovered. */
+.row-icon-button {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+.row-icon-button:hover {
+  background: color-mix(in srgb, var(--ink-1) 6%, transparent);
+  color: var(--ink-1);
+}
+.row-icon-button:active {
+  transform: scale(0.92);
+}
+.row-icon-button:focus-visible {
+  outline: 2px solid var(--tint);
+  outline-offset: 1px;
+}
+.row-icon-button.tint {
+  color: var(--tint);
+}
+.row-icon-button.destructive:hover {
+  color: var(--destructive);
+  background: color-mix(in oklch, var(--destructive) 10%, transparent);
+}
+
+/*
+ * A segmented control: a recessed track with lit segments. Used as a
+ * multi-select here (constraints are independent), so every selected segment
+ * lifts rather than one thumb sliding between them.
+ */
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--ink-1) 6%, transparent);
+}
+.segmented [data-slot="toggle"],
+.segmented > button {
+  height: 26px;
+  min-width: 0;
+  gap: 5px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+.segmented [data-slot="toggle"]:hover {
+  background: color-mix(in srgb, var(--ink-1) 5%, transparent);
+}
+.segmented [data-slot="toggle"][data-selected] {
+  background: var(--grouped-surface);
+  color: var(--tint);
+  box-shadow:
+    0 0 0 0.5px color-mix(in srgb, var(--ink-1) 8%, transparent),
+    0 1px 3px rgb(0 0 0 / 0.1);
+}
+.segmented [data-slot="toggle"] svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* The iOS search field: a filled capsule, lighter than a form input. */
+.search-field[data-slot="input-group"] {
+  height: 32px;
+  border: 0;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--ink-1) 6%, transparent);
+  box-shadow: none;
+}
+.search-field[data-slot="input-group"]:focus-within {
+  background: var(--grouped-surface);
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--tint) 45%, transparent);
+}
+.search-field [data-slot="input-group-control"] {
+  font-size: 0.8125rem;
+}
+
+@media (prefers-contrast: more) {
+  .inset-group {
+    box-shadow: 0 0 0 1px var(--hairline-strong);
+  }
+  .inset-row::after {
+    background: var(--hairline-strong);
+    transform: none;
+  }
+  .segmented {
+    box-shadow: inset 0 0 0 1px var(--hairline-strong);
+  }
+}
+
 .entity-group {
   margin-bottom: 4px;
 }
@@ -603,11 +905,11 @@ button {
   background: color-mix(in srgb, var(--surface-0) 85%, transparent);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-color: rgba(0, 122, 255, 0.5);
+  border-color: color-mix(in oklch, var(--tint) 50%, transparent);
   box-shadow:
     0 20px 40px -8px rgba(0, 0, 0, 0.16),
     0 8px 16px -4px rgba(0, 0, 0, 0.08),
-    0 0 0 1.5px rgba(0, 122, 255, 0.5);
+    0 0 0 1.5px color-mix(in oklch, var(--tint) 50%, transparent);
   transform: scale(1.02);
 }
 /* Resizable Sidebar */
@@ -638,8 +940,8 @@ button {
 .sidebar-resizer:hover .sidebar-resizer-line,
 .sidebar-resizer.resizing .sidebar-resizer-line {
   width: 4px;
-  background: #007aff;
-  box-shadow: 0 0 10px rgba(0, 122, 255, 0.5);
+  background: var(--tint);
+  box-shadow: 0 0 10px color-mix(in oklch, var(--tint) 50%, transparent);
 }
 .is-resizing [data-slot="sidebar-gap"],
 .is-resizing [data-slot="sidebar-container"] {
@@ -693,11 +995,11 @@ button {
 .column-slot.lifted .column-grip {
   cursor: grabbing;
   transform: scale(0.92);
-  background: rgba(0, 122, 255, 0.15);
-  color: #007aff;
+  background: var(--tint-fill);
+  color: var(--tint);
 }
 .column-grip:focus-visible {
-  outline: 2px solid #007aff;
+  outline: 2px solid var(--tint);
   outline-offset: 1px;
 }
 .column-card-row {
@@ -2095,7 +2397,7 @@ button {
   box-shadow:
     0 12px 28px -4px rgba(0, 0, 0, 0.18),
     0 4px 10px -2px rgba(0, 0, 0, 0.1),
-    0 0 0 1.5px #007aff;
+    0 0 0 1.5px var(--tint);
   border-radius: 6px;
   transform: scale(1.02);
 }
@@ -2131,13 +2433,13 @@ button {
 .table-row-slot.lifted .row-reorder-grip {
   cursor: grabbing;
   transform: scale(0.9);
-  background: rgba(0, 122, 255, 0.2);
-  color: #007aff;
+  background: var(--tint-fill);
+  color: var(--tint);
   opacity: 1;
 }
 .row-reorder-grip:focus-visible {
   opacity: 1;
-  outline: 2px solid #007aff;
+  outline: 2px solid var(--tint);
   outline-offset: 1px;
 }
 .linking-overlay {

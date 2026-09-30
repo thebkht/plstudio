@@ -4,7 +4,8 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 
-const inter = Inter({subsets:['latin'],variable:'--font-sans'});
+// The fallback face: Apple platforms get SF first, see `--font-sans` in globals.css.
+const inter = Inter({subsets:['latin'],variable:'--font-inter'});
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono", display: "swap" });
 
 export const metadata: Metadata = { title: "PLStudio — Visual Oracle schema design", description: "Draw, model, and ship Oracle schemas visually." };
