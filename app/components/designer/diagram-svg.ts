@@ -18,7 +18,7 @@ import {
   type SchemaGroup,
   type Table,
 } from "@/app/lib/schema";
-import { CROW_MANY, CROW_MARKER_SIZE, CROW_ONE, crowMarker, curvePath, facingSide } from "./edge-routing";
+import { CROW_MANY, CROW_MARKER_SIZE, CROW_ONE, crowMarker, curvePath, facingSide, fanPorts, idealBend } from "./edge-routing";
 import { relationshipCardinalities } from "./geometry";
 
 /**
@@ -178,10 +178,12 @@ export function renderDiagramSVG(schema: Schema, { theme = "light" }: { theme?: 
       const box = boxOf(table);
       const otherBox = boxOf(other);
       const direction = facingSide(box.x, box.width, otherBox.x, otherBox.width);
-      return { x: box.x + (direction === 1 ? box.width : 0), y: box.y + tableHeaderHeight(table, "document") + index * TABLE_FIELD_HEIGHT + TABLE_FIELD_HEIGHT / 2, direction };
+      return { x: box.x + (direction === 1 ? box.width : 0), y: box.y + tableHeaderHeight(table, "document") + index * TABLE_FIELD_HEIGHT + TABLE_FIELD_HEIGHT / 2, direction, tableId: table.id };
     };
-    return [{ relationship, name: `${from.name}.${from.columns[fromIndex].name} → ${to.name}.${to.columns[toIndex].name}`, from: end(from, fromIndex, to), to: end(to, toIndex, from) }];
+    return [{ id: relationship.id, relationship, name: `${from.name}.${from.columns[fromIndex].name} → ${to.name}.${to.columns[toIndex].name}`, from: end(from, fromIndex, to), to: end(to, toIndex, from) }];
   });
+  // Keys sharing a port get a row each here too, so the picture matches the canvas.
+  fanPorts(edges, ({ from, to }) => idealBend(from, to)).forEach(({ from, to }, index) => Object.assign(edges[index], { from, to }));
 
   const boxes: Box[] = [
     ...canonical.tables.map(boxOf),

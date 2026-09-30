@@ -36,6 +36,8 @@ export const RelationshipEdge = memo(function RelationshipEdge({
   toY,
   toDirection,
   bendX,
+  fromMarkerShift = 0,
+  toMarkerShift = 0,
   fromCardinality,
   toCardinality,
   label,
@@ -54,6 +56,9 @@ export const RelationshipEdge = memo(function RelationshipEdge({
   /** Where the vertical trunk runs, decided across the whole diagram by
    *  `routeEdges` so the trunks fan into lanes instead of stacking. */
   bendX: number;
+  /** Extra distance along the line for this end's pill, when its port is shared (see `fanPorts`). */
+  fromMarkerShift?: number;
+  toMarkerShift?: number;
   fromCardinality: string;
   toCardinality: string;
   label: string;
@@ -73,8 +78,8 @@ export const RelationshipEdge = memo(function RelationshipEdge({
   const path = curved ? curvePath(from, to) : edgePath(from, to, bendX);
   // The SVG paints before the cards, so the outward normal is the only
   // direction that clears the card a marker belongs to.
-  const fromMarkerX = fromX + fromDirection * MARKER_DISTANCE;
-  const toMarkerX = toX + toDirection * MARKER_DISTANCE;
+  const fromMarkerX = fromX + fromDirection * (MARKER_DISTANCE + fromMarkerShift);
+  const toMarkerX = toX + toDirection * (MARKER_DISTANCE + toMarkerShift);
   return (
     <g className="relationship" data-edge-id={edgeId}>
       {/* Invisible fat stroke so the thin line is easy to hover. */}

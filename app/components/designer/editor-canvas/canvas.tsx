@@ -34,7 +34,7 @@ import type { Rect } from "@/app/lib/selection";
 import { isSelected, selectOnly } from "@/app/lib/selection";
 import type { ShortcutId } from "@/app/lib/shortcuts";
 import { enclosedBy, relationshipCardinalities } from "../geometry";
-import { idealBend, routeEdges } from "../edge-routing";
+import { fanPorts, idealBend, routeEdges, type EdgeInput } from "../edge-routing";
 import { ShortcutKeys } from "../primitives";
 import { useDesignerSettings, useOverlay, useSchema, useSelect } from "@/app/hooks";
 import { Dock } from "./dock";
@@ -288,6 +288,18 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
   );
 
   /*
+   * A card in flight has moved out from under the routed map, so its edges fall
+   * back to the bend they can derive on their own until the position is
+   * committed and everything re-routes. The fan reads the same bend the edge
+   * draws with, so its slot order always matches the trunks on screen.
+   */
+  const bendOf = ({ id, from, to }: EdgeInput) =>
+    g.dragPosition?.id === from.tableId || g.dragPosition?.id === to.tableId
+      ? idealBend(from, to)
+      : (routes.get(id) ?? idealBend(from, to));
+  const fanned = fanPorts(edges.map(({ id, from, to }) => ({ id, from, to })), bendOf);
+
+  /*
    * A group's body is `pointer-events: none` so the canvas can be panned and
    * marquee-selected straight through it, which means a right-click inside one
    * lands on the canvas and never reaches the group at all. Only the head and
@@ -413,15 +425,10 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
         */}
           <svg className={`edges ${settings.cardStyle === "document" ? "document" : ""}`} aria-hidden="true">
             {settings.cardStyle === "document" && <CrowMarkers />}
-            {edges.map(({ id, relationship, from, to }) => {
+            {fanned.map(({ id, from, to }, index) => {
+              const { relationship } = edges[index];
               const [fromCardinality, toCardinality] =
                 relationshipCardinalities(relationship);
-              // A card in flight has moved out from under the routed map, so
-              // its edges fall back to the bend they can derive on their own
-              // until the position is committed and everything re-routes.
-              const moving =
-                g.dragPosition?.id === from.tableId ||
-                g.dragPosition?.id === to.tableId;
               return (
                 <RelationshipEdge
                   key={id}
@@ -432,11 +439,9 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
                   toX={to.x}
                   toY={to.y}
                   toDirection={to.direction}
-                  bendX={
-                    moving
-                      ? idealBend(from, to)
-                      : (routes.get(id) ?? idealBend(from, to))
-                  }
+                  fromMarkerShift={from.markerShift}
+                  toMarkerShift={to.markerShift}
+                  bendX={bendOf({ id, from, to })}
                   fromCardinality={fromCardinality}
                   toCardinality={toCardinality}
                   label={relationship.name}

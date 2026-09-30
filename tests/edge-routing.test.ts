@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  fanPorts,
   idealBend,
   routeEdges,
   type EdgeEnd,
@@ -123,5 +124,61 @@ describe("routeEdges", () => {
     const routed = routeEdges([edge], [box("wall", 0, 0, 4000, 900)]);
     const ideal = idealBend(edge.from, edge.to);
     expect(routed.get("r1")! - ideal).toBeLessThanOrEqual(320);
+  });
+});
+
+describe("fanPorts", () => {
+  /** Three keys landing on one row of the right-hand card, as in a hub table. */
+  const port = (id: string, fromY: number, bendX: number) => ({ edge: { id, from: end(100, fromY, 1, `t-${id}`), to: end(900, 400, -1, "hub") }, bendX });
+  const fanOf = (entries: ReturnType<typeof port>[]) => {
+    const bends = new Map(entries.map(({ edge, bendX }) => [edge.id, bendX]));
+    return new Map(fanPorts(entries.map(({ edge }) => edge), (edge) => bends.get(edge.id)!).map((edge) => [edge.id, edge]));
+  };
+
+  it("leaves an unshared port exactly where it was", () => {
+    const fanned = fanOf([port("a", 100, 500)]);
+    expect(fanned.get("a")!.to).toMatchObject({ y: 400, markerShift: 0 });
+  });
+
+  it("gives every edge on a shared port its own row, centred on the anchor", () => {
+    const ys = [...fanOf([port("a", 100, 500), port("b", 120, 860), port("c", 700, 600)]).values()].map((edge) => edge.to.y).sort((a, b) => a - b);
+    expect(ys).toEqual([392, 400, 408]);
+  });
+
+  it("puts the nearer trunk from above on top, so the farther run passes under its turn", () => {
+    const fanned = fanOf([port("far", 100, 500), port("near", 120, 860)]);
+    expect(fanned.get("near")!.to.y).toBeLessThan(fanned.get("far")!.to.y);
+  });
+
+  it("puts the nearer trunk from below at the bottom, mirroring the edges from above", () => {
+    const fanned = fanOf([port("far", 700, 500), port("near", 720, 860)]);
+    expect(fanned.get("near")!.to.y).toBeGreaterThan(fanned.get("far")!.to.y);
+  });
+
+  it("orders edges from above before edges from below", () => {
+    const fanned = fanOf([port("below", 700, 860), port("above", 100, 500)]);
+    expect(fanned.get("above")!.to.y).toBeLessThan(fanned.get("below")!.to.y);
+  });
+
+  it("keeps a crowded port inside its row", () => {
+    const entries = Array.from({ length: 7 }, (_, index) => port(`e${index}`, 100 + index, 300 + index * 40));
+    const ys = [...fanOf(entries).values()].map((edge) => edge.to.y);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeLessThanOrEqual(36 - 12);
+  });
+
+  it("steps neighbouring pills apart along the line, never past the bend", () => {
+    const fanned = fanOf([port("far", 100, 500), port("near", 120, 860)]);
+    const shifts = [fanned.get("near")!.to.markerShift, fanned.get("far")!.to.markerShift];
+    expect(shifts).toContain(0);
+    // "near" turns 40px out of the card: no room to step its pill further along.
+    expect(fanned.get("near")!.to.markerShift).toBe(0);
+    expect(fanned.get("far")!.to.markerShift).toBe(26);
+  });
+
+  it("is independent of input order", () => {
+    const entries = [port("a", 100, 500), port("b", 120, 860), port("c", 700, 600)];
+    const forward = fanOf(entries);
+    const backward = fanOf([...entries].reverse());
+    entries.forEach(({ edge }) => expect(backward.get(edge.id)).toEqual(forward.get(edge.id)));
   });
 });

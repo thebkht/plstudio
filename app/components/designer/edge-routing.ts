@@ -7,6 +7,11 @@ import {
   EDGE_STUB,
   LANE_PITCH,
   LANE_SHARE_MARGIN,
+  MARKER_DISTANCE,
+  PORT_MARKER_STEP,
+  PORT_PITCH,
+  PORT_ROW_MARGIN,
+  ROW_HEIGHT,
 } from "./constants";
 
 /**
@@ -159,6 +164,68 @@ export function routeEdges(edges: EdgeInput[], obstacles: Obstacle[]) {
       routed.set(edge.id, bestX);
     });
   return routed;
+}
+
+/** An end after fanning: nudged within its row, and how far its pill steps out. */
+export type FannedEnd = EdgeEnd & { markerShift: number };
+export type FannedEdge = { id: string; from: FannedEnd; to: FannedEnd };
+
+/**
+ * Edges that land on the same port -- one row, one flank of one card -- would
+ * otherwise run their last stretch on the same pixel row and read as a single
+ * line with three meanings (a composite key anchors on its first column, so
+ * this happens whenever two keys share a leading column with a plain one).
+ * Each gets its own slot across the row instead.
+ *
+ * The order is what keeps the fan from crossing itself. An edge's last run is
+ * horizontal, from its trunk to the port; a trunk coming down from above that
+ * sits nearer the card must end *above* the farther ones, so their runs pass
+ * beneath the corner where it turns rather than through its trunk. Edges from
+ * below are the mirror image, and a straight, bend-free edge takes the middle.
+ *
+ * Pure and deterministic: ties fall back to the edge id, as `routeEdges` does.
+ */
+export function fanPorts(edges: EdgeInput[], bendOf: (edge: EdgeInput) => number): FannedEdge[] {
+  type Slot = { edge: EdgeInput; side: "from" | "to"; approach: number; reach: number };
+  const ports = new Map<string, Slot[]>();
+  edges.forEach((edge) => {
+    const bend = bendOf(edge);
+    (["from", "to"] as const).forEach((side) => {
+      const own = edge[side];
+      const other = edge[side === "from" ? "to" : "from"];
+      const key = `${own.tableId}:${own.direction}:${Math.round(own.y)}`;
+      // -1 arrives from above, 1 from below, 0 is a straight run across.
+      const approach = Math.abs(other.y - own.y) <= 4 ? 0 : Math.sign(other.y - own.y);
+      ports.set(key, [...(ports.get(key) ?? []), { edge, side, approach, reach: Math.abs(bend - own.x) }]);
+    });
+  });
+  const nudged = new Map<string, { dy: number; shift: number }>();
+  ports.forEach((slots) => {
+    if (slots.length < 2) return;
+    const pitch = Math.min(PORT_PITCH, (ROW_HEIGHT - 2 * PORT_ROW_MARGIN) / (slots.length - 1));
+    // Two pills per step while they clear each other vertically, three once the pitch is too tight for that.
+    const columns = pitch * 2 >= 16 ? 2 : 3;
+    [...slots]
+      .sort((a, b) =>
+        a.approach - b.approach ||
+        (a.approach < 0 ? a.reach - b.reach : b.reach - a.reach) ||
+        (a.edge.id < b.edge.id ? -1 : a.edge.id > b.edge.id ? 1 : 0),
+      )
+      .forEach((slot, index) => {
+        const room = Math.max(0, slot.reach - MARKER_DISTANCE - PORT_MARKER_STEP / 2);
+        nudged.set(`${slot.edge.id}:${slot.side}`, {
+          dy: (index - (slots.length - 1) / 2) * pitch,
+          // Only as far as the straight run allows: past the bend the pill would float off its line.
+          shift: Math.min((index % columns) * PORT_MARKER_STEP, room),
+        });
+      });
+  });
+  const fan = (edge: EdgeInput, side: "from" | "to"): FannedEnd => {
+    const own = edge[side];
+    const move = nudged.get(`${edge.id}:${side}`);
+    return { ...own, y: own.y + (move?.dy ?? 0), markerShift: move?.shift ?? 0 };
+  };
+  return edges.map((edge) => ({ id: edge.id, from: fan(edge, "from"), to: fan(edge, "to") }));
 }
 
 /**

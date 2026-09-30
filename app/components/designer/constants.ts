@@ -91,6 +91,16 @@ export const EDGE_CROSS_PENALTY = 1000;
 export const EDGE_SHARE_PENALTY = 260;
 /** Candidate lanes examined per edge, so a wide corridor stays O(1) to search. */
 export const EDGE_LANE_SAMPLES = 64;
+/**
+ * Spacing between edges that share one port (same card, row and flank), fanned
+ * across the row instead of drawn on top of each other. Squeezed for a crowded
+ * port so every end stays inside its row's band, clear of the rows beside it.
+ */
+export const PORT_PITCH = 8;
+export const PORT_ROW_MARGIN = 6;
+/** How far a fanned end's cardinality pill steps out along its line, so pills
+ *  on neighbouring ends sit side by side rather than stacked on each other. */
+export const PORT_MARKER_STEP = 26;
 export const MEMO_COLORS: {
   id: MemoColor;
   label: string;
