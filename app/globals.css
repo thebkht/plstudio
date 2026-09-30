@@ -144,7 +144,7 @@
      keep the saturation; `.row-type` carries them at weight 500 so a bright
      hue still holds up at 12px. */
   --type-string: #ea580c;
-  --type-integer: #d97706;
+  --type-integer: #ca8a04;
   --type-decimal: #65a30d;
   --type-date: #0891b2;
   --type-binary: #059669;
