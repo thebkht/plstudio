@@ -139,15 +139,16 @@
   --table-accent: #3b82f6;
 
   /* Datatype label colours, keyed by category (Tailwind 500 series). */
-  /* The drawDB hues one step darker (Tailwind 700): the 500s they replaced
-     measured 1.9-2.6:1 on the card surface, so NUMBER in yellow was barely
-     there. These clear 4.5:1 while keeping each category its own hue. */
-  --type-string: #c2410c;
-  --type-integer: #a16207;
-  --type-decimal: #4d7c0f;
-  --type-date: #0e7490;
-  --type-binary: #047857;
-  --type-other: #52525b;
+  /* Vivid, one step under drawDB's 500s: those washed out on the card surface
+     (yellow NUMBER at ~1.9:1), the 700s tried before read as muddy. The 600s
+     keep the saturation; `.row-type` carries them at weight 500 so a bright
+     hue still holds up at 12px. */
+  --type-string: #ea580c;
+  --type-integer: #d97706;
+  --type-decimal: #65a30d;
+  --type-date: #0891b2;
+  --type-binary: #059669;
+  --type-other: #71717a;
   /* systemGray: neutral in the edge layer, so the blue of a highlighted edge
      is the only colour a line ever carries. */
   --edge: #8e8e93;
@@ -2696,6 +2697,7 @@ button {
 .row-type {
   font-family: var(--font-mono), ui-monospace, monospace;
   font-size: var(--text-xs);
+  font-weight: 500;
   white-space: nowrap;
 }
 .fk-dot {
