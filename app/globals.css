@@ -1635,12 +1635,38 @@ button {
 .relationship-editor.open .relationship-editor-head {
   background: var(--grouped-surface);
 }
-.relationship-copy small {
-  overflow: hidden;
+.relationship-path {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
   font-family: var(--font-mono), ui-monospace, monospace;
   font-size: var(--text-2xs);
+}
+/* Both names shrink, neither to nothing: each keeps a share of the row. */
+.relationship-path > span {
+  flex: 0 1 auto;
+  min-width: 2.5em;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.relationship-row .relationship-path svg {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  color: var(--ink-4);
+}
+/* The cardinality never truncates: a quiet tag at the end, tabular like every count. */
+.relationship-path > b {
+  flex: none;
+  margin-left: 2px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--ink-1) 6%, transparent);
+  color: var(--ink-3);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 .relationship-detail {
   display: flex;

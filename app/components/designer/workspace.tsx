@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDownIcon, ChevronRightIcon, LinkIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { ArrowRightIcon, ChevronDownIcon, ChevronRightIcon, LinkIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { CollabUser } from "@/app/lib/collab/useCollaborativeSchema";
@@ -1190,12 +1190,18 @@ export default function Workspace({
       >
         <CollapsibleTrigger className="relationship-row relationship-editor-head">
           <LinkIcon aria-hidden="true" />
-          <span className="relationship-copy">
+          <span className="relationship-copy" title={`${relationship.name}\n${row.from} → ${row.to} · ${row.cardinality}`}>
             <strong>{relationship.name}</strong>
-            {/* Code, so mono, and one line: the full path is in the title and
-                in the editor underneath, where it has room. */}
-            <small title={`${row.from} → ${row.to} · ${row.cardinality}`}>
-              {row.from} → {row.to} · {row.cardinality}
+            {/*
+              Tables only -- the columns are in the editor one press away. Each
+              name gives way on its own, so a long source can no longer push the
+              target, the arrow and the cardinality off the end of the row.
+            */}
+            <small className="relationship-path">
+              <span>{startTable.name.toUpperCase()}</span>
+              <ArrowRightIcon aria-label="references" />
+              <span>{endTable.name.toUpperCase()}</span>
+              <b>{row.cardinality}</b>
             </small>
           </span>
           <ChevronDownIcon className="entity-chevron" />
