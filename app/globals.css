@@ -1569,9 +1569,13 @@ button {
   overflow: hidden;
   border: 1px solid var(--hairline);
   border-radius: 12px;
-  background: color-mix(in srgb, var(--surface-0) 88%, transparent);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
-  backdrop-filter: blur(18px) saturate(160%);
+  /* A material the canvas shows through, not a white card: at 88% it read as
+     opaque. Thin enough that the grid and nearby cards blur through, with
+     saturation lifted so what shows through keeps its colour. The gesture and
+     reduced-transparency rules below still make it solid when needed. */
+  background: color-mix(in srgb, var(--surface-0) 55%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
   box-shadow: var(--shadow-dock);
   cursor: pointer;
   touch-action: none;
@@ -1584,9 +1588,7 @@ button {
   opacity: 0.28;
 }
 .minimap-table {
-  fill: var(--table-surface);
-  stroke: var(--hairline-strong);
-  stroke-width: 1;
+  opacity: 0.85;
 }
 .minimap-viewport {
   position: absolute;
@@ -1600,10 +1602,7 @@ button {
   );
   border: 1.5px solid var(--primary);
   border-radius: 3px;
-  /* Everything outside the view recedes, rather than the view being tinted:
-     the part you are looking at stays the clearest part of the map. The map
-     clips, so the spread never escapes it. */
-  box-shadow: 0 0 0 100vmax color-mix(in srgb, var(--ink-1) 6%, transparent);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
   pointer-events: none;
 }
 /* Held: the map is being dragged, so the window it moves says so. */

@@ -24,9 +24,6 @@ const WIDTH = 200;
 const HEIGHT = 136;
 /** Canvas-space margin, so a card on the edge of the diagram is not flush with the map's. */
 const MARGIN = 120;
-/** A table's accent strip and corner, in screen pixels: at map scale the card's own 7px strip is a sliver. */
-const STRIP = 2.5;
-const CORNER = 1.5;
 
 type Box = { x: number; y: number; width: number; height: number };
 
@@ -159,20 +156,17 @@ function MinimapComponent({
     >
       <svg width={WIDTH} height={HEIGHT} aria-hidden="true">
         <g transform={`translate(${offsetX - minX * scale} ${offsetY - minY * scale}) scale(${scale})`}>
-          {/* A table is drawn as the card it is -- white, a hairline, its colour
-              on a strip -- the way the dashboard previews draw it. Filled solid,
-              a dark-coloured table became the loudest thing in the corner and
-              the map read as swatches rather than as the diagram. */}
-          {boxes.map((box, index) =>
-            box.kind === "table" ? (
-              <g key={index}>
-                <rect className="minimap-table" x={box.x} y={box.y} width={box.width} height={box.height} rx={CORNER / scale} vectorEffect="non-scaling-stroke" />
-                <rect x={box.x} y={box.y} width={box.width} height={Math.min(STRIP / scale, box.height)} rx={CORNER / scale} fill={box.fill} />
-              </g>
-            ) : (
-              <rect key={index} className={`minimap-${box.kind}`} x={box.x} y={box.y} width={box.width} height={box.height} fill={box.fill} />
-            ),
-          )}
+          {boxes.map((box, index) => (
+            <rect
+              key={index}
+              className={`minimap-${box.kind}`}
+              x={box.x}
+              y={box.y}
+              width={box.width}
+              height={box.height}
+              fill={box.fill}
+            />
+          ))}
         </g>
       </svg>
       <div className="minimap-viewport" aria-hidden="true" />
