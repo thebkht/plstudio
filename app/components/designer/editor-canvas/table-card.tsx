@@ -126,13 +126,14 @@ const ColumnRow = memo(function ColumnRow({
             aria-hidden="true"
           />
         )}
-        {!column.notNull && !column.pk && (
-          <span className="row-nullable">
-            <span className="sr-only">Nullable</span>?
-          </span>
-        )}
         <span className="row-type" style={{ color: typeColorVar(column.type) }}>
           {isDocument ? typeString(column).toLowerCase() : typeString(column)}
+        </span>
+        {/* After the type, as an optional is written (`String?`), and in a slot
+            that is always there: every type then ends on the same x, and the
+            marks line up in a column instead of floating with each type's width. */}
+        <span className="row-nullable">
+          {!column.notNull && !column.pk && <><span className="sr-only">Nullable</span>?</>}
         </span>
         {!readOnly && totalColumns > 1 && onGrabRow && (
           <button

@@ -130,18 +130,27 @@
   /* Table card surfaces (zinc ramp, matching the diagram's neutral tone). */
   --table-surface: #f4f4f5;
   --table-ink: #27272a;
-  --table-muted: #a1a1aa;
+  /* Muted is still read (the key strategy, the nullable mark), so it holds
+     ~4.5:1 on the card surface; the divider under the header is a hairline,
+     never darker than the card's own border. */
+  --table-muted: #71717a;
   --table-border: #d4d4d8;
-  --table-line: #9ca3af;
+  --table-line: #d4d4d8;
   --table-accent: #3b82f6;
 
   /* Datatype label colours, keyed by category (Tailwind 500 series). */
-  --type-string: #f97316;
-  --type-integer: #eab308;
-  --type-decimal: #84cc16;
-  --type-date: #06b6d4;
-  --type-binary: #10b981;
-  --type-other: #71717a;
+  /* The drawDB hues one step darker (Tailwind 700): the 500s they replaced
+     measured 1.9-2.6:1 on the card surface, so NUMBER in yellow was barely
+     there. These clear 4.5:1 while keeping each category its own hue. */
+  --type-string: #c2410c;
+  --type-integer: #a16207;
+  --type-decimal: #4d7c0f;
+  --type-date: #0e7490;
+  --type-binary: #047857;
+  --type-other: #52525b;
+  /* systemGray: neutral in the edge layer, so the blue of a highlighted edge
+     is the only colour a line ever carries. */
+  --edge: #8e8e93;
 
   /*
    * Canvas surface and grid. The camera (`--pan-x/y`, `--zoom`,
@@ -1575,7 +1584,9 @@ button {
   opacity: 0.28;
 }
 .minimap-table {
-  opacity: 0.85;
+  fill: var(--table-surface);
+  stroke: var(--hairline-strong);
+  stroke-width: 1;
 }
 .minimap-viewport {
   position: absolute;
@@ -1589,8 +1600,18 @@ button {
   );
   border: 1.5px solid var(--primary);
   border-radius: 3px;
-  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  /* Everything outside the view recedes, rather than the view being tinted:
+     the part you are looking at stays the clearest part of the map. The map
+     clips, so the spread never escapes it. */
+  box-shadow: 0 0 0 100vmax color-mix(in srgb, var(--ink-1) 6%, transparent);
   pointer-events: none;
+}
+/* Held: the map is being dragged, so the window it moves says so. */
+.minimap:active {
+  cursor: grabbing;
+}
+.minimap:active .minimap-viewport {
+  border-width: 2px;
 }
 .canvas-wrap.gesturing .minimap {
   -webkit-backdrop-filter: none;
@@ -2004,8 +2025,8 @@ button {
 }
 .relationship-path {
   fill: none;
-  stroke: grey;
-  stroke-width: 2.5;
+  stroke: var(--edge);
+  stroke-width: 2;
   stroke-linecap: butt;
   pointer-events: stroke;
   transition:
@@ -2015,18 +2036,19 @@ button {
 }
 .relationship-path.active {
   stroke: #0084d1;
-  stroke-width: 4;
+  stroke-width: 3;
 }
 .relationship-marker {
-  fill: grey;
+  fill: var(--edge);
   stroke: none;
   pointer-events: none;
 }
 .relationship-marker-text {
   fill: #fff;
   font:
-    400 16px/1 var(--font-sans),
+    600 11px/1 var(--font-sans),
     sans-serif;
+  font-variant-numeric: tabular-nums;
   text-anchor: middle;
   dominant-baseline: middle;
   pointer-events: none;
@@ -2046,7 +2068,7 @@ button {
 /* Marching ants on hover make it obvious which two fields are joined. */
 .relationship:hover .relationship-path {
   stroke: #0084d1;
-  stroke-width: 6;
+  stroke-width: 3.5;
   stroke-dasharray: 12 8;
   animation: dash-right 1s linear infinite;
 }
@@ -2370,10 +2392,11 @@ button {
     border-color var(--duration-base) var(--ease-out),
     box-shadow var(--duration-base) var(--ease-out);
 }
-/* Hovering hints that the card is grabbable before it is picked up. */
+/* Hovering hints that the card is grabbable before it is picked up. Solid and
+   half-strength rather than dashed: a dashed outline reads as a placeholder or
+   a drop target, and selection then only has to finish the same colour. */
 .table-card:hover {
-  border-style: dashed;
-  border-color: var(--table-accent);
+  border-color: color-mix(in srgb, var(--table-accent) 45%, var(--table-border));
 }
 .table-card.selected {
   border-style: solid;
@@ -2512,7 +2535,7 @@ button {
 .table-row + .table-row {
   border-top: 1px solid var(--table-line);
 }
-/* The dot that marks a field as a relationship endpoint. */
+/* The handle a link is dragged from. */
 .row-grip {
   flex: 0 0 10px;
   width: 10px;
@@ -2528,6 +2551,34 @@ button {
 .row-grip:focus-visible {
   transform: scale(1.45);
   background: var(--brand-accent);
+}
+/*
+ * Twelve identical blue dots down every card say nothing at rest, so with a
+ * pointer that can hover they wait for the card to be approached (or selected,
+ * focused, or a link to be in flight, when every card is a possible target).
+ * The slot keeps its width, so no name moves when they appear. Touch keeps
+ * them: there is no hover to reveal them with.
+ */
+@media (hover: hover) {
+  .row-grip {
+    opacity: 0;
+    transform: scale(0.6);
+    transition:
+      opacity var(--duration-fast) var(--ease-out),
+      transform var(--duration-fast) var(--ease-out),
+      background var(--duration-fast) var(--ease-out);
+  }
+  .table-card:hover .row-grip,
+  .table-card.selected .row-grip,
+  .table-card:focus-within .row-grip,
+  .canvas-wrap.linking .row-grip {
+    opacity: 1;
+    transform: none;
+  }
+  .table-card .row-grip:hover,
+  .table-card .row-grip:focus-visible {
+    transform: scale(1.45);
+  }
 }
 .table-row-slot {
   position: relative;
@@ -2560,7 +2611,7 @@ button {
   border-radius: 4px;
   background: transparent;
   color: var(--table-muted);
-  opacity: 0.4;
+  opacity: 0;
   cursor: grab;
   transition:
     opacity 0.15s ease,
@@ -2568,8 +2619,15 @@ button {
     color 0.15s ease,
     transform 0.15s ease;
 }
+/* Only on the row being pointed at: one grip is an affordance, a column of
+   them is texture. Touch has no hover, so it keeps them at a quiet strength. */
 .table-row:hover .row-reorder-grip {
   opacity: 0.85;
+}
+@media (hover: none) {
+  .row-reorder-grip {
+    opacity: 0.4;
+  }
 }
 .row-reorder-grip:hover {
   opacity: 1;
@@ -2617,7 +2675,10 @@ button {
   color: var(--table-muted);
 }
 .row-nullable {
+  flex: 0 0 1ch;
+  margin-left: -4px;
   font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: var(--text-xs);
 }
 .row-type {
   font-family: var(--font-mono), ui-monospace, monospace;

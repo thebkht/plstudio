@@ -342,7 +342,7 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
     <ContextMenuTrigger>
       <div
         ref={g.canvasRef}
-        className={`canvas-wrap ${g.grabbing ? "grabbing" : ""} ${g.grabbing || g.dragPosition || g.marquee || g.dragSelection ? "gesturing" : ""} ${g.panMode ? "pan-mode" : ""}`}
+        className={`canvas-wrap ${g.grabbing ? "grabbing" : ""} ${g.grabbing || g.dragPosition || g.marquee || g.dragSelection ? "gesturing" : ""} ${g.panMode ? "pan-mode" : ""} ${g.linking ? "linking" : ""}`}
         onPointerDownCapture={g.onCanvasDownCapture}
         onPointerDown={g.onCanvasDown}
         onPointerMove={g.onPointerMove}

@@ -88,9 +88,9 @@ export const RelationshipEdge = memo(function RelationshipEdge({
       />
       {showCardinality && !curved && (
         <>
-          <rect className="relationship-marker" x={fromMarkerX - 14} y={fromY - 12} width="28" height="24" rx="12" />
+          <rect className="relationship-marker" x={fromMarkerX - 12} y={fromY - 9} width="24" height="18" rx="9" />
           <text className="relationship-marker-text" x={fromMarkerX} y={fromY}>{fromCardinality}</text>
-          <rect className="relationship-marker" x={toMarkerX - 14} y={toY - 12} width="28" height="24" rx="12" />
+          <rect className="relationship-marker" x={toMarkerX - 12} y={toY - 9} width="24" height="18" rx="9" />
           <text className="relationship-marker-text" x={toMarkerX} y={toY}>{toCardinality}</text>
         </>
       )}
