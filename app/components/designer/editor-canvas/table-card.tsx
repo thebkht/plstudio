@@ -457,7 +457,7 @@ export const TableCard = memo(function TableCard({
         )}
       </div>
       <ContextMenu className="w-auto">
-        <ContextMenuLabel>{table.name.toUpperCase()}</ContextMenuLabel>
+        <ContextMenuLabel className="code-menu">{table.name.toUpperCase()}</ContextMenuLabel>
         <ContextMenuGroup>
           <ContextMenuItem onAction={() => onEditInPanel(table.id)}>
             <HugeiconsIcon icon={PanelLeftOpenIcon} />

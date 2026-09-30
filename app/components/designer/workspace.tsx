@@ -1383,10 +1383,10 @@ export default function Workspace({
                         })
                       }
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="code-menu">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="code-menu">
                         <SelectGroup>
                           {startTable?.columns.map((column) => (
                             <SelectItem key={column.id} id={column.id}>
@@ -1414,10 +1414,10 @@ export default function Workspace({
                         })
                       }
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="code-menu">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="code-menu">
                         <SelectGroup>
                           {endTable?.columns.map((column) => (
                             <SelectItem key={column.id} id={column.id}>

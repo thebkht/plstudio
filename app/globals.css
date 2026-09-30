@@ -656,6 +656,23 @@ button {
 .inset-field.leading {
   text-align: left;
 }
+/*
+ * Identifiers and datatypes are code, and read as code wherever they are
+ * listed -- the column list, the chips, and the menus that pick them. Menus
+ * render in a portal, outside `.inset-field`, so they need saying separately:
+ * put this on the menu (and on a trigger that shows the picked value). A prose
+ * option inside one ("None") opts back out.
+ */
+.code-menu,
+.code-menu [data-slot$="-item"] {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: var(--text-xs);
+  letter-spacing: 0;
+}
+.code-menu [data-slot$="-item"].code-menu-prose {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+}
 
 /* A square icon button that lives in a row: quiet until hovered. */
 .row-icon-button {
@@ -1199,24 +1216,48 @@ button {
 .unique-chip button:hover {
   color: var(--ink-1);
 }
-.unique-add[data-slot="select-trigger"] {
-  width: auto;
-  height: 24px;
+/* A tinted text button, the same height as the chips it trails. */
+.unique-add {
+  display: inline-flex;
+  align-items: center;
   gap: 4px;
-  padding: 0 8px;
+  height: 24px;
+  padding: 0 9px 0 7px;
   border: 0;
   border-radius: 999px;
   background: transparent;
-  box-shadow: none;
   color: var(--tint);
   font-size: var(--text-xs);
   font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  transition: background var(--duration-fast) var(--ease-out);
 }
-.unique-add[data-slot="select-trigger"]:hover {
+.unique-add[data-hovered],
+.unique-add[aria-expanded="true"] {
   background: var(--tint-fill);
 }
-.unique-add[data-slot="select-trigger"] svg {
-  color: currentColor;
+.unique-add[data-pressed] {
+  background: color-mix(in oklch, var(--tint) 20%, transparent);
+}
+.unique-add[data-focus-visible] {
+  outline: 2px solid var(--tint);
+  outline-offset: 1px;
+}
+/* Identifiers in the face the chips and the column list use, each with its
+   type trailing quietly -- enough to tell CREATED_ON from CREATED_WHO without
+   leaving the menu. */
+.unique-add-menu [data-slot="dropdown-menu-item"] {
+  justify-content: space-between;
+  gap: 16px;
+}
+.unique-add-name {
+  white-space: nowrap;
+}
+.unique-add-type {
+  color: var(--ink-3);
+  font-size: var(--text-2xs);
+  white-space: nowrap;
 }
 
 /* Queries tab. The findings read as a list of claims, each one a click from the tables it names. */

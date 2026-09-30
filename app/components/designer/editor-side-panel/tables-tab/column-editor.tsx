@@ -117,7 +117,7 @@ export const ColumnEditor = memo(function ColumnEditor({
                 onSelectionChange={(key) => patch({ type: key as Column["type"] })}
               >
                 <SelectTrigger className="inset-field mono"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectGroup>
+                <SelectContent className="code-menu"><SelectGroup>
                   {ORACLE_TYPES.map((type) => <SelectItem key={type} id={type}>{type}</SelectItem>)}
                 </SelectGroup></SelectContent>
               </Select>
@@ -175,8 +175,8 @@ export const ColumnEditor = memo(function ColumnEditor({
                   }}
                 >
                   <SelectTrigger className="inset-field mono"><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectGroup>
-                    <SelectItem id={NO_REFERENCE}>None</SelectItem>
+                  <SelectContent className="code-menu"><SelectGroup>
+                    <SelectItem id={NO_REFERENCE} className="code-menu-prose">None</SelectItem>
                     {compatibleForeignKeyTargets(column).map(({ table: target, target: field }) => (
                       <SelectItem key={`${target.id}::${field.id}`} id={`${target.id}::${field.id}`}>
                         {target.name.toUpperCase()}.{field.name.toUpperCase()}

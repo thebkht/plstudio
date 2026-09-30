@@ -5,19 +5,18 @@
  * indexes share.
  *
  * A set is made of the table's own columns, so it is edited as chips plus an
- * "add a column" select rather than as free text: a name that does not match a
+ * "add a column" menu rather than as free text: a name that does not match a
  * column is not a thing the user can express here, and the schema never holds
  * an id nothing answers to.
  */
 
 import { memo } from "react";
+import { Button as AriaButton } from "react-aria-components";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { CancelCircleIcon, Delete02Icon, PlusSignIcon } from "@hugeicons/core-free-icons";
+import { DropdownMenu, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Table, TableIndex, UniqueConstraint } from "@/app/lib/schema";
-
-const ADD_COLUMN = "__add_column__";
+import { typeString, type Table, type TableIndex, type UniqueConstraint } from "@/app/lib/schema";
 
 type ColumnSet = UniqueConstraint | TableIndex;
 
@@ -102,24 +101,34 @@ export const ColumnSets = memo(function ColumnSets({
                     )}
                   </span>
                 ))}
-                {/* Empty until a column is picked: the select adds, it never selects. */}
+                {/*
+                  A pull-down, not a pop-up: this is an action ("add"), not a
+                  value to choose. A select had to carry a fake "Add column"
+                  option to show as checked, and -- placing its checked row
+                  over the trigger -- opened upwards across the list above.
+                  A menu opens below, holds only real columns, and sizes to
+                  the longest name instead of clipping it.
+                */}
                 {!readOnly && Boolean(available.length) && (
-                  <Select
-                    aria-label={`Add a column to ${label}`}
-                    selectedKey={ADD_COLUMN}
-                    onSelectionChange={(key) => {
-                      if (key === ADD_COLUMN) return;
-                      onPatch(table.id, set.id, { columnIds: [...set.columnIds, String(key)] });
-                    }}
-                  >
-                    <SelectTrigger className="unique-add"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectGroup>
-                      <SelectItem id={ADD_COLUMN}>Add column</SelectItem>
+                  <DropdownMenuTrigger>
+                    <AriaButton className="unique-add" aria-label={`Add a column to ${label}`}>
+                      <HugeiconsIcon icon={PlusSignIcon} size={13} aria-hidden="true" />
+                      Add column
+                    </AriaButton>
+                    <DropdownMenu placement="bottom start" className="unique-add-menu code-menu w-auto max-h-72" aria-label={`Columns to add to ${label}`}>
                       {available.map((column) => (
-                        <SelectItem key={column.id} id={column.id}>{column.name.toUpperCase()}</SelectItem>
+                        <DropdownMenuItem
+                          key={column.id}
+                          id={column.id}
+                          textValue={column.name}
+                          onAction={() => onPatch(table.id, set.id, { columnIds: [...set.columnIds, column.id] })}
+                        >
+                          <span className="unique-add-name">{column.name.toUpperCase()}</span>
+                          <span className="unique-add-type">{typeString(column)}</span>
+                        </DropdownMenuItem>
                       ))}
-                    </SelectGroup></SelectContent>
-                  </Select>
+                    </DropdownMenu>
+                  </DropdownMenuTrigger>
                 )}
               </div>
             </div>
