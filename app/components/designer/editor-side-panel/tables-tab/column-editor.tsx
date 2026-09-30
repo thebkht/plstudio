@@ -1,23 +1,44 @@
 "use client";
 
+/**
+ * One column in the side panel, as a row in an inset grouped list.
+ *
+ * The row is for scanning: name, type and constraint glyphs, the way the
+ * canvas card shows them. Editing is one press deeper -- the detail opens
+ * under the row, one column at a time, so a twelve-column table reads as a
+ * list of twelve rows rather than ninety fields.
+ */
+
 import { memo, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Delete02Icon, DragDropVerticalIcon, FingerPrintIcon, Key01Icon, Target02Icon } from "@hugeicons/core-free-icons";
-import { Button } from "@/components/ui/button";
-import { FieldLegend, FieldSet } from "@/components/ui/field";
+import {
+  ArrowRight01Icon,
+  Delete02Icon,
+  DragDropVerticalIcon,
+  FingerPrintIcon,
+  Key01Icon,
+  Link01Icon,
+  Target02Icon,
+} from "@hugeicons/core-free-icons";
 import { Input } from "@/components/ui/input";
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ColumnFlag } from "../../primitives";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ORACLE_TYPES, type Column, type Table, typeUsesSize, typeSizePlaceholder } from "@/app/lib/schema";
 
 const NO_REFERENCE = "__no_reference__";
 type ForeignKeyTarget = { table: Table; target: Column };
 
+/** `VARCHAR2(100)`, `NUMBER(10,2)`, or the bare type when it takes no size. */
+const typeLabel = (column: Column) =>
+  typeUsesSize(column.type) && column.size.trim() ? `${column.type}(${column.size.trim()})` : column.type;
+
 export const ColumnEditor = memo(function ColumnEditor({
   table,
   column,
   position,
+  expanded,
+  onToggle,
+  readOnly,
   patchColumn,
   deleteColumn,
   compatibleForeignKeyTargets,
@@ -29,6 +50,9 @@ export const ColumnEditor = memo(function ColumnEditor({
   column: Column;
   /** 1-based place in the column list, read out on the drag handle. */
   position?: string;
+  expanded: boolean;
+  onToggle: (columnId: string) => void;
+  readOnly: boolean;
   patchColumn: (tableId: string, columnId: string, patch: Partial<Column>) => void;
   deleteColumn: (tableId: string, columnId: string) => void;
   compatibleForeignKeyTargets: (column: Column) => ForeignKeyTarget[];
@@ -39,10 +63,13 @@ export const ColumnEditor = memo(function ColumnEditor({
   onGrabKeyDown?: (event: KeyboardEvent<HTMLButtonElement>, columnId: string) => void;
 }) {
   const patch = (changes: Partial<Column>) => patchColumn(table.id, column.id, changes);
+  const detailId = `column-detail-${column.id}`;
+  const name = column.name.toUpperCase() || "Untitled";
+  const flags = new Set([column.pk && "pk", !column.notNull && "null", column.unique && "unique"].filter(Boolean) as string[]);
   return (
-    <div className="column-card">
-      <div className="column-card-head">
-        {onGrab && (
+    <div className={`column-item ${expanded ? "expanded" : ""}`}>
+      <div className="inset-row column-row">
+        {onGrab ? (
           <button
             type="button"
             className="column-grip"
@@ -50,98 +77,129 @@ export const ColumnEditor = memo(function ColumnEditor({
             onPointerDown={(event) => onGrab(event, column.id)}
             onKeyDown={(event) => onGrabKeyDown?.(event, column.id)}
           >
-            <HugeiconsIcon icon={DragDropVerticalIcon} size={16} aria-hidden="true" />
+            <HugeiconsIcon icon={DragDropVerticalIcon} size={14} aria-hidden="true" />
           </button>
+        ) : (
+          <span className="column-grip-spacer" aria-hidden="true" />
         )}
-        <InputGroup>
-          <InputGroupInput
-            aria-label={`Name of column ${column.name}`}
-            value={column.name}
-            onChange={(event) => patch({ name: event.target.value })}
-          />
-          <InputGroupAddon align="inline-end">
-            <InputGroupButton
-              aria-label={`Show what depends on column ${column.name}`}
-              onClick={() => onShowImpact(table.id, column.id)}
-            >
-              <HugeiconsIcon icon={Target02Icon} />
-            </InputGroupButton>
-            <InputGroupButton
-              aria-label={`Delete column ${column.name}`}
-              onClick={() => deleteColumn(table.id, column.id)}
-            >
-              <HugeiconsIcon icon={Delete02Icon} />
-            </InputGroupButton>
-          </InputGroupAddon>
-        </InputGroup>
-      </div>
-      <div className="column-card-row">
-        <Select
-          className="w-full"
-          aria-label={`Datatype for ${column.name}`}
-          selectedKey={column.type}
-          onSelectionChange={(key) => patch({ type: key as Column["type"] })}
+        <button
+          type="button"
+          className="column-disclosure"
+          aria-expanded={expanded}
+          aria-controls={expanded ? detailId : undefined}
+          onClick={() => onToggle(column.id)}
         >
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent><SelectGroup>
-            {ORACLE_TYPES.map((type) => <SelectItem key={type} id={type}>{type}</SelectItem>)}
-          </SelectGroup></SelectContent>
-        </Select>
-        {typeUsesSize(column.type) && (
-          <Input
-            aria-label={`Size for ${column.name}`}
-            placeholder={typeSizePlaceholder(column.type)}
-            value={column.size}
-            onChange={(event) => patch({ size: event.target.value })}
-          />
-        )}
+          <span className="column-row-name">{name}</span>
+          <span className="column-row-type">{typeLabel(column)}</span>
+          <span className="column-row-flags">
+            {column.pk && <HugeiconsIcon icon={Key01Icon} size={13} className="pk" aria-label="Primary key" />}
+            {column.fk && <HugeiconsIcon icon={Link01Icon} size={13} aria-label="Foreign key" />}
+            {column.unique && <HugeiconsIcon icon={FingerPrintIcon} size={13} aria-label="Unique" />}
+            {!column.notNull && !column.pk && <span className="column-row-null" aria-label="Nullable">?</span>}
+          </span>
+          <HugeiconsIcon icon={ArrowRight01Icon} size={14} className="column-row-chevron" aria-hidden="true" />
+        </button>
       </div>
-      <FieldSet>
-        <FieldLegend variant="label" className="sr-only">Constraints for {column.name}</FieldLegend>
-        <div className="column-flags">
-          <ColumnFlag
-            label="Primary key"
-            icon={Key01Icon}
-            isSelected={column.pk}
-            onChange={(isSelected) => patch({ pk: isSelected, fk: isSelected ? null : column.fk })}
-          />
-          <ColumnFlag
-            label="Nullable"
-            glyph="?"
-            isSelected={!column.notNull}
-            onChange={(isSelected) => patch({ notNull: !isSelected })}
-          />
-          <ColumnFlag
-            label="Unique"
-            icon={FingerPrintIcon}
-            isSelected={column.unique}
-            onChange={(isSelected) => patch({ unique: isSelected })}
-          />
+      {expanded && (
+        <div className="column-detail" id={detailId} role="group" aria-label={`Column ${name}`}>
+          <div className="column-detail-inner">
+            <label className="inset-row">
+              <span className="inset-row-label">Name</span>
+              <Input className="inset-field mono" autoFocus={!column.name} disabled={readOnly} value={column.name} onChange={(event) => patch({ name: event.target.value })} />
+            </label>
+            <div className="inset-row">
+              <span className="inset-row-label">Type</span>
+              <Select
+                className="inset-row-value"
+                aria-label={`Datatype for ${column.name}`}
+                isDisabled={readOnly}
+                selectedKey={column.type}
+                onSelectionChange={(key) => patch({ type: key as Column["type"] })}
+              >
+                <SelectTrigger className="inset-field mono"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectGroup>
+                  {ORACLE_TYPES.map((type) => <SelectItem key={type} id={type}>{type}</SelectItem>)}
+                </SelectGroup></SelectContent>
+              </Select>
+            </div>
+            {typeUsesSize(column.type) && (
+              <label className="inset-row">
+                <span className="inset-row-label">Size</span>
+                <Input className="inset-field mono" disabled={readOnly} placeholder={typeSizePlaceholder(column.type)} value={column.size} onChange={(event) => patch({ size: event.target.value })} />
+              </label>
+            )}
+            <div className="inset-row">
+              <span className="inset-row-label">Constraints</span>
+              <span className="inset-row-value">
+                <ToggleGroup
+                  className="segmented"
+                  aria-label={`Constraints for ${column.name}`}
+                  selectionMode="multiple"
+                  spacing={0}
+                  isDisabled={readOnly}
+                  selectedKeys={flags}
+                  onSelectionChange={(keys) => {
+                    const pk = keys.has("pk");
+                    patch({ pk, fk: pk ? null : column.fk, notNull: !keys.has("null"), unique: keys.has("unique") });
+                  }}
+                >
+                  <ToggleGroupItem id="pk" aria-label="Primary key"><HugeiconsIcon icon={Key01Icon} aria-hidden="true" />PK</ToggleGroupItem>
+                  <ToggleGroupItem id="null">Null</ToggleGroupItem>
+                  <ToggleGroupItem id="unique">Unique</ToggleGroupItem>
+                </ToggleGroup>
+              </span>
+            </div>
+            <label className="inset-row">
+              <span className="inset-row-label">Default</span>
+              <Input className="inset-field mono" disabled={readOnly} placeholder="None" value={column.defaultValue} onChange={(event) => patch({ defaultValue: event.target.value })} />
+            </label>
+            <label className="inset-row">
+              <span className="inset-row-label">Check</span>
+              <Input className="inset-field mono" disabled={readOnly} placeholder="None" value={column.check} onChange={(event) => patch({ check: event.target.value })} />
+            </label>
+            <label className="inset-row">
+              <span className="inset-row-label">Comment</span>
+              <Input className="inset-field" disabled={readOnly} placeholder="None" value={column.comment ?? ""} onChange={(event) => patch({ comment: event.target.value })} />
+            </label>
+            {!column.pk && (
+              <div className="inset-row">
+                <span className="inset-row-label">References</span>
+                <Select
+                  className="inset-row-value"
+                  aria-label={`Foreign key for ${column.name}`}
+                  isDisabled={readOnly}
+                  selectedKey={column.fk ? `${column.fk.tableId}::${column.fk.columnId}` : NO_REFERENCE}
+                  onSelectionChange={(key) => {
+                    const [tableId, columnId] = String(key).split("::");
+                    patch({ fk: tableId && columnId ? { tableId, columnId } : null });
+                  }}
+                >
+                  <SelectTrigger className="inset-field mono"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectGroup>
+                    <SelectItem id={NO_REFERENCE}>None</SelectItem>
+                    {compatibleForeignKeyTargets(column).map(({ table: target, target: field }) => (
+                      <SelectItem key={`${target.id}::${field.id}`} id={`${target.id}::${field.id}`}>
+                        {target.name.toUpperCase()}.{field.name.toUpperCase()}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup></SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="inset-row column-detail-actions">
+              <button type="button" className="row-text-button" onClick={() => onShowImpact(table.id, column.id)}>
+                <HugeiconsIcon icon={Target02Icon} size={14} aria-hidden="true" />
+                Show dependents
+              </button>
+              {!readOnly && (
+                <button type="button" className="row-text-button destructive" onClick={() => deleteColumn(table.id, column.id)}>
+                  <HugeiconsIcon icon={Delete02Icon} size={14} aria-hidden="true" />
+                  Delete column
+                </button>
+              )}
+            </div>
+          </div>
         </div>
-      </FieldSet>
-      <Input aria-label={`Default for ${column.name}`} placeholder="DEFAULT expression" value={column.defaultValue} onChange={(event) => patch({ defaultValue: event.target.value })} />
-      <Input aria-label={`Check for ${column.name}`} placeholder="CHECK expression" value={column.check} onChange={(event) => patch({ check: event.target.value })} />
-      <Input aria-label={`Comment for ${column.name}`} placeholder="COLUMN COMMENT" value={column.comment ?? ""} onChange={(event) => patch({ comment: event.target.value })} />
-      {!column.pk && (
-        <Select
-          className="w-full"
-          aria-label={`Foreign key for ${column.name}`}
-          selectedKey={column.fk ? `${column.fk.tableId}::${column.fk.columnId}` : NO_REFERENCE}
-          onSelectionChange={(key) => {
-            const [tableId, columnId] = String(key).split("::");
-            patch({ fk: tableId && columnId ? { tableId, columnId } : null });
-          }}
-        >
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent><SelectGroup>
-            <SelectItem id={NO_REFERENCE}>No reference</SelectItem>
-            {compatibleForeignKeyTargets(column).map(({ table: target, target: field }) => (
-              <SelectItem key={`${target.id}::${field.id}`} id={`${target.id}::${field.id}`}>
-                {target.name.toUpperCase()}.{field.name.toUpperCase()}
-              </SelectItem>
-            ))}
-          </SelectGroup></SelectContent>
-        </Select>
       )}
     </div>
   );

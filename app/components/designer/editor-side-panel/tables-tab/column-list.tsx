@@ -109,7 +109,20 @@ export const ColumnList = memo(function ColumnList({
   const columnsRef = useRef(table.columns);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
+  /** One column open at a time, like a disclosure list in Settings. */
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const knownIdsRef = useRef<Set<string> | null>(null);
   columnsRef.current = table.columns;
+
+  const toggle = useCallback((columnId: string) => setExpandedId((current) => (current === columnId ? null : columnId)), []);
+
+  /** A column that appears after mount was just added here, so it opens ready to name. */
+  useLayoutEffect(() => {
+    const ids = table.columns.map((column) => column.id);
+    const added = knownIdsRef.current && ids.filter((id) => !knownIdsRef.current!.has(id));
+    knownIdsRef.current = new Set(ids);
+    if (added?.length === 1 && !readOnly) setExpandedId(added[0]);
+  }, [readOnly, table.columns]);
 
   const setSlot = useCallback((id: string, node: HTMLDivElement | null) => {
     if (node) slotsRef.current.set(id, node);
@@ -344,7 +357,7 @@ export const ColumnList = memo(function ColumnList({
   useEffect(() => () => gestureRef.current?.stop?.(), []);
 
   return (
-    <div className="column-list" ref={listRef}>
+    <div className="column-list inset-group" ref={listRef}>
       {table.columns.map((column, index) => (
         <div
           className={`column-slot ${draggingId === column.id ? "lifted" : ""}`}
@@ -355,6 +368,9 @@ export const ColumnList = memo(function ColumnList({
             table={table}
             column={column}
             position={`${index + 1} of ${table.columns.length}`}
+            expanded={expandedId === column.id}
+            onToggle={toggle}
+            readOnly={readOnly}
             patchColumn={patchColumn}
             deleteColumn={deleteColumn}
             compatibleForeignKeyTargets={compatibleForeignKeyTargets}

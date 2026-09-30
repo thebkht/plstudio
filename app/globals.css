@@ -28,7 +28,7 @@
   --chart-4: oklch(0.511 0.096 186.391);
   --chart-5: oklch(0.437 0.078 188.216);
   --radius: 0.875rem;
-  --sidebar: oklch(0.985 0.001 106.423);
+  --sidebar: var(--grouped-bg);
   --sidebar-foreground: oklch(0.147 0.004 49.25);
   --sidebar-primary: oklch(0.6 0.114 228.5);
   --sidebar-primary-foreground: oklch(0.984 0.01 228.5);
@@ -81,11 +81,8 @@
   --shadow-pop: 0 10px 24px rgb(0 0 0 / 0.1), 0 2px 6px rgb(0 0 0 / 0.06);
   --shadow-dock: 0 12px 32px rgb(0 0 0 / 0.12), 0 2px 8px rgb(0 0 0 / 0.06);
 
-  /* System type first, so Apple platforms get SF's optical sizes and tracking
-     tables; Inter covers everything else. */
-  --font-sans:
-    -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--font-inter),
-    system-ui, sans-serif;
+  /* Geist everywhere; the system face only while it loads. */
+  --font-sans: var(--font-geist), system-ui, -apple-system, sans-serif;
 
   /* Inset grouped lists (iOS Settings, System Settings). White groups float
      on a faintly darker base; rows inside them are divided by an inset
@@ -445,8 +442,12 @@ button {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px;
+  gap: 6px;
+  padding: 10px 12px;
+}
+.toolbar-add {
+  flex: 0 0 auto;
+  color: var(--tint);
 }
 .panel-body {
   flex: 1;
@@ -695,8 +696,7 @@ button {
   border-radius: 9px;
   background: color-mix(in srgb, var(--ink-1) 6%, transparent);
 }
-.segmented [data-slot="toggle"],
-.segmented > button {
+.segmented [data-slot="toggle-group-item"] {
   height: 26px;
   min-width: 0;
   gap: 5px;
@@ -712,17 +712,17 @@ button {
     color var(--duration-fast) var(--ease-out),
     box-shadow var(--duration-fast) var(--ease-out);
 }
-.segmented [data-slot="toggle"]:hover {
+.segmented [data-slot="toggle-group-item"]:hover {
   background: color-mix(in srgb, var(--ink-1) 5%, transparent);
 }
-.segmented [data-slot="toggle"][data-selected] {
+.segmented [data-slot="toggle-group-item"][data-selected] {
   background: var(--grouped-surface);
   color: var(--tint);
   box-shadow:
     0 0 0 0.5px color-mix(in srgb, var(--ink-1) 8%, transparent),
     0 1px 3px rgb(0 0 0 / 0.1);
 }
-.segmented [data-slot="toggle"] svg {
+.segmented [data-slot="toggle-group-item"] svg {
   width: 14px;
   height: 14px;
 }
@@ -757,25 +757,24 @@ button {
 }
 
 .entity-group {
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 .entity-group-head {
   width: 100%;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 8px;
+  min-height: 32px;
+  padding: 6px 8px;
   border: 0;
   border-radius: 8px;
   background: transparent;
   color: var(--ink-2);
   text-align: left;
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
+  font-size: 0.8125rem;
 }
 .entity-group-head:hover {
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--ink-1) 5%, transparent);
 }
 .entity-group-dot {
   flex: 0 0 8px;
@@ -796,15 +795,15 @@ button {
   flex: 0 0 auto;
   padding: 1px 5px;
   border-radius: 5px;
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--ink-1) 6%, transparent);
   color: var(--ink-3);
   font-family: var(--font-mono), ui-monospace, monospace;
   font-size: var(--text-2xs);
-  letter-spacing: 0;
 }
 .entity-group-count {
   margin-left: auto;
   color: var(--ink-3);
+  font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
 }
 .entity-group-chevron {
@@ -815,65 +814,81 @@ button {
   transform: rotate(180deg);
 }
 .entity-group-body {
-  margin: 2px 0 6px 11px;
-  padding-left: 6px;
-  border-left: 1px solid var(--hairline);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 0 8px;
 }
 .entity-group-empty {
-  padding: 4px 10px 6px;
+  padding: 4px 12px 6px;
   color: var(--ink-3);
   font-size: var(--text-xs);
 }
 
+/*
+ * A table: a single white row when closed, the same surface grown to hold
+ * its editor when open. The editor's own groups sit on the grouped base
+ * inside it, so an open table reads as one sheet, not boxes within boxes.
+ */
 .entity {
   margin-bottom: 6px;
-  border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: var(--radius-group);
+  background: var(--grouped-surface);
+  box-shadow: 0 0 0 0.5px var(--separator);
+  transition: box-shadow var(--duration-base) var(--ease-out);
 }
 .entity.open {
-  border-color: var(--hairline);
-  background: var(--surface-1);
+  background: var(--grouped-bg);
+  box-shadow:
+    0 0 0 0.5px var(--separator),
+    0 4px 14px -6px rgb(0 0 0 / 0.12);
 }
 .entity-head {
   width: 100%;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 10px;
+  min-height: var(--row-height);
+  padding: 6px 12px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-group);
   background: transparent;
   color: var(--ink-1);
   text-align: left;
+  transition: background var(--duration-fast) var(--ease-out);
 }
 .entity-head:hover {
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--ink-1) 4%, transparent);
+}
+.entity.open .entity-head {
+  border-radius: var(--radius-group) var(--radius-group) 0 0;
+  background: var(--grouped-surface);
 }
 .entity-swatch {
-  flex: 0 0 4px;
-  width: 4px;
-  height: 28px;
-  border-radius: 2px;
+  flex: 0 0 10px;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 0.15);
 }
-.entity-copy {
+.entity-name {
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.entity-copy strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--text-sm);
-  letter-spacing: var(--tracking-wide);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.8125rem;
+  font-weight: 600;
 }
-.entity-copy small {
-  color: var(--ink-3);
-  font-size: var(--text-xs);
-}
-.entity-chevron {
+.entity-count {
   margin-left: auto;
   color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+.entity-chevron {
+  flex: 0 0 auto;
+  color: var(--ink-4);
   transition: transform var(--duration-base) var(--ease-out);
 }
 .entity.open .entity-chevron {
@@ -882,35 +897,192 @@ button {
 .entity-body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 4px 10px 12px;
+  gap: 18px;
+  padding: 14px 10px 12px;
+  border-top: 0.5px solid var(--separator);
 }
+.inset-row-action {
+  justify-content: flex-start;
+}
+
+/*
+ * Columns. The list is one inset group; each column is a compact row that
+ * discloses its editor underneath. `.column-slot` stays the unit the drag
+ * code measures and translates, so the markup inside it is free to change.
+ */
 .column-list {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  position: relative;
 }
 .column-slot {
   position: relative;
-  transition:
-    transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 0.22s ease;
+  background: var(--grouped-surface);
+}
+.column-item > .column-row::after {
+  display: block;
+}
+.column-slot:not(:last-of-type) .column-item.expanded {
+  border-bottom: 0.5px solid var(--separator);
+}
+.column-slot:last-of-type .column-item:not(.expanded) > .column-row::after,
+.column-slot:last-of-type .column-detail-inner > .inset-row:last-child::after {
+  display: none;
 }
 .column-slot.lifted {
   z-index: 50;
-  border-radius: 12px;
-}
-.column-slot.lifted .column-card {
-  background: color-mix(in srgb, var(--surface-0) 85%, transparent);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-color: color-mix(in oklch, var(--tint) 50%, transparent);
+  border-radius: 10px;
   box-shadow:
-    0 20px 40px -8px rgba(0, 0, 0, 0.16),
-    0 8px 16px -4px rgba(0, 0, 0, 0.08),
-    0 0 0 1.5px color-mix(in oklch, var(--tint) 50%, transparent);
-  transform: scale(1.02);
+    0 0 0 0.5px var(--separator),
+    var(--shadow-pop);
+  scale: 1.02;
+  transition: scale var(--duration-fast) var(--ease-out);
+}
+.column-slot.lifted .inset-row::after {
+  display: none;
+}
+.column-row {
+  gap: 4px;
+  min-height: var(--row-height-compact);
+  padding: 0 8px 0 4px;
+}
+.column-grip-spacer {
+  flex: 0 0 8px;
+}
+.column-disclosure {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  align-self: stretch;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.column-disclosure:focus-visible {
+  outline: 2px solid var(--tint);
+  outline-offset: -2px;
+}
+.column-row-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+.column-row-type {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-3);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: var(--text-2xs);
+}
+.column-row-flags {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 14px;
+  color: var(--ink-3);
+}
+.column-row-flags .pk {
+  color: var(--tint);
+}
+.column-row-null {
+  width: 13px;
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  text-align: center;
+}
+.column-row-chevron {
+  flex: 0 0 auto;
+  color: var(--ink-4);
+  transition: transform var(--duration-base) var(--ease-out);
+}
+.column-item.expanded .column-row-chevron {
+  transform: rotate(90deg);
+  color: var(--tint);
+}
+.column-item.expanded .column-row-name {
+  color: var(--tint);
+}
+.column-detail {
+  display: grid;
+  grid-template-rows: 1fr;
+  background: color-mix(in srgb, var(--grouped-bg) 45%, var(--grouped-surface));
+  transition:
+    grid-template-rows var(--duration-slow) var(--ease-out),
+    opacity var(--duration-slow) var(--ease-out);
+}
+@starting-style {
+  .column-detail {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .column-detail,
+  .column-row-chevron,
+  .column-slot.lifted {
+    transition: none;
+  }
+}
+.column-detail-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+.column-detail .inset-row {
+  padding-left: 30px;
+}
+.column-detail .inset-row::after {
+  left: 30px;
+}
+.column-detail-actions {
+  justify-content: space-between;
+}
+.row-text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 8px;
+  margin-left: -8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--tint);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  cursor: pointer;
+}
+.row-text-button + .row-text-button {
+  margin-left: 0;
+  margin-right: -8px;
+}
+.row-text-button:hover {
+  background: color-mix(in srgb, var(--ink-1) 5%, transparent);
+}
+.row-text-button:focus-visible {
+  outline: 2px solid var(--tint);
+  outline-offset: 1px;
+}
+.row-text-button.destructive {
+  color: var(--destructive);
+}
+.inset-row-icon {
+  flex: 0 0 auto;
+  color: var(--ink-3);
 }
 /* Resizable Sidebar */
 .sidebar-resizer {
@@ -951,45 +1123,28 @@ button {
   cursor: col-resize !important;
   user-select: none !important;
 }
-.column-card {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  padding: 10px 12px;
-  border: 1px solid var(--hairline);
-  border-radius: 12px;
-  background: var(--surface-0);
-  transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease,
-    transform 0.15s ease;
-}
-.column-card-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
 .column-grip {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 26px;
-  width: 26px;
+  flex: 0 0 22px;
+  width: 22px;
   height: 26px;
   padding: 0;
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--ink-3);
+  color: var(--ink-4);
   cursor: grab;
+  touch-action: none;
   transition:
-    background 0.15s ease,
-    color 0.15s ease,
-    transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
 }
 .column-grip:hover {
-  background: color-mix(in srgb, var(--foreground) 8%, transparent);
-  color: var(--ink-1);
+  background: color-mix(in srgb, var(--ink-1) 6%, transparent);
+  color: var(--ink-2);
 }
 .column-grip:active,
 .column-slot.lifted .column-grip {
@@ -1002,64 +1157,56 @@ button {
   outline: 2px solid var(--tint);
   outline-offset: 1px;
 }
-.column-card-row {
-  display: flex;
-  gap: 6px;
-}
-.column-card-row .select {
-  flex: 1;
-  min-width: 0;
-}
-.column-card-row .input {
-  flex: 0 0 96px;
-}
-.unique-constraints {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 12px;
-}
-.unique-card {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  padding: 10px 12px;
-  border: 1px solid var(--hairline);
-  border-radius: 12px;
-  background: var(--surface-0);
-}
+/* A set's columns read as a list of capsules; the add control trails them. */
 .unique-columns {
-  display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: 6px;
+  padding-block: 8px;
 }
-/* Reads as the constraint's column list, so the chips lead and the select trails. */
 .unique-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 6px 3px 9px;
-  border: 1px solid var(--hairline);
+  gap: 3px;
+  height: 24px;
+  padding: 0 4px 0 9px;
   border-radius: 999px;
-  background: var(--surface-1, transparent);
-  font-size: 12px;
-  font-family: var(--font-mono, ui-monospace, monospace);
+  background: color-mix(in srgb, var(--ink-1) 6%, transparent);
+  color: var(--ink-1);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: var(--text-2xs);
   white-space: nowrap;
 }
 .unique-chip button {
   display: flex;
   align-items: center;
-  color: var(--text-muted, currentColor);
-  opacity: 0.6;
-  transition: opacity 0.15s ease;
+  padding: 2px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
 }
 .unique-chip button:hover {
-  opacity: 1;
+  color: var(--ink-1);
 }
-.unique-columns .select {
-  flex: 0 0 auto;
-  min-width: 132px;
+.unique-add[data-slot="select-trigger"] {
+  width: auto;
+  height: 24px;
+  gap: 4px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--tint);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+.unique-add[data-slot="select-trigger"]:hover {
+  background: var(--tint-fill);
+}
+.unique-add[data-slot="select-trigger"] svg {
+  color: currentColor;
 }
 
 /* Queries tab. The findings read as a list of claims, each one a click from the tables it names. */
@@ -2735,40 +2882,6 @@ button {
 .sql-input:focus {
   box-shadow: inset 0 0 0 2px
     color-mix(in oklch, var(--primary) 45%, transparent);
-}
-
-/*
- * Column constraints. Square filled toggles rather than checkboxes: a lit tile
- * reads at a glance down a column list, where a tick mark does not.
- */
-.column-flags {
-  display: flex;
-  gap: 0.375rem;
-}
-.column-flag {
-  width: 2.125rem;
-  height: 2.125rem;
-  min-width: 0;
-  padding: 0;
-  border-radius: var(--radius-md);
-  background: var(--muted);
-  color: var(--muted-foreground);
-  font-size: 0.9375rem;
-  font-weight: 700;
-  line-height: 1;
-}
-.column-flag:hover {
-  background: color-mix(in oklch, var(--muted) 70%, var(--foreground) 8%);
-}
-.column-flag[data-selected],
-.column-flag[aria-pressed="true"] {
-  background: var(--primary);
-  color: var(--primary-foreground);
-}
-.column-flag[data-selected]:hover,
-.column-flag[aria-pressed="true"]:hover {
-  background: color-mix(in oklch, var(--primary) 88%, black);
-  color: var(--primary-foreground);
 }
 
 /*

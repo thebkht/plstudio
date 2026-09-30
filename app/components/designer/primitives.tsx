@@ -3,8 +3,7 @@
 /**
  * Small presentation pieces lifted out of `Designer`. They are memoized because
  * the designer owns every piece of canvas state and re-renders on each frame of
- * a gesture; without a memo boundary these re-render with it, and there is one
- * ColumnFlag / ColumnCard per column of every table.
+ * a gesture; without a memo boundary these re-render with it.
  *
  * Nothing here holds state or reads the schema — props in, markup out.
  */
@@ -33,7 +32,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Separator } from "@/components/ui/separator";
-import { Toggle } from "@/components/ui/toggle";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   primaryKeyColumns,
@@ -266,42 +264,6 @@ export const ShortcutKeys = memo(function ShortcutKeys({
         <Kbd key={part}>{part}</Kbd>
       ))}
     </KbdGroup>
-  );
-});
-
-/**
- * A column constraint as a square icon toggle rather than a checkbox — the row is
- * scanned far more often than it is edited, so the lit state has to read at a glance.
- */
-export const ColumnFlag = memo(function ColumnFlag({
-  label,
-  icon,
-  glyph,
-  isSelected,
-  onChange,
-}: {
-  label: string;
-  icon?: IconSvgElement;
-  glyph?: string;
-  isSelected: boolean;
-  onChange: (isSelected: boolean) => void;
-}) {
-  return (
-    <TooltipTrigger>
-      <Toggle
-        className="column-flag"
-        aria-label={label}
-        isSelected={isSelected}
-        onChange={onChange}
-      >
-        {icon ? (
-          <HugeiconsIcon icon={icon} size={16} />
-        ) : (
-          <span aria-hidden="true">{glyph}</span>
-        )}
-      </Toggle>
-      <Tooltip>{label}</Tooltip>
-    </TooltipTrigger>
   );
 });
 

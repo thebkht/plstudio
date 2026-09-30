@@ -13,7 +13,6 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { CollabUser } from "@/app/lib/collab/useCollaborativeSchema";
 import { Button } from "@/components/ui/button";
-import { ButtonGroup } from "@/components/ui/button-group";
 import {
   Collapsible,
   CollapsibleContent,
@@ -1014,10 +1013,8 @@ export default function Workspace({
           style={{ background: table.color.a }}
           aria-hidden="true"
         />
-        <span className="entity-copy">
-          <strong>{table.name.toUpperCase()}</strong>
-          <small>{table.columns.length} columns</small>
-        </span>
+        <strong className="entity-name">{table.name.toUpperCase()}</strong>
+        <small className="entity-count">{table.columns.length}</small>
         <HugeiconsIcon
           icon={ArrowDown01Icon}
           className="entity-chevron"
@@ -1027,99 +1024,120 @@ export default function Workspace({
       <CollapsibleContent>
         {selectedId === table.id ? (
           <div className="entity-body">
-            <FieldGroup className="gap-4">
-              <Field>
-                <FieldLabel htmlFor={`name-${table.id}`}>Table name</FieldLabel>
-                <Input
-                  id={`name-${table.id}`}
-                  value={table.name}
-                  onChange={(event) =>
-                    patchTable(table.id, { name: event.target.value })
-                  }
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Key generation</FieldLabel>
-                <Select
-                  className="w-full"
-                  aria-label="Key generation"
-                  selectedKey={table.keyStrategy}
-                  onSelectionChange={(key) =>
-                    patchTable(table.id, { keyStrategy: key as KeyStrategy })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem id="sequence-trigger">
-                        Sequence + trigger
-                      </SelectItem>
-                      <SelectItem id="identity">Generated identity</SelectItem>
-                      <SelectItem id="none">Manual / none</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field>
-                <FieldLabel>Schema group</FieldLabel>
-                <Select
-                  className="w-full"
-                  aria-label="Schema group"
-                  isDisabled={readOnly}
-                  selectedKey={table.schemaId ?? NO_GROUP}
-                  onSelectionChange={(key) =>
-                    assignTableToGroup(
-                      table.id,
-                      key === NO_GROUP ? "" : String(key),
-                    )
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem id={NO_GROUP}>Ungrouped</SelectItem>
-                      {(schema.groups ?? []).map((group) => (
-                        <SelectItem key={group.id} id={group.id}>
-                          {group.name}
+            <section className="inset-section">
+              <div className="inset-group">
+                <label className="inset-row">
+                  <span className="inset-row-label">Name</span>
+                  <Input
+                    className="inset-field mono"
+                    disabled={readOnly}
+                    value={table.name}
+                    onChange={(event) =>
+                      patchTable(table.id, { name: event.target.value })
+                    }
+                  />
+                </label>
+                <div className="inset-row">
+                  <span className="inset-row-label">Key</span>
+                  <Select
+                    className="inset-row-value"
+                    aria-label="Key generation"
+                    isDisabled={readOnly}
+                    selectedKey={table.keyStrategy}
+                    onSelectionChange={(key) =>
+                      patchTable(table.id, { keyStrategy: key as KeyStrategy })
+                    }
+                  >
+                    <SelectTrigger className="inset-field">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem id="sequence-trigger">
+                          Sequence + trigger
                         </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor={`comment-${table.id}`}>
-                  Table comment
-                </FieldLabel>
-                <Input
-                  id={`comment-${table.id}`}
-                  placeholder="COMMENT ON TABLE"
-                  value={table.comment ?? ""}
-                  onChange={(event) =>
-                    patchTable(table.id, { comment: event.target.value })
-                  }
-                />
-              </Field>
-            </FieldGroup>
-            {primaryKeyColumns(table).length > 1 && (
-              <p className="hint">
-                Composite primary key — manual key generation required.
-              </p>
-            )}
+                        <SelectItem id="identity">Identity</SelectItem>
+                        <SelectItem id="none">Manual</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="inset-row">
+                  <span className="inset-row-label">Group</span>
+                  <Select
+                    className="inset-row-value"
+                    aria-label="Schema group"
+                    isDisabled={readOnly}
+                    selectedKey={table.schemaId ?? NO_GROUP}
+                    onSelectionChange={(key) =>
+                      assignTableToGroup(
+                        table.id,
+                        key === NO_GROUP ? "" : String(key),
+                      )
+                    }
+                  >
+                    <SelectTrigger className="inset-field">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem id={NO_GROUP}>None</SelectItem>
+                        {(schema.groups ?? []).map((group) => (
+                          <SelectItem key={group.id} id={group.id}>
+                            {group.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <label className="inset-row">
+                  <span className="inset-row-label">Comment</span>
+                  <Input
+                    className="inset-field"
+                    disabled={readOnly}
+                    placeholder="Optional"
+                    value={table.comment ?? ""}
+                    onChange={(event) =>
+                      patchTable(table.id, { comment: event.target.value })
+                    }
+                  />
+                </label>
+              </div>
+              {primaryKeyColumns(table).length > 1 && (
+                <p className="inset-group-footer">
+                  Composite primary key — keys have to be supplied manually.
+                </p>
+              )}
+            </section>
 
-            <ColumnList
-              table={table}
-              readOnly={readOnly}
-              patchColumn={patchColumn}
-              deleteColumn={deleteColumnReporting}
-              reorderColumns={reorderColumns}
-              compatibleForeignKeyTargets={compatibleForeignKeyTargets}
-              onShowImpact={showImpact}
-            />
+            <section className="inset-section">
+              <h3 className="inset-group-header">
+                Columns
+                <span className="inset-group-count">
+                  {table.columns.length}
+                </span>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    className="row-icon-button tint"
+                    aria-label={`Add a column to ${table.name}`}
+                    onClick={() => addColumn(table.id)}
+                  >
+                    <HugeiconsIcon icon={PlusSignIcon} size={16} />
+                  </button>
+                )}
+              </h3>
+              <ColumnList
+                table={table}
+                readOnly={readOnly}
+                patchColumn={patchColumn}
+                deleteColumn={deleteColumnReporting}
+                reorderColumns={reorderColumns}
+                compatibleForeignKeyTargets={compatibleForeignKeyTargets}
+                onShowImpact={showImpact}
+              />
+            </section>
 
             <UniqueConstraints
               table={table}
@@ -1137,32 +1155,26 @@ export default function Workspace({
               deleteIndex={deleteIndex}
             />
 
-            <div className="flex gap-2 flex-col">
-              <ButtonGroup className="w-full">
-                <Button
-                  variant="outline"
-                  onClick={() => addColumn(table.id)}
-                  className="w-full"
-                >
-                  <HugeiconsIcon icon={PlusSignIcon} data-icon="inline-start" />
-                  Add column
-                </Button>
-              </ButtonGroup>
-
-              <ButtonGroup className="w-full">
-                <Button
-                  variant="outline"
+            {!readOnly && (
+              <div className="inset-group">
+                <button
+                  type="button"
+                  className="inset-row inset-row-action"
                   onClick={() => makeJunction(table.id)}
                 >
-                  <HugeiconsIcon icon={Link01Icon} data-icon="inline-start" />
-                  Junction
-                </Button>
-                <Button variant="outline" onClick={() => deleteTable(table.id)}>
-                  <HugeiconsIcon icon={Delete02Icon} data-icon="inline-start" />
-                  Delete
-                </Button>
-              </ButtonGroup>
-            </div>
+                  <HugeiconsIcon icon={Link01Icon} size={16} />
+                  Make junction table
+                </button>
+                <button
+                  type="button"
+                  className="inset-row inset-row-action destructive"
+                  onClick={() => deleteTable(table.id)}
+                >
+                  <HugeiconsIcon icon={Delete02Icon} size={16} />
+                  Delete table
+                </button>
+              </div>
+            )}
           </div>
         ) : null}
       </CollapsibleContent>

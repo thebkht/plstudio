@@ -28,6 +28,7 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Table } from "@/app/lib/schema";
 import { useLayout } from "@/app/hooks";
 
@@ -67,23 +68,29 @@ export function TablesTab({
   return (
     <>
       <div className="panel-toolbar">
-        <InputGroup>
+        <InputGroup className="search-field">
           <InputGroupAddon>
             <HugeiconsIcon icon={Search01Icon} />
           </InputGroupAddon>
           <InputGroupInput
             aria-label="Search tables"
-            placeholder="Search tables"
+            placeholder="Search"
             value={tableQuery}
             onChange={(event) => setTableQuery(event.target.value)}
           />
         </InputGroup>
-        {/* The panel's primary action, so it carries more weight
-            than the search field it sits beside. */}
-        <Button variant="outline" size="sm" onClick={onAddTable}>
-          <HugeiconsIcon icon={PlusSignIcon} data-icon="inline-start" />
-          Add table
-        </Button>
+        <TooltipTrigger>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="toolbar-add"
+            aria-label="Add table"
+            onClick={onAddTable}
+          >
+            <HugeiconsIcon icon={PlusSignIcon} />
+          </Button>
+          <Tooltip>Add table</Tooltip>
+        </TooltipTrigger>
       </div>
       <ScrollArea className="panel-body">
         {!tables.length ? (
