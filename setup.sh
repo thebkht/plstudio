@@ -164,20 +164,15 @@ ok "Data directory ready at $data_dir."
 [[ -n "$(get_env BETTER_AUTH_URL)" ]]    || set_env BETTER_AUTH_URL "http://localhost:3000"
 
 # -- collaboration ------------------------------------------------------------
-# Unset NEXT_PUBLIC_COLLAB_URL is a supported mode: the designer degrades to
-# single-player editing on the debounced PUT, so only opt in when asked.
-if [[ -n "$(get_env NEXT_PUBLIC_COLLAB_URL)" ]]; then
-  ok "Realtime collaboration already configured."
-  [[ -n "$(get_env COLLAB_TOKEN_SECRET)" ]] || { set_env COLLAB_TOKEN_SECRET "$(random_secret)"; ok "Generated COLLAB_TOKEN_SECRET."; }
-  [[ -n "$(get_env COLLAB_PORT)" ]] || set_env COLLAB_PORT "1234"
-elif confirm "Enable realtime collaboration (Hocuspocus on :1234)? [Y/n]" "y"; then
-  set_env NEXT_PUBLIC_COLLAB_URL "ws://localhost:1234"
-  set_env COLLAB_PORT "1234"
-  [[ -n "$(get_env COLLAB_TOKEN_SECRET)" ]] || set_env COLLAB_TOKEN_SECRET "$(random_secret)"
-  ok "Collaboration enabled — run it with \`pnpm collab\` alongside \`pnpm dev\`."
-else
-  info "Skipping collaboration; the designer falls back to single-player editing."
-fi
+# On by default and served by the app itself at /collab, so the only thing it
+# needs is the token secret — the server refuses to start without one. The URL
+# and port an older setup recorded mean nothing now; drop them.
+[[ -n "$(get_env COLLAB_TOKEN_SECRET)" ]] || { set_env COLLAB_TOKEN_SECRET "$(random_secret)"; ok "Generated COLLAB_TOKEN_SECRET."; }
+for key in NEXT_PUBLIC_COLLAB_URL COLLAB_PORT; do
+  i=$(env_index "$key")
+  if [[ -n "$i" ]]; then unset 'ENV_KEYS[i]' 'ENV_VALS[i]'; info "Removed $key (collab now shares the app's port)."; fi
+done
+ok "Realtime collaboration enabled on the app's own port."
 
 # -- write --------------------------------------------------------------------
 if [[ -f "$ENV_FILE" ]]; then
@@ -210,9 +205,6 @@ fi
 # ---------------------------------------------------------------- done --------
 printf '\n%s🎉 Setup complete.%s\n\n' "$GREEN" "$RESET"
 printf '  %spnpm dev%s      start the Next dev server on http://localhost:3000\n' "$BOLD" "$RESET"
-if [[ -n "$(get_env NEXT_PUBLIC_COLLAB_URL)" ]]; then
-  printf '  %spnpm collab%s   start the Hocuspocus collaboration server (separate terminal)\n' "$BOLD" "$RESET"
-fi
 printf '  %spnpm test%s     run the domain-layer test suite\n' "$BOLD" "$RESET"
 printf '\n  %sAll data lives in %s — back that up, and mount it as a volume in Docker.%s\n' "$DIM" "$data_dir" "$RESET"
 printf '\n'

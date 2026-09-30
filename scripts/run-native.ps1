@@ -1,5 +1,5 @@
-# Run the app on Windows without Docker: the Next server and the collaboration
-# server as two plain Node processes.
+# Run the app on Windows without Docker: one plain Node process serving Next and
+# the collaboration socket on the same port.
 #
 #   powershell -ExecutionPolicy Bypass -File scripts\run-native.ps1
 #   powershell -ExecutionPolicy Bypass -File scripts\run-native.ps1 -Stop
@@ -24,9 +24,8 @@ if ($Stop) {
   return
 }
 
-# Docker hands these to the containers through `env_file:`; nothing does that for
-# a bare `pnpm collab`, which reads COLLAB_TOKEN_SECRET straight off the
-# environment. Next loads .env.local itself, but setting them here covers both.
+# Docker hands these to the container through `env_file:`. Next loads .env.local
+# itself during startup, but setting them here also covers DATA_DIR below.
 $envFile = Join-Path $repo '.env.local'
 if (Test-Path $envFile) {
   Get-Content $envFile | ForEach-Object {
@@ -41,11 +40,11 @@ if (-not $env:DATA_DIR) { $env:DATA_DIR = Join-Path $repo 'data' }
 New-Item -ItemType Directory -Force -Path $env:DATA_DIR | Out-Null
 
 $procs = @()
-foreach ($svc in @(@{name='web'; args='start'}, @{name='collab'; args='collab'})) {
+foreach ($svc in @(@{name='web'; args='start'})) {
   $p = Start-Process -FilePath 'pnpm' -ArgumentList $svc.args -WorkingDirectory $repo -WindowStyle Hidden -PassThru `
     -RedirectStandardOutput (Join-Path $logDir "$($svc.name).log") -RedirectStandardError (Join-Path $logDir "$($svc.name).err.log")
   $procs += $p.Id
   Write-Log "started $($svc.name) (pid $($p.Id))"
 }
 $procs | Set-Content $pidFile
-Write-Log "app on http://localhost:3000 — logs in $logDir"
+Write-Log "app on http://localhost:4000 — logs in $logDir"

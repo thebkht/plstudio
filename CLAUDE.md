@@ -7,8 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Package manager is **pnpm** (pinned to `pnpm@11.0.9` via `packageManager`).
 
 ```bash
-pnpm dev                      # Next dev server on port 4000 (not 3000)
-pnpm collab                   # Hocuspocus collab server (collab/server.ts), a separate process
+pnpm dev                      # tsx server.ts — Next + the collab socket, one process, port 4000
+pnpm start                    # the same server in production mode (after pnpm build); PORT overrides 4000
 pnpm build                    # next build --webpack (the --webpack flag is required)
 pnpm typecheck                # tsc --noEmit
 pnpm test                     # vitest run (node environment)
@@ -21,7 +21,7 @@ pnpm drizzle-kit push         # create the auth tables in <DATA_DIR>/auth.db (no
 
 The spec's definition of done (`docs/superpowers/specs/`) is: `pnpm test`, `pnpm build`, `pnpm typecheck`, and `git diff --check` all pass.
 
-There is **no database server**. `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` are required; `DATA_DIR` (default `./data`) is where everything durable lives. Auth opens its SQLite file at module load, so importing `app/lib/auth.ts` creates `<DATA_DIR>/auth.db` as a side effect.
+There is **no database server**. `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` and `COLLAB_TOKEN_SECRET` are required (the server refuses to start without the last unless `NEXT_PUBLIC_COLLAB=off`); `DATA_DIR` (default `./data`) is where everything durable lives. Auth opens its SQLite file at module load, so importing `app/lib/auth.ts` creates `<DATA_DIR>/auth.db` as a side effect.
 
 ## Architecture
 
@@ -77,7 +77,7 @@ Wheel handling is attached natively with `{ passive: false }` because React regi
 
 ### Persistence
 
-Everything durable lives under `DATA_DIR` (default `./data`), resolved once in `db/paths.ts` so the web app, the collab server and `drizzle.config.ts` cannot drift:
+Everything durable lives under `DATA_DIR` (default `./data`), resolved once in `db/paths.ts` so the app, its collab socket and `drizzle.config.ts` cannot drift:
 
 ```
 <DATA_DIR>/auth.db                    SQLite — Better Auth tables only (db/schema.ts)
@@ -92,7 +92,7 @@ Everything durable lives under `DATA_DIR` (default `./data`), resolved once in `
 
 Three things Postgres used to do implicitly and the store now does explicitly — do not remove them:
 
-- **`withProjectLock(id, fn)`** — a lock directory (`fs.mkdir` is an atomic exclusive create, stale after 10s) plus an in-process promise chain. The collab server is a *separate process* that bumps the same `revision`, so read-modify-write has to be serialized by hand. `PUT`/`PATCH` re-read the record **inside** the lock; comparing against a pre-lock read races.
+- **`withProjectLock(id, fn)`** — a lock directory (`fs.mkdir` is an atomic exclusive create, stale after 10s) plus an in-process promise chain. The collab socket bumps the same `revision`, and although it now runs in the same process it loads its own copy of `db/file-store.ts` through tsx while the route handlers use Next's bundled copy — two promise chains — so the lock directory is what actually serializes read-modify-write. `PUT`/`PATCH` re-read the record **inside** the lock; comparing against a pre-lock read races.
 - **`writeAtomic`** — temp file + `rename`, so a reader never sees half-written JSON.
 - **`deleteProject`** — walks to the Yjs blob and the share file itself, replacing `ON DELETE CASCADE`. `ProjectRecord.shareTokenHash` is the back-pointer that replaces `project_share`'s unique foreign key.
 
@@ -100,18 +100,25 @@ Three things Postgres used to do implicitly and the store now does explicitly �
 
 `scripts/migrate-from-neon.ts` imports an existing Postgres database into `DATA_DIR` (`DATABASE_URL=… pnpm tsx scripts/migrate-from-neon.ts`, `--force` to re-import). It reads only, so it can be re-run and verified before anything is dropped. `pg` is a devDependency for its sake alone. `scripts/migrate-storage-layout.ts` (`pnpm tsx scripts/migrate-storage-layout.ts`, `--force` to overwrite a taken destination) renames the older flat `projects/<projectId>.json` files into their owner directory; it only touches top-level `*.json`, so re-running it does nothing.
 
-Because storage is a directory, the app needs a **persistent volume** — it cannot run on an ephemeral-filesystem host. In Docker the `web` and `collab` services must mount the *same* volume, or collab's mirror writes go somewhere the web app never reads.
+Because storage is a directory, the app needs a **persistent volume** — it cannot run on an ephemeral-filesystem host. In Docker the single `web` service mounts it at `/data`.
 
 ### Realtime collaboration
 
-A self-hosted **Hocuspocus** (Yjs) service in `collab/` is the source of truth for a project's schema; the project file's `schemaJson` is a **mirror** it rewrites on every store, so the REST routes, share pages, project list and DDL export are unchanged. The collab server opens no database — it reads and writes `DATA_DIR` through `db/file-store.ts` only.
+A self-hosted **Hocuspocus** (Yjs) instance in `collab/hocuspocus.ts` is the source of truth for a project's schema; the project file's `schemaJson` is a **mirror** it rewrites on every store, so the REST routes, share pages, project list and DDL export are unchanged. It opens no database — it reads and writes `DATA_DIR` through `db/file-store.ts` only.
+
+It runs **inside the app's process, on the app's port**. Next has no WebSocket route handlers, so `server.ts` is a custom server: `createServer(app.getRequestHandler())` plus one `upgrade` listener that sends `/collab` to Hocuspocus (via a `crossws` node adapter, the same wiring Hocuspocus's own `Server` does) and everything else — Next's HMR socket in dev — to Next. The browser derives `ws(s)://<page host>/collab` at runtime, so there is no collab URL or port to configure. Two private Next members are touched on purpose, and both are load-bearing:
+
+- `didWebSocketSetup = true` stops Next attaching its own `upgrade` listener on the first request. That listener runs the router (and `proxy.ts`) on every non-HMR upgrade and `socket.end()`s when a page matches — `/collab` matches `/[workspace]` — which kills collab sockets.
+- `upgradeHandler` (the router-level handler) is what we forward to. The public `getUpgradeHandler()` reaches only the inner page server and never answers HMR, so using it silently breaks hot reload.
+
+On SIGINT/SIGTERM the server closes every room and flushes the debounced stores before exiting.
 
 - `app/lib/collab/ydoc.ts` — pure `schemaFromYDoc()` / `applySchemaToYDoc()`. Imported by *both* browser and server, so the projection can never diverge. Tested in `tests/ydoc.test.ts`.
 - `app/lib/collab/useCollaborativeSchema.ts` — owns the `Y.Doc` and presents the designer's old surface (`schema`, `commit(next)`, `undo`, `redo`). Undo is per-user via `Y.UndoManager` tracking this client's origin.
-- `app/api/collab/token/route.ts` — the **only** place access is decided, via the same session helpers as the REST routes. It signs a 120s token bound to one `documentName`; the collab server verifies and trusts it. Read-only shares are enforced on the connection.
+- `app/api/collab/token/route.ts` — the **only** place access is decided, via the same session helpers as the REST routes. It signs a 120s token bound to one `documentName`; the collab socket verifies and trusts it. Read-only shares are enforced on the connection.
 - Presence (cursors, selection) rides the Yjs awareness channel — no second transport. Cursor coordinates are canvas space, never screen space.
 
-Without `NEXT_PUBLIC_COLLAB_URL` the app degrades to single-player editing and `PUT` is the only durability path via explicit Save/⌘S.
+Collab is on by default. With `NEXT_PUBLIC_COLLAB=off` (build time), or while the socket is unreachable, the app degrades to single-player editing and `PUT` is the only durability path via explicit Save/⌘S.
 
 Every write goes through `app/lib/save-queue.ts` (`createSaveQueue`, tested in `tests/save-queue.test.ts`). It is the answer to a specific hazard: `PUT` is optimistic, so firing one save per edit means the second request races the first and 409s against *itself*. The queue keeps exactly one write in flight, coalesces everything queued behind it down to the newest snapshot (the schema is a whole document — intermediate states contribute nothing), and feeds each response's revision into the next request. A 409 therefore only ever means a genuine remote edit, and it **stops** the queue and raises the overwrite toast rather than retrying; a transport failure keeps the snapshot but schedules no retry, so the next edit carries it. `save-queue.ts` is pure of React and of `fetch` — the caller supplies `write`. Saving is explicit (Save button / ⌘S), showing toast feedback on success, and the appbar badge is the running status feedback. Renames go out with that same `PUT`, which persists `schemaJson.name` and the record's `name`; the `PATCH` route is still there but has no client caller.
 

@@ -19,10 +19,15 @@ export const peerColor = (id: string) => PEER_COLORS[Math.abs([...id].reduce((ha
  * used for local state: a `Schema` plus `commit(next)`, `undo`, `redo`. The
  * designer's ~40 commit call sites are unchanged by design.
  *
- * The `Y.Doc` exists even with no server. When `NEXT_PUBLIC_COLLAB_URL` is unset
- * or the collab service is down, this degrades to single-player editing and the
+ * The `Y.Doc` exists even with no server. When `NEXT_PUBLIC_COLLAB=off` or the
+ * collab socket is unreachable, this degrades to single-player editing and the
  * designer's explicit save (`PUT`) is the only durability path.
  */
+/** On unless switched off at build time — static, so the server and client agree on the initial `status`. */
+const collabEnabled = process.env.NEXT_PUBLIC_COLLAB !== "off";
+/** Same origin as the page, on the path `server.ts` serves Hocuspocus from (`COLLAB_PATH`). */
+const collabUrl = () => `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/collab`;
+
 export function useCollaborativeSchema({
   projectId,
   initialSchema,
@@ -38,7 +43,6 @@ export function useCollaborativeSchema({
   shareToken?: string;
   workspaceSlug?: string;
 }) {
-  const collabUrl = process.env.NEXT_PUBLIC_COLLAB_URL;
   // Identity-stable: a fresh `user` object each render would otherwise tear the
   // socket down and rebuild it on every keystroke.
   const identity = useMemo(
@@ -51,7 +55,7 @@ export function useCollaborativeSchema({
 
   const revisionRef = useRef(initialSchema.revision);
   const [schema, setSchemaState] = useState<Schema>(initialSchema);
-  const [status, setStatus] = useState<CollabStatus>(collabUrl ? "connecting" : "local");
+  const [status, setStatus] = useState<CollabStatus>(collabEnabled ? "connecting" : "local");
   const [peers, setPeers] = useState<Peer[]>([]);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
@@ -111,10 +115,10 @@ export function useCollaborativeSchema({
     };
     ydoc.on("update", schedule);
     // With no server, nothing else will ever populate this doc.
-    if (!collabUrl || !identity) seedIfEmpty();
+    if (!collabEnabled || !identity) seedIfEmpty();
     sync();
     return () => { ydoc.off("update", schedule); };
-  }, [collabUrl, identity, readSchema, seedIfEmpty, ydoc]);
+  }, [identity, readSchema, seedIfEmpty, ydoc]);
 
   // The undo manager is built after seeding, so the seed itself is never undoable.
   useEffect(() => {
@@ -128,13 +132,13 @@ export function useCollaborativeSchema({
   }, [localOrigin, ydoc]);
 
   useEffect(() => {
-    if (!collabUrl || !identity) return;
+    if (!collabEnabled || !identity) return;
     const query = new URLSearchParams({ projectId });
     if (workspaceSlug) query.set("workspace", workspaceSlug);
     if (shareToken) query.set("shareToken", shareToken);
 
     const provider = new HocuspocusProvider({
-      url: collabUrl,
+      url: collabUrl(),
       name: `project:${projectId}`,
       document: ydoc,
       // Minted per connection by a route that reuses the existing session helpers,
@@ -197,9 +201,9 @@ export function useCollaborativeSchema({
       provider.destroy();
       providerRef.current = null;
       setPeers([]);
-      setStatus(collabUrl ? "connecting" : "local");
+      setStatus(collabEnabled ? "connecting" : "local");
     };
-  }, [collabUrl, identity, projectId, seedIfEmpty, shareToken, workspaceSlug, ydoc]);
+  }, [identity, projectId, seedIfEmpty, shareToken, workspaceSlug, ydoc]);
 
   const commit = useCallback(
     (next: Schema) => { if (!readOnly) applySchemaToYDoc(ydoc, next, localOrigin); },

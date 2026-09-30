@@ -14,10 +14,10 @@ FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Next inlines NEXT_PUBLIC_* into the client bundle at build time, so the real
-# collab URL must be present here — a runtime env var would never reach the browser.
-ARG NEXT_PUBLIC_COLLAB_URL
-ENV NEXT_PUBLIC_COLLAB_URL=$NEXT_PUBLIC_COLLAB_URL
+# Collab is served same-origin at /collab, so there is no URL to bake in. Next
+# inlines NEXT_PUBLIC_* at build time, so the one switch, `off`, belongs here.
+ARG NEXT_PUBLIC_COLLAB
+ENV NEXT_PUBLIC_COLLAB=$NEXT_PUBLIC_COLLAB
 
 # Auth opens its SQLite file at module load, so the build would otherwise create
 # an auth.db inside the image; point it at a throwaway path. The secret is a
@@ -36,6 +36,11 @@ ENV NODE_ENV=production
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
 COPY package.json ./
+# `server.ts` runs from source through tsx — Next plus the Hocuspocus socket on
+# one port — so it needs the modules the collab server imports, not just .next.
+COPY server.ts tsconfig.json next.config.ts ./
+COPY collab ./collab
+COPY app ./app
 # No `public/` in this repo; add a COPY for it if static assets are ever introduced.
 
 # Needed by the `drizzle-kit push` in CMD below: the config reads ./db/paths.ts
@@ -49,10 +54,12 @@ ENV DATA_DIR=/data
 RUN mkdir -p /data
 VOLUME /data
 
+ENV PORT=3000
 EXPOSE 3000
 # `getDb()` creates auth.db but never its tables, and DATA_DIR is a fresh volume
 # on any new host — so without this a first deploy serves 500s on sign-up. `push`
 # is idempotent and diffs against the live database, so it is a near no-op on
 # every later start; `--force` skips the interactive prompt it would otherwise
-# raise for destructive statements. `exec` keeps next as PID 1 for signals.
-CMD ["sh", "-c", "node_modules/.bin/drizzle-kit push --force && exec node_modules/.bin/next start"]
+# raise for destructive statements. `exec` keeps the server as PID 1, so SIGTERM
+# reaches it and flushes pending collab stores before the container stops.
+CMD ["sh", "-c", "node_modules/.bin/drizzle-kit push --force && exec node_modules/.bin/tsx server.ts"]

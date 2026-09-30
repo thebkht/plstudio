@@ -41,25 +41,19 @@ Or non-interactively:
 
 ### Running Locally
 
-Start the Next.js development server:
+Start the development server — Next and the real-time collaboration socket in one process, on one port:
 
 ```bash
 pnpm dev
 ```
 
-In a second terminal, start the real-time collaboration server:
-
-```bash
-pnpm collab
-```
-
-Access the application at [http://localhost:3000](http://localhost:3000).
+Access the application at [http://localhost:4000](http://localhost:4000); collaborators connect to `ws://localhost:4000/collab` automatically.
 
 ---
 
 ## Docker Compose Setup
 
-Run both the web application and the collaboration server in containerized production mode using Docker Compose:
+Run the application (web and collaboration, one service) in containerized production mode using Docker Compose:
 
 ```bash
 docker compose --env-file .env.local up --build -d
@@ -68,9 +62,9 @@ docker compose --env-file .env.local up --build -d
 ### Ports & Services
 
 - **Web App**: [http://localhost:5555](http://localhost:5555) (mapped to container port `3000`)
-- **Collab Server**: `ws://localhost:1234` / `http://localhost:1234`
-- **Data Persistence**: the named volume `<project>_app-data` is mounted at `/data` in **both** services, holding `auth.db`, `projects/`, `yjs/` and `shares/`. It is a named volume rather than a bind mount into the checkout on purpose — see the comment at the top of `docker-compose.yml`. Move it between machines with `scripts/data-backup.sh` / `scripts/data-restore.sh` (below).
-- **Schema**: the web container runs `drizzle-kit push` before `next start`, so a fresh volume gets its auth tables automatically and an older one is brought up to date. It is idempotent — an unchanged schema logs `No changes detected`.
+- **Collaboration**: `ws://localhost:5555/collab` — the same port as the app, so a reverse proxy or tunnel needs only that one port (with WebSocket upgrades allowed)
+- **Data Persistence**: the named volume `<project>_app-data` is mounted at `/data`, holding `auth.db`, `projects/`, `yjs/` and `shares/`. It is a named volume rather than a bind mount into the checkout on purpose — see the comment at the top of `docker-compose.yml`. Move it between machines with `scripts/data-backup.sh` / `scripts/data-restore.sh` (below).
+- **Schema**: the web container runs `drizzle-kit push` before starting the server, so a fresh volume gets its auth tables automatically and an older one is brought up to date. It is idempotent — an unchanged schema logs `No changes detected`.
 
 To stop the containers:
 
@@ -88,7 +82,7 @@ local-development path (`pnpm dev`) and is neither needed nor runnable here.
 # 1. Install Docker Desktop (WSL2 backend) and clone the repo, then:
 copy .env.example .env.local
 #    Edit .env.local: BETTER_AUTH_SECRET, COLLAB_TOKEN_SECRET,
-#    BETTER_AUTH_URL=http://localhost:5555, NEXT_PUBLIC_COLLAB_URL=ws://localhost:1234
+#    BETTER_AUTH_URL=http://localhost:5555
 
 # 2. Build and start — the auth tables are created on first boot
 docker compose --env-file .env.local up --build -d
@@ -107,8 +101,8 @@ only with a daemon that runs as a service.
 
 ### Running without Docker
 
-Docker is a packaging choice, not a requirement — the app is a Next server plus a
-`tsx` process, with SQLite and JSON files in a folder. Use this path when
+Docker is a packaging choice, not a requirement — the app is one Node process
+(`server.ts`, run by `tsx`), with SQLite and JSON files in a folder. Use this path when
 virtualization is unavailable: on Windows, Docker can only run these Linux images
 inside a WSL2 (or Hyper-V) VM, and enabling that needs admin rights and
 VT-x/AMD-V turned on in firmware. Nothing here needs either.
@@ -117,31 +111,28 @@ VT-x/AMD-V turned on in firmware. Nothing here needs either.
 pnpm install
 pnpm drizzle-kit push        # once — creates <DATA_DIR>/auth.db and its tables
 pnpm build
-powershell -ExecutionPolicy Bypass -File scripts\run-native.ps1        # start both
-powershell -ExecutionPolicy Bypass -File scripts\run-native.ps1 -Stop  # stop both
+powershell -ExecutionPolicy Bypass -File scripts\run-native.ps1        # start
+powershell -ExecutionPolicy Bypass -File scripts\run-native.ps1 -Stop  # stop
 powershell -ExecutionPolicy Bypass -File scripts\install-boot.ps1 -Native  # at logon
 ```
 
-On macOS and Linux the same three steps apply, then run the two servers yourself:
+On macOS and Linux the same three steps apply, then start the server yourself:
 
 ```bash
-pnpm start     # Next, on http://localhost:3000
-pnpm collab    # Hocuspocus, in a second terminal
+pnpm start     # Next + collab, on http://localhost:4000 (PORT overrides)
 ```
 
 What differs from the Docker path:
 
-- **Port 3000, not 5555.** `next start` serves 3000 directly with no port mapping,
-  so `BETTER_AUTH_URL` must say `http://localhost:3000`.
+- **Port 4000, not 5555.** `pnpm start` serves 4000 (or `PORT`) directly with no
+  port mapping, so `BETTER_AUTH_URL` must say `http://localhost:4000`.
 - **`DATA_DIR` is a plain folder** (default `./data`) instead of a named volume, so
   the database and project JSON are browsable and `scripts/data-backup.sh` is not
   needed to look at them. Copy the folder to move an install.
 - **`pnpm drizzle-kit push` is yours to run.** The container does it on every start;
   nothing does it for you here. Re-run it after a schema change.
-- **Environment.** Next reads `.env.local` on its own, but `pnpm collab` reads
-  `COLLAB_TOKEN_SECRET` straight from the environment — Docker supplies it through
-  `env_file:`. `run-native.ps1` loads `.env.local` into both processes; if you start
-  them by hand, export the variables first.
+- **Environment.** The server loads `.env.local` itself (through Next) before it
+  reads `COLLAB_TOKEN_SECRET`, so nothing needs exporting by hand.
 - **No admin needed anywhere.** `better-sqlite3` is pinned to `12.11.1`, the last
   release that publishes prebuilt binaries — `pnpm install` downloads a ready-made
   `win32-x64`/`win32-arm64`/`darwin-arm64` addon and compiles nothing, so Visual
@@ -236,9 +227,8 @@ Ensure your `.env.local` contains the required configuration:
 DATABASE_URL=...                                           # Optional external DB URL
 BETTER_AUTH_SECRET=your-random-32-byte-secret               # Auth secret
 BETTER_AUTH_URL=http://localhost:5555                      # Base URL of the app
-NEXT_PUBLIC_COLLAB_URL=ws://localhost:1234                 # WebSocket URL for collab
-COLLAB_PORT=1234                                           # Collab server port
-COLLAB_TOKEN_SECRET=your-random-32-byte-collab-secret       # Token secret for collab rooms
+COLLAB_TOKEN_SECRET=your-random-32-byte-collab-secret       # Token secret for collab rooms (required)
+# NEXT_PUBLIC_COLLAB=off                                   # Build-time: disable collaboration
 DATA_DIR=./data                                            # Data storage path (default: ./data)
 ALLOW_DIRECT_PASSWORD_RESET=false                          # Disable the no-email password reset
 ```
@@ -261,8 +251,8 @@ which makes the route return 403.
 
 | Command | Description |
 | :--- | :--- |
-| `pnpm dev` | Start Next.js development server |
-| `pnpm collab` | Start Hocuspocus real-time collaboration server |
+| `pnpm dev` | Start the dev server (`server.ts`: Next + collab socket on :4000) |
+| `pnpm start` | Start the production server after `pnpm build` |
 | `pnpm build` | Create optimized production build (`next build --webpack`) |
 | `pnpm typecheck` | Run TypeScript type check (`tsc --noEmit`) |
 | `pnpm test` | Run Vitest unit & integration test suite |
@@ -276,12 +266,12 @@ which makes the route return 403.
 ├── app/                  # Next.js App Router (pages, API routes, components)
 │   ├── components/       # Designer canvas, table cards, relationship edges
 │   ├── lib/              # Core domain: schema model, validation, SQL generator, parser
-├── collab/               # Hocuspocus Yjs WebSocket collaboration server
+├── collab/               # Hocuspocus (Yjs) collab socket, mounted by server.ts at /collab
 ├── db/                   # Storage layer (file-store for projects, SQLite for auth)
 ├── drizzle/              # Drizzle ORM migration files
 ├── docs/                 # Specifications & documentation
 ├── tests/                # Vitest test suite for generators, parser, motion, auth
-├── docker-compose.yml    # Docker Compose multi-container setup
-├── Dockerfile            # Web service container configuration
-└── collab/Dockerfile     # Collaboration service container configuration
+├── server.ts             # Custom server: Next + the collab WebSocket on one port
+├── docker-compose.yml    # Docker Compose setup (one service)
+└── Dockerfile            # Container configuration
 ```
