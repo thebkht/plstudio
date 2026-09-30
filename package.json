@@ -4,9 +4,9 @@
   "private": true,
   "packageManager": "pnpm@11.0.9",
   "scripts": {
-    "dev": "tsx server.ts",
+    "dev": "node --import tsx server.ts",
     "build": "next build --webpack",
-    "start": "tsx server.ts --production",
+    "start": "node --import tsx server.ts --production",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

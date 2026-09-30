@@ -62,4 +62,4 @@ EXPOSE 3000
 # every later start; `--force` skips the interactive prompt it would otherwise
 # raise for destructive statements. `exec` keeps the server as PID 1, so SIGTERM
 # reaches it and flushes pending collab stores before the container stops.
-CMD ["sh", "-c", "node_modules/.bin/drizzle-kit push --force && exec node_modules/.bin/tsx server.ts"]
+CMD ["sh", "-c", "node_modules/.bin/drizzle-kit push --force && exec node --import tsx server.ts"]

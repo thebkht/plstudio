@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Package manager is **pnpm** (pinned to `pnpm@11.0.9` via `packageManager`).
 
 ```bash
-pnpm dev                      # tsx server.ts — Next + the collab socket, one process, port 4000
+pnpm dev                      # node --import tsx server.ts — Next + the collab socket, one process, port 4000
 pnpm start                    # the same server in production mode (after pnpm build); PORT overrides 4000
 pnpm build                    # next build --webpack (the --webpack flag is required)
 pnpm typecheck                # tsc --noEmit
