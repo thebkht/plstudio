@@ -45,7 +45,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
         </div>
       </header>
       {rows.length ? (
-        <section className="project-grid">
+        <section className="dashboard-section project-grid">
           {rows.map((project) => {
             const schema = project.schemaJson;
             return <ProjectCard key={project.id} projectId={project.id} href={`/${workspace}/${project.id}`} name={project.name} tableCount={schema.tables?.length || 0} updatedAt={formatTimestamp(project.updatedAt)} updatedLabel={formatRelative(project.updatedAt)} author={project.createdBy ? authors.get(project.createdBy) : undefined} workspace={workspace} preview={<SchemaPreview schema={schema} />} />;

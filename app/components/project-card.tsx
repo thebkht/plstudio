@@ -2,7 +2,7 @@
 
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Delete02Icon, MoreVerticalIcon } from "@hugeicons/core-free-icons";
+import { Delete02Icon, MoreHorizontalIcon } from "@hugeicons/core-free-icons";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -20,7 +20,6 @@ import {
   Card,
   CardAction,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -58,14 +57,18 @@ export default function ProjectCard({ projectId, href, name, tableCount, updated
             {name}
           </Link>
         </CardTitle>
-        <CardDescription>
+        {/* One secondary line, not two at different sizes: the name is the only
+            thing on the card that should be read first. */}
+        <CardDescription className="project-card-meta">
           {tableCount} {tableCount === 1 ? "table" : "tables"}
+          <span aria-hidden="true"> · </span>
+          <span title={updatedAt}>{author ? `${author}, ${updatedLabel}` : `Updated ${updatedLabel}`}</span>
         </CardDescription>
         {canDelete && (
           <CardAction>
             <DropdownMenuTrigger>
               <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${name}`}>
-                <HugeiconsIcon icon={MoreVerticalIcon} />
+                <HugeiconsIcon icon={MoreHorizontalIcon} />
               </Button>
               <DropdownMenu placement="bottom end" className="w-auto min-w-40">
                 <DropdownMenuGroup>
@@ -79,9 +82,6 @@ export default function ProjectCard({ projectId, href, name, tableCount, updated
           </CardAction>
         )}
       </CardHeader>
-      <CardFooter>
-        <small className="project-card-meta" title={updatedAt}>{author ? `${author} · ${updatedLabel}` : `Updated ${updatedLabel}`}</small>
-      </CardFooter>
       <AlertDialog isOpen={confirming} onOpenChange={setConfirming}>
         <AlertDialogHeader>
           <AlertDialogTitle>Delete “{name}”?</AlertDialogTitle>

@@ -2965,6 +2965,7 @@ button {
   .project-card:active,
   .workspace-list a:hover,
   .workspace-list a:active,
+  .workspace-list a:hover .workspace-list-chevron,
   .template-card:hover {
     transform: none;
   }
@@ -3358,13 +3359,17 @@ button {
   align-items: flex-end;
   justify-content: space-between;
   gap: 24px;
-  margin: 0 auto 25px;
-  padding: 58px 24px 0;
+  margin: 0 auto 32px;
+  padding: 48px 24px 0;
 }
+/* A large title: bold, tight leading, and display tracking of about -0.025em.
+   Anything tighter makes the counters of "o" and "e" collide at this size. */
 .dashboard-header h1 {
   color: var(--brand-ink);
-  font-size: clamp(2rem, 4vw, 3rem);
-  letter-spacing: -0.055em;
+  font-size: clamp(2rem, 4vw, 2.625rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
 }
 .dashboard-actions {
   display: flex;
@@ -3383,26 +3388,49 @@ button {
   line-height: var(--leading-snug);
   text-transform: uppercase;
 }
+/* Every grid on the dashboard shares one track definition, so a workspace tile
+   and the project card below it start and end on the same column lines. */
+.dashboard-shell {
+  --dashboard-track: repeat(auto-fill, minmax(260px, 1fr));
+}
+.dashboard-section {
+  padding: 0 24px 40px;
+}
+.dashboard-section:last-child {
+  padding-bottom: 80px;
+}
+/* Section titles name the content ("Workspaces", "Personal diagrams") in the
+   heading voice, one step under the page title, rather than as a coloured
+   uppercase kicker that shouts louder than the cards it labels. */
+.dashboard-section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 14px;
+  color: var(--ink-1);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  letter-spacing: -0.012em;
+}
+.dashboard-section-count {
+  color: var(--ink-3);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
 .project-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: var(--dashboard-track);
   gap: 20px;
-  padding: 0 24px 80px;
 }
 .settings-card {
   width: min(100% - 48px, 620px);
   margin: 20px auto;
 }
-.workspace-list {
-  padding: 0 24px 40px;
-}
-.workspace-list h2 {
-  margin: 0 0 12px;
-}
 .workspace-list ul {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 12px;
+  grid-template-columns: var(--dashboard-track);
+  gap: 20px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -3414,13 +3442,12 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 16px;
+  padding: 12px 12px 12px 14px;
   border: 1px solid var(--hairline);
   border-radius: var(--radius-surface);
   background: var(--surface-0);
   box-shadow: var(--shadow-card);
-  color: var(--brand-ink);
-  font-weight: 700;
+  color: var(--ink-1);
   text-decoration: none;
   transition:
     box-shadow var(--duration-base) var(--ease-out),
@@ -3435,12 +3462,44 @@ button {
   transform: translateY(0) scale(0.99);
   transition-duration: var(--duration-fast);
 }
+/* Concentric with the tile: the tile's radius less its 12px inset. */
+.workspace-list-icon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: max(6px, calc(var(--radius-surface) - 12px));
+}
+.workspace-list-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.workspace-list-name {
+  overflow: hidden;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .workspace-list-role {
   color: var(--ink-3);
-  font-size: var(--text-2xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-caps);
+  font-size: var(--text-xs);
+  line-height: var(--leading-tight);
+  text-transform: capitalize;
+}
+.workspace-list-chevron {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--ink-4);
+  transition: transform var(--duration-base) var(--ease-out);
+}
+/* The chevron leans toward where the press will take you. */
+.workspace-list a:hover .workspace-list-chevron {
+  transform: translateX(2px);
 }
 /* A translucent layer the page scrolls under, rather than an opaque strip that
    consumes 65px of the viewport. */
@@ -3451,7 +3510,7 @@ button {
   display: flex;
   align-items: center;
   gap: 24px;
-  padding: 18px max(24px, calc((100% - 1220px) / 2));
+  padding: 12px max(24px, calc((100% - 1220px) / 2));
   border-bottom: 1px solid var(--hairline);
   background: color-mix(in oklch, var(--surface-0) 72%, transparent);
   backdrop-filter: blur(20px) saturate(180%);
@@ -3551,6 +3610,20 @@ button {
   position: relative;
   z-index: 1;
 }
+/* Two lines at most, and a long unbroken name (snake_case, a+b) breaks inside
+   the word rather than running under the actions button. */
+.project-card [data-slot="card-title"] {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.008em;
+  overflow-wrap: anywhere;
+}
 .project-card-link {
   color: inherit;
   text-decoration: none;
@@ -3589,7 +3662,7 @@ button {
   overflow: hidden;
   aspect-ratio: 8 / 5;
   border-bottom: 1px solid var(--hairline);
-  background: var(--surface-2)
+  background: var(--surface-1)
     radial-gradient(var(--brand-muted) 1px, transparent 1px) 0 0 / 15px 15px;
 }
 .schema-preview {
@@ -3628,8 +3701,9 @@ button {
 }
 .project-card-meta {
   color: var(--ink-3);
-  font-size: var(--text-2xs);
+  font-size: var(--text-xs);
   line-height: var(--leading-snug);
+  font-variant-numeric: tabular-nums;
 }
 /* Password label sharing its row with the "Forgot password?" link. */
 .auth-label-row {

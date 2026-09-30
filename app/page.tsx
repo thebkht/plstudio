@@ -9,7 +9,10 @@ import ProjectCard from "@/app/components/project-card";
 import SchemaPreview from "@/app/components/schema-preview";
 import WorkspaceTopbar from "@/app/components/workspace-topbar";
 import { formatRelative, formatTimestamp } from "@/app/lib/format";
+import { Identicon } from "@/app/components/identicon";
 import { buttonVariants } from "@/components/ui/button-variants";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import {
   Empty,
   EmptyContent,
@@ -49,14 +52,19 @@ export default async function Page() {
       </header>
       <PendingInvitations />
       {workspaces.length > 0 && (
-        <section className="workspace-list">
-          <h2 className="eyebrow">Your workspaces</h2>
+        <section className="dashboard-section workspace-list">
+          <h2 className="dashboard-section-title">Workspaces</h2>
           <ul>
             {workspaces.map((workspace) => (
               <li key={workspace.id}>
                 <Link href={`/${workspace.slug}`}>
-                  <span>{workspace.name}</span>
-                  <span className="workspace-list-role">{workspace.role}</span>
+                  <Identicon seed={workspace.id} className="workspace-list-icon" />
+                  <span className="workspace-list-text">
+                    <span className="workspace-list-name">{workspace.name}</span>
+                    <span className="workspace-list-role">{workspace.role}</span>
+                  </span>
+                  {/* A tile that navigates says so, the way a disclosure row does. */}
+                  <HugeiconsIcon icon={ArrowRight01Icon} className="workspace-list-chevron" aria-hidden />
                 </Link>
               </li>
             ))}
@@ -64,13 +72,20 @@ export default async function Page() {
         </section>
       )}
       {personalProjects.length ? (
-        <section className="project-grid">
-          {personalProjects.map((project) => {
-            const schema = project.schemaJson;
-            /* No author here: every project in the personal space is yours, so
-               the name would be the same string on every card. */
-            return <ProjectCard key={project.id} projectId={project.id} href={`/project/${project.id}`} name={project.name} tableCount={schema.tables?.length || 0} updatedAt={formatTimestamp(project.updatedAt)} updatedLabel={formatRelative(project.updatedAt)} preview={<SchemaPreview schema={schema} />} />;
-          })}
+        <section className="dashboard-section">
+          {/* The h1 covers everything on the page, workspaces included, so the
+              grid gets its own name rather than sitting unlabelled under theirs. */}
+          <h2 className="dashboard-section-title">
+            Personal diagrams <span className="dashboard-section-count">{personalProjects.length}</span>
+          </h2>
+          <div className="project-grid">
+            {personalProjects.map((project) => {
+              const schema = project.schemaJson;
+              /* No author here: every project in the personal space is yours, so
+                 the name would be the same string on every card. */
+              return <ProjectCard key={project.id} projectId={project.id} href={`/project/${project.id}`} name={project.name} tableCount={schema.tables?.length || 0} updatedAt={formatTimestamp(project.updatedAt)} updatedLabel={formatRelative(project.updatedAt)} preview={<SchemaPreview schema={schema} />} />;
+            })}
+          </div>
         </section>
       ) : (
         <Empty>
