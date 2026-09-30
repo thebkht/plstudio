@@ -206,7 +206,7 @@ export default function Workspace({
     [deleteColumn, schemaRef, undo],
   );
 
-  const { setZoom } = useTransformControls();
+  const { zoomRef } = useTransformControls();
 
   const [importMessage, setImportMessage] = useState<ImportMessage | null>(
     null,
@@ -662,7 +662,9 @@ export default function Workspace({
     deleteSelection,
     zoomIn: () => zoomBy(0.1),
     zoomOut: () => zoomBy(-0.1),
-    zoomReset: () => setZoom(1),
+    // Through zoomBy, so ⌘0 keeps the middle of the view where it is -- the
+    // same reset the dock's readout performs.
+    zoomReset: () => zoomBy(1 - zoomRef.current),
     fitView,
     toggleHand: () => setHandMode((on) => !on),
     tidyLayout: autoLayout,
@@ -865,7 +867,7 @@ export default function Workspace({
     { label: "Export…", onSelect: run("export"), hint: hint("export") },
     { label: "Version history…", onSelect: () => setModal("history") },
     { separator: true },
-    { label: "Save to database", onSelect: run("save"), hint: hint("save") },
+    { label: "Save", onSelect: run("save"), hint: hint("save") },
     {
       label: "Force save",
       onSelect: run("forceSave"),

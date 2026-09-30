@@ -16,6 +16,7 @@ import {
   useContext,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { Focusable } from "react-aria-components";
@@ -184,9 +185,11 @@ export const DockButton = memo(function DockButton({
   isDisabled,
   disabledReason,
   onClick,
+  children,
+  className,
 }: {
   label: string;
-  icon: IconSvgElement;
+  icon?: IconSvgElement;
   shortcut?: ShortcutId;
   isMac?: boolean;
   /** Toggles rather than commands: renders pressed and announces its state. */
@@ -195,7 +198,11 @@ export const DockButton = memo(function DockButton({
   /** What the control is waiting for. Replaces the chord while disabled. */
   disabledReason?: string;
   onClick: () => void;
+  /** Drawn in place of the icon -- the zoom readout is a button showing a number. */
+  children?: ReactNode;
+  className?: string;
 }) {
+  const content = children ?? (icon && <HugeiconsIcon icon={icon} />);
   const tooltip = (
     <Tooltip>
       {label}
@@ -223,10 +230,10 @@ export const DockButton = memo(function DockButton({
             className={buttonVariants({
               variant: "ghost",
               size: "icon",
-              className: "dock-disabled",
+              className: `dock-disabled ${className ?? ""}`,
             })}
           >
-            <HugeiconsIcon icon={icon} />
+            {content}
           </span>
         </Focusable>
         {tooltip}
@@ -239,9 +246,10 @@ export const DockButton = memo(function DockButton({
         size="icon"
         aria-label={label}
         aria-pressed={isActive}
+        className={className}
         onClick={onClick}
       >
-        <HugeiconsIcon icon={icon} />
+        {content}
       </Button>
       {tooltip}
     </TooltipTrigger>

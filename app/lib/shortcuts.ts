@@ -62,7 +62,7 @@ export type ShortcutDef = {
 };
 
 export const SHORTCUTS: ShortcutDef[] = [
-  { id: "save", group: "File", label: "Save to database", chords: [{ key: "s", mod: true }], mutating: true },
+  { id: "save", group: "File", label: "Save", chords: [{ key: "s", mod: true }], mutating: true },
   /*
    * Save, prepared to overwrite. It only differs from ⌘S once the server has
    * already reported a conflict and the toast has said so — then this is the

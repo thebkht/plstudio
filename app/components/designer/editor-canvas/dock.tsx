@@ -10,10 +10,10 @@ import {
   Layers01Icon,
   Link01Icon,
   Maximize01Icon,
+  MinusSignIcon,
+  PlusSignIcon,
   StickyNote01Icon,
   Table01Icon,
-  ZoomInAreaIcon,
-  ZoomOutAreaIcon,
 } from "@hugeicons/core-free-icons";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -21,6 +21,7 @@ import {
   useLayout,
   useSchema,
   useTransform,
+  useTransformControls,
 } from "@/app/hooks";
 import { DockButton } from "../primitives";
 
@@ -56,6 +57,7 @@ export function Dock({
   const { setModal } = useLayout();
   const { undo, redo, canUndo, canRedo } = useSchema();
   const { zoom, settledZoom } = useTransform();
+  const { zoomRef } = useTransformControls();
 
   return (
     <>
@@ -71,17 +73,30 @@ export function Dock({
           isActive={panMode}
           onClick={onToggleHand}
         />
+        <Separator orientation="vertical" />
+        {/* The minus / percentage / plus stepper every canvas app uses. Plain
+            signs rather than magnifiers-in-brackets: beside a number, "−" and
+            "+" say what they do to it. The number is a control too -- it is
+            where people look to get back to 100%. */}
         <DockButton
           label="Zoom out"
-          icon={ZoomOutAreaIcon}
+          icon={MinusSignIcon}
           shortcut="zoomOut"
           isMac={isMac}
           onClick={() => zoomBy(-0.1)}
         />
-        <span className="dock-zoom">{Math.round(zoom * 100)}%</span>
+        <DockButton
+          label="Reset zoom to 100%"
+          shortcut="zoomReset"
+          isMac={isMac}
+          className="dock-zoom"
+          onClick={() => zoomBy(1 - zoomRef.current)}
+        >
+          {Math.round(zoom * 100)}%
+        </DockButton>
         <DockButton
           label="Zoom in"
-          icon={ZoomInAreaIcon}
+          icon={PlusSignIcon}
           shortcut="zoomIn"
           isMac={isMac}
           onClick={() => zoomBy(0.1)}
@@ -152,7 +167,7 @@ export function Dock({
           onClick={autoLayout}
         />
         <DockButton
-          label="Save to database"
+          label="Save"
           icon={FloppyDiskIcon}
           shortcut="save"
           isMac={isMac}

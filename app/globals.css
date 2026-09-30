@@ -1688,12 +1688,26 @@ button {
 .dock-tip-reason {
   color: color-mix(in oklch, var(--background) 65%, transparent);
 }
-.dock-zoom {
-  min-width: 52px;
-  text-align: center;
+/* A button that shows a number: as wide as "100%" needs and no wider, so the
+   stepper's three parts sit as one unit. Tabular, so it does not jitter as the
+   value changes under a ctrl-scroll. */
+.dock .dock-zoom {
+  width: auto;
+  min-width: 48px;
+  padding: 0 6px;
   color: var(--ink-1);
   font-size: var(--text-sm);
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+/* Short, centred dividers, as a toolbar draws them: a full-height rule reads
+   as the dock being cut in pieces rather than its controls being grouped. */
+.dock [data-slot="separator"] {
+  align-self: center;
+  height: 20px;
+  margin: 0 4px;
+  background: var(--separator);
 }
 
 .canvas-wrap {
