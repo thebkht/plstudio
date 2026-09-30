@@ -12,6 +12,7 @@
 import { memo, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { ChevronRightIcon, FingerprintIcon, GripVerticalIcon, KeyRoundIcon, LinkIcon, TargetIcon, Trash2Icon } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ORACLE_TYPES, type Column, type Table, typeUsesSize, typeSizePlaceholder } from "@/app/lib/schema";
@@ -148,9 +149,10 @@ export const ColumnEditor = memo(function ColumnEditor({
               <span className="inset-row-label">Check</span>
               <Input className="inset-field mono" disabled={readOnly} placeholder="None" value={column.check} onChange={(event) => patch({ check: event.target.value })} />
             </label>
-            <label className="inset-row">
+            {/* Prose, not a value: stacked, full width, and growing with what is written. */}
+            <label className="inset-row stacked">
               <span className="inset-row-label">Comment</span>
-              <Input className="inset-field" disabled={readOnly} placeholder="None" value={column.comment ?? ""} onChange={(event) => patch({ comment: event.target.value })} />
+              <Textarea className="inset-textarea" disabled={readOnly} placeholder="What this column holds" value={column.comment ?? ""} onChange={(event) => patch({ comment: event.target.value })} />
             </label>
             {!column.pk && (
               <div className="inset-row">

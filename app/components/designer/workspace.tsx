@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { generateDDL } from "@/app/lib/generators";
 import {
   appendCreateTable,
@@ -1075,12 +1076,14 @@ export default function Workspace({
                     </SelectContent>
                   </Select>
                 </div>
-                <label className="inset-row">
+                {/* Prose, not a value: stacked, full width, and growing with
+                    what is written -- a document card prints it in full. */}
+                <label className="inset-row stacked">
                   <span className="inset-row-label">Comment</span>
-                  <Input
-                    className="inset-field"
+                  <Textarea
+                    className="inset-textarea"
                     disabled={readOnly}
-                    placeholder="Optional"
+                    placeholder="What this table holds"
                     value={table.comment ?? ""}
                     onChange={(event) =>
                       patchTable(table.id, { comment: event.target.value })

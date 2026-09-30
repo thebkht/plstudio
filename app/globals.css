@@ -664,6 +664,43 @@ button {
   text-align: left;
 }
 /*
+ * A row for prose: the label on top, the text beneath at full width. Growing
+ * with its content (`field-sizing`) rather than scrolling inside a fixed box,
+ * so a two-line comment shows two lines. Same quiet, fill-less treatment as a
+ * trailing field until focused.
+ */
+.inset-row.stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding-block: 8px 6px;
+}
+.inset-textarea[data-slot="textarea"] {
+  min-height: 2.5rem;
+  margin-inline: -6px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink-1);
+  font-size: 0.8125rem;
+  line-height: var(--leading-snug);
+  field-sizing: content;
+  resize: none;
+}
+.inset-textarea[data-slot="textarea"]::placeholder {
+  color: var(--ink-4);
+}
+.inset-textarea[data-slot="textarea"]:hover {
+  background: color-mix(in srgb, var(--ink-1) 4%, transparent);
+}
+.inset-textarea[data-slot="textarea"]:focus-visible {
+  background: var(--surface-1);
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--tint) 45%, transparent);
+  outline: none;
+}
+/*
  * Identifiers and datatypes are code, and read as code wherever they are
  * listed -- the column list, the chips, and the menus that pick them. Menus
  * render in a portal, outside `.inset-field`, so they need saying separately:
