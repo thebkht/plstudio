@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 import { applySchemaToYDoc, createReadCache, isEmptyDoc, schemaFromYDoc, schemaRoot, type ReadCache } from "@/app/lib/collab/ydoc";
-import { makeColumn, makeDemoSchema, makeUniqueConstraint, makeMemo, makeSchemaGroup, makeTable, type Schema } from "@/app/lib/schema";
+import { makeColumn, makeDemoSchema, makeUniqueConstraint, makeMemo, makeSchemaGroup, makeTable, PALETTE, type Schema } from "@/app/lib/schema";
 
 const seed = (schema: Schema) => applySchemaToYDoc(new Y.Doc(), schema);
 const read = (ydoc: Y.Doc, schema: Schema) => schemaFromYDoc(ydoc, { id: schema.id, revision: schema.revision });
@@ -14,6 +14,12 @@ describe("schemaFromYDoc / applySchemaToYDoc", () => {
   it("round-trips a schema unchanged", () => {
     const schema = makeDemoSchema();
     expect(read(seed(schema), schema)).toEqual(schema);
+  });
+
+  it("projects a retired palette colour to the one now in its slot", () => {
+    const schema = makeDemoSchema();
+    schema.tables[0] = { ...schema.tables[0], color: { a: "#175e7a", b: "#124b61" } };
+    expect(read(seed(schema), schema).tables[0].color).toEqual(PALETTE[0]);
   });
 
   it("round-trips groups, memos and relationships", () => {

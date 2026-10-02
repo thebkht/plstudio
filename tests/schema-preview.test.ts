@@ -61,7 +61,12 @@ describe("schema preview geometry", () => {
 
   it("carries each table's accent colour", () => {
     const preview = schemaPreview(schemaOf([makeTable("A", 0, 0, 0), makeTable("B", 400, 0, 1)]))!;
-    expect(preview.tables.map((table) => table.color)).toEqual(["#175e7a", "#7d9dff"]);
+    expect(preview.tables.map((table) => table.color)).toEqual(["#00acb6", "#2b99e7"]);
+  });
+
+  it("draws a retired palette colour as the one now in its slot", () => {
+    const table = { ...makeTable("OLD", 0, 0), color: { a: "#F2994A", b: "#d97f34" } };
+    expect(schemaPreview(schemaOf([table]))!.tables[0].color).toBe("#cf7b00");
   });
 
   it("anchors an edge to its column's row, on the facing flanks", () => {

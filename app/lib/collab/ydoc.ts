@@ -1,5 +1,6 @@
 import * as Y from "yjs";
 import {
+  currentTableColor,
   SCHEMA_FORMAT_VERSION,
   type Column,
   type Memo,
@@ -257,8 +258,12 @@ const readColumn = (map: Y.Map<unknown>, cache?: ReadCache): Column =>
 
 const readTable = (map: Y.Map<unknown>, cache?: ReadCache): Table => {
   const columns = (map.get("columns") as Y.Array<Y.Map<unknown>> | undefined) ?? null;
+  const record = readRecord<Table>(map, TABLE_KEYS);
   return stable(cache, map, {
-    ...readRecord<Table>(map, TABLE_KEYS),
+    ...record,
+    // A retired palette colour is projected to its replacement, so a room whose
+    // document predates the palette change still draws the current one.
+    color: currentTableColor(record.color),
     columns: byId((columns?.toArray() ?? []).map((column) => readColumn(column, cache))),
   });
 };

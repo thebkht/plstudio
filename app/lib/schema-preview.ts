@@ -1,4 +1,5 @@
 import {
+  currentTableColor,
   TABLE_COLOR_STRIP_HEIGHT,
   TABLE_FIELD_HEIGHT,
   TABLE_HEADER_HEIGHT,
@@ -80,7 +81,7 @@ export function schemaPreview(schema: Schema): PreviewGeometry | null {
     y: toY(table.y),
     w: w * scale,
     h: h * scale,
-    color: table.color?.a ?? "#a1a1aa",
+    color: currentTableColor(table.color)?.a ?? "#a1a1aa",
   }));
 
   const byId = new Map(tables.map((table) => [table.id, table]));

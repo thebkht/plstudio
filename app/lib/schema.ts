@@ -158,17 +158,32 @@ export type Schema = {
 /**
  * Table accent colours. Rendered as a strip across the top of a card rather
  * than behind text, so these are chosen for separation, not text contrast.
- * `b` is retained for stored-schema compatibility.
+ * One OKLCH lightness (0.66) and chroma (0.15) for all seven, hues spread round
+ * the wheel: equal lightness means no table reads heavier than another, and
+ * every filled document header takes the same ink. `b` (L 0.58) is retained
+ * for stored-schema compatibility.
  */
 export const PALETTE = [
-  { a: "#175e7a", b: "#124b61" },
-  { a: "#7d9dff", b: "#5f7fe0" },
-  { a: "#3cde7d", b: "#2fb265" },
-  { a: "#6360f7", b: "#4f4cd6" },
-  { a: "#f2994a", b: "#d97f34" },
-  { a: "#e8617d", b: "#c94a64" },
-  { a: "#00b8d9", b: "#0094ad" },
+  { a: "#00acb6", b: "#00929d" },
+  { a: "#2b99e7", b: "#0080cc" },
+  { a: "#4ea954", b: "#33903c" },
+  { a: "#8a82e9", b: "#736ace" },
+  { a: "#cf7b00", b: "#b56300" },
+  { a: "#df6862", b: "#c34f4b" },
+  { a: "#cd6aaf", b: "#b25196" },
 ];
+
+/**
+ * The palette before it was evened out, by position. Diagrams store the hex,
+ * so a table still carrying one of these is moved to the colour now in its
+ * slot -- on load and on every read of the shared document -- and the next
+ * save writes the new one back.
+ */
+const LEGACY_PALETTE = ["#175e7a", "#7d9dff", "#3cde7d", "#6360f7", "#f2994a", "#e8617d", "#00b8d9"];
+
+/** The current palette entry for a retired accent; any other colour unchanged. */
+export const currentTableColor = (color: Table["color"]): Table["color"] =>
+  PALETTE[LEGACY_PALETTE.indexOf(color?.a?.toLowerCase())] ?? color;
 
 export const GROUP_PALETTE: Record<GroupColor, { background: string; border: string; header: string; text: string }> = {
   orange: { background: "#fff4df", border: "#e7a33e", header: "#ffebc5", text: "#8b5b16" },
@@ -586,10 +601,11 @@ export function normalizeTables(schema: Schema): Schema {
     );
     const uniques = normalizeColumnSets(table, table.uniques);
     const indexes = normalizeColumnSets(table, table.indexes);
-    if (width === undefined) return { ...table, columns, uniques, indexes };
+    const color = currentTableColor(table.color);
+    if (width === undefined) return { ...table, color, columns, uniques, indexes };
     return typeof width === "number" && Number.isFinite(width)
-      ? { ...table, columns, uniques, indexes, width: clampTableWidth(width) }
-      : { ...table, columns, uniques, indexes, width: undefined };
+      ? { ...table, color, columns, uniques, indexes, width: clampTableWidth(width) }
+      : { ...table, color, columns, uniques, indexes, width: undefined };
   });
   return next;
 }
