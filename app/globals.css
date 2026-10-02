@@ -141,16 +141,16 @@
   --table-line: #d4d4d8;
   --table-accent: #3b82f6;
 
-  /* Datatype label colours, keyed by category (Tailwind 500 series). */
-  /* Vivid, one step under drawDB's 500s: those washed out on the card surface
-     (yellow NUMBER at ~1.9:1), the 700s tried before read as muddy. The 600s
-     keep the saturation; `.row-type` carries them at weight 500 so a bright
-     hue still holds up at 12px. */
-  --type-string: #ea580c;
-  --type-integer: #ca8a04;
-  --type-decimal: #65a30d;
-  --type-date: #0891b2;
-  --type-binary: #059669;
+  /* Datatype label colours, keyed by category. One OKLCH lightness (0.52) and
+     chroma (0.13), so every label clears 4.5:1 on the card at 12px, and the
+     hues spread so the two commonest Oracle types -- VARCHAR2 and NUMBER --
+     sit furthest apart (rust against blue). Deeper and quieter than the table
+     accents, so a type never reads as a table's colour. */
+  --type-string: #a44c1d;
+  --type-integer: #2e69b2;
+  --type-decimal: #6f57ab;
+  --type-date: #00805d;
+  --type-binary: #9e4573;
   --type-other: #71717a;
   /* systemGray: neutral in the edge layer, so the blue of a highlighted edge
      is the only colour a line ever carries. */

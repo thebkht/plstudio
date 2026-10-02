@@ -2,7 +2,7 @@
  * Datatype categories drive the colour of the type label on a table card, so a
  * schema can be read at a glance without reading the words.
  *
- * The category split and hues follow drawDB's convention (Tailwind 500-series).
+ * The category split follows drawDB's convention; the colours are our own (see `--type-*` in globals.css).
  */
 
 import type { OracleType } from "./schema";
