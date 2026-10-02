@@ -53,6 +53,7 @@ import {
   stripTablePrefix,
   tableHeaderHeight,
   tableHeight,
+  tableMinWidth,
   tableWidth,
   type Schema,
   type Table,
@@ -407,7 +408,7 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
   livePositionRef.current = livePosition;
   /**
    * A table's on-screen width: the in-flight one while it is being resized,
-   * else the stored override, else the name-derived default. Relationship
+   * else `tableWidth` -- the stored override or the content fit, never under the content. Relationship
    * anchors read this so the right-hand edge stays attached during a resize.
    */
   const liveWidth = useCallback(
@@ -845,7 +846,9 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
       commitWith((current) => ({
         ...current,
         tables: current.tables.map((table) =>
-          table.id === id ? { ...table, width: clampTableWidth(width) } : table,
+          table.id === id
+            ? { ...table, width: clampTableWidth(Math.max(width, tableMinWidth(table))) }
+            : table,
         ),
       }));
       setResizeTable(null);
@@ -853,7 +856,7 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
     [commitWith, readOnly],
   );
 
-  /** Drops the manual override so the card goes back to its name-derived width. */
+  /** Drops the manual override so the card goes back to fitting its content. */
   const resetTableWidth = useCallback(
     (id: string) => {
       if (readOnly) return;
@@ -1205,8 +1208,10 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
       if (gesture.mode === "table-resize") {
         const pointX =
           (event.clientX - rect.left - panRef.current.x) / zoomRef.current;
-        const width = clampTableWidth(
-          gesture.originWidth! + pointX - gesture.grabX,
+        // The content is a hard floor: past it a name would ellipsize.
+        const width = Math.max(
+          tableMinWidth(table),
+          clampTableWidth(gesture.originWidth! + pointX - gesture.grabX),
         );
         scheduleMove(() => setResizeTable({ id: table.id, width }));
         return;

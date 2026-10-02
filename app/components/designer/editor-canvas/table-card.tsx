@@ -26,7 +26,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { HoverCard } from "@/components/ui/hover-card";
-import { DOCUMENT_HEADER_HEIGHT, TABLE_FIELD_HEIGHT, commentLines, inkOn, tableHeaderHeight, tableHeight, typeString, uniqueGroupColumnIds, type CardStyle, type Column, type SchemaGroup, type Table } from "@/app/lib/schema";
+import { DOCUMENT_HEADER_HEIGHT, TABLE_FIELD_HEIGHT, commentLines, inkOn, keyStrategyTag, tableHeaderHeight, tableHeight, typeString, uniqueGroupColumnIds, type CardStyle, type Column, type SchemaGroup, type Table } from "@/app/lib/schema";
 import { typeColorVar } from "@/app/lib/datatype-color";
 import { ColumnCard, ShortcutKeys, TableSummaryCard } from "../primitives";
 
@@ -386,13 +386,7 @@ export const TableCard = memo(function TableCard({
           }
         >
           <span className="table-name">{isDocument ? table.name.toLowerCase() : table.name.toUpperCase()}</span>
-          <span className="table-strategy">
-            {table.keyStrategy === "sequence-trigger"
-              ? "SEQ+TRG"
-              : table.keyStrategy === "identity"
-                ? "IDENTITY"
-                : ""}
-          </span>
+          <span className="table-strategy">{keyStrategyTag(table.keyStrategy)}</span>
         </HoverCard>
         {/* Sized from the same function the anchors are, so edges land on their rows. */}
         {isDocument && comment.length > 0 && (
@@ -431,7 +425,7 @@ export const TableCard = memo(function TableCard({
           <button
             type="button"
             className={`table-resize ${resizing ? "resizing" : ""}`}
-            aria-label={`Resize ${table.name}. Left and Right arrows resize, Shift for larger steps. Double-click to fit the name.`}
+            aria-label={`Resize ${table.name}. Left and Right arrows resize, Shift for larger steps. Double-click to fit the content.`}
             title="Drag to resize · double-click to reset"
             onPointerDown={(event) => onResizeDown(event, table.id)}
             onKeyDown={(event) => onResizeKeyDown(event, table.id)}

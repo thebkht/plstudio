@@ -7,8 +7,27 @@ import { validateCheckExpression, validateSchema, validateTypeSpec } from "@/app
 describe("Oracle schema model", () => {
   it("sizes table cards from their names within readable bounds", () => {
     expect(tableWidth({ name: "ID" })).toBe(220);
-    expect(tableWidth({ name: "A_VERY_LONG_TABLE_NAME_FOR_REPORTING" })).toBe(420);
-    expect(tableWidth({ name: "  CUSTOMER_ORDERS  " })).toBeGreaterThan(220);
+    expect(tableWidth({ name: "A_VERY_LONG_TABLE_NAME_FOR_REPORTING" })).toBeGreaterThan(420);
+    expect(tableWidth({ name: "X".repeat(200) })).toBe(640);
+    expect(tableWidth({ name: "  CUSTOMER_ORDERS  " })).toBe(tableWidth({ name: "CUSTOMER_ORDERS" }));
+  });
+
+  it("widens a card to fit its longest row, type and key icons included", () => {
+    const table = makeTable("OSM_R_ACTION_POST_TEMPLATES", 0, 0);
+    const before = tableWidth(table);
+    const column = makeColumn({ name: "DT_ACC_PINFL_BY_FIELD_CODE", type: "VARCHAR2", size: "100" });
+    const wider = { ...table, columns: [...table.columns, column] };
+    expect(tableWidth(wider)).toBeGreaterThan(before);
+    expect(tableWidth({ ...wider, columns: wider.columns.map((item) => item.id === column.id ? { ...item, fk: { tableId: "t", columnId: "c" } } : item) }))
+      .toBeGreaterThan(tableWidth(wider));
+  });
+
+  it("keeps the content as a floor under a manual width", () => {
+    const table = { ...makeTable("ORDERS", 0, 0), columns: [makeColumn({ name: "A_COLUMN_NAME_LONG_ENOUGH_TO_TRUNCATE", type: "VARCHAR2", size: "4000" })] };
+    const fit = tableWidth(table);
+    expect(fit).toBeGreaterThan(300);
+    expect(tableWidth({ ...table, width: 200 })).toBe(fit);
+    expect(tableWidth({ ...table, width: fit + 50 })).toBe(fit + 50);
   });
 
   it("prefers a manual width over the name-derived one, within bounds", () => {

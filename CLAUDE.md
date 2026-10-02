@@ -65,6 +65,8 @@ Canvas geometry (`TABLE_WIDTH`, `TABLE_COLOR_STRIP_HEIGHT`, `TABLE_HEADER_HEIGHT
 
 Cards have two `CardStyle`s: `classic` (colour strip over a white header) and `document` (filled header plus the table comment wrapped beneath it). The canvas draws whichever the user picked in settings; the export always draws `document`. A document card's height depends on its comment, so `tableHeaderHeight(table, style)`/`tableHeight(table, style)` compute the wrap with `commentLines()` rather than measuring the DOM — that is what keeps the canvas, the export and the relationship anchors agreeing. Always pass the style through; the `classic` default is only right for classic cards.
 
+Width follows the same rule: `tableWidth()` fits the card to its widest header or row from Geist/JetBrains Mono advance widths measured once in Chrome (`SANS_ADVANCES` in `schema.ts`), plus the chrome the CSS adds around the text. If you change a row's padding, gaps, icons or fonts, update `ROW_CHROME`/`HEADER_CHROME` with it. The fit is a floor under a manual `width`, which can only add room, and both are capped at `TABLE_MAX_WIDTH`.
+
 Undo/redo is per-user `Y.UndoManager` (see Realtime collaboration), not a local history stack.
 
 Canvas gestures live in `app/lib/motion.ts` (pure, tested): `Spring` (analytic damped oscillator, re-targetable mid-flight), `VelocityTracker`, `project()` for momentum, `rubberClamp()` for soft bounds. Drags do **not** write to `schema` per frame — the live position sits in `dragPosition` state and is committed once on release, so `validateSchema`/`generateDDL` don't rerun every pointermove. Anything reading a table's on-screen position must go through `livePosition(table)`, not `table.x/y`.

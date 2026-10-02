@@ -444,9 +444,8 @@ export const keyCovers = (key: string[], columnIds: string[]) =>
  * anchor routing depends on the two agreeing, so change them together.
  */
 export const TABLE_WIDTH = 220;
-/** Ceiling for the name-derived width; a manual resize may go wider. */
-export const TABLE_AUTO_MAX_WIDTH = 420;
 export const TABLE_MIN_WIDTH = 180;
+/** Ceiling for both the content-derived width and a manual resize; past it, names ellipsize. */
 export const TABLE_MAX_WIDTH = 640;
 export const TABLE_COLOR_STRIP_HEIGHT = 7;
 export const TABLE_HEADER_HEIGHT = 50;
@@ -456,14 +455,97 @@ export function clampTableWidth(width: number) {
   return Math.max(TABLE_MIN_WIDTH, Math.min(TABLE_MAX_WIDTH, Math.round(width)));
 }
 
-/**
- * A manual width wins; otherwise keep short names compact while giving long
- * names room before ellipsis.
+/*
+ * Geist's advance widths at weight 700, in hundredths of an em, measured in
+ * Chrome against the font the app ships. Bold is the widest weight a card
+ * draws, so a name this fits never truncates at a lighter one. Anything not
+ * listed (accents, other scripts) is costed as a wide capital.
  */
-export function tableWidth(table: Pick<Table, "name"> & Partial<Pick<Table, "width">>) {
-  if (typeof table.width === "number" && Number.isFinite(table.width)) return clampTableWidth(table.width);
-  const nameWidth = 130 + table.name.trim().length * 9;
-  return Math.max(TABLE_WIDTH, Math.min(TABLE_AUTO_MAX_WIDTH, nameWidth));
+const SANS_GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_$#";
+const SANS_ADVANCES = [
+  73, 70, 73, 72, 62, 60, 74, 72, 30, 63, 69, 59, 91, 75, 78, 67, 77, 70, 68, 60, 70, 73, 101, 69, 63, 59,
+  59, 63, 60, 63, 61, 45, 63, 61, 28, 33, 65, 31, 90, 61, 62, 63, 63, 42, 57, 44, 61, 61, 85, 65, 59, 58,
+  69, 45, 65, 65, 66, 67, 63, 54, 66, 63, 56, 67, 59,
+];
+const SANS_ADVANCE = new Map([...SANS_GLYPHS].map((glyph, index) => [glyph, SANS_ADVANCES[index]]));
+const sansWidth = (text: string, size: number) =>
+  ([...text].reduce((sum, glyph) => sum + (SANS_ADVANCE.get(glyph) ?? 80), 0) * size) / 100;
+/** JetBrains Mono advances a fixed 0.6em; `tracking` is the CSS letter-spacing in em. */
+const monoWidth = (text: string, size: number, tracking = 0) => text.length * size * (0.6 + tracking);
+
+/*
+ * What a card spends around its text, in px, from the rules in globals.css: a
+ * 2px border each side, then for the header 12px padding each side and an 8px
+ * gap before the key-strategy tag (10px mono, 0.06em tracking); for a row 8px
+ * padding each side, the 10px link grip, 8px gaps, a meta cluster of 13px icons
+ * at 5px gaps, the nullable slot (1ch at 12px less its -4px margin) and the
+ * 22px reorder grip -- reserved even where it is hidden, so a card does not
+ * change width when it becomes editable. A document row swaps the icons for
+ * the 24px key badge and sets the name in 11.5px mono, lower-cased.
+ */
+const CARD_BORDERS = 4;
+const HEADER_CHROME = CARD_BORDERS + 2 * 12 + 8;
+const ROW_CHROME = CARD_BORDERS + 2 * 8 + 10 + 8 + 8 + 5 + (12 * 0.6 - 4) + 5 + 22;
+const DOCUMENT_ROW_CHROME = ROW_CHROME + 24 + 8;
+const ROW_ICON = 13 + 5;
+/** Sub-pixel kerning and rounding the estimate does not model. */
+const FIT_SLACK = 4;
+
+export const keyStrategyTag = (strategy: KeyStrategy | undefined) =>
+  strategy === "sequence-trigger" ? "SEQ+TRG" : strategy === "identity" ? "IDENTITY" : "";
+
+type WidthInput = Pick<Table, "name"> & Partial<Pick<Table, "width" | "columns" | "keyStrategy" | "uniques">>;
+
+/**
+ * The width at which nothing on the card truncates -- the header and every row,
+ * in whichever card style is wider -- capped at `TABLE_MAX_WIDTH`. Estimated
+ * from font metrics rather than measured from the DOM, for the reason
+ * `commentLines` is: the canvas, the export and the relationship anchors all
+ * have to agree on it, and only one of them has a DOM.
+ */
+function contentWidth(table: WidthInput) {
+  const tag = monoWidth(keyStrategyTag(table.keyStrategy), 10, 0.06);
+  const grouped = uniqueGroupColumnIds(table);
+  const header = HEADER_CHROME + tag + Math.max(sansWidth(table.name.trim().toUpperCase(), 16), sansWidth(table.name.trim().toLowerCase(), 14));
+  const rows = (table.columns ?? []).map((column) => {
+    const icons = [column.pk, column.fk, (column.unique || grouped.has(column.id)) && !column.pk].filter(Boolean).length;
+    const type = monoWidth(typeString(column), 12);
+    return Math.max(
+      ROW_CHROME + sansWidth(column.name.toUpperCase(), 14) + icons * ROW_ICON + type,
+      DOCUMENT_ROW_CHROME + monoWidth(column.name, 11.5) + type,
+    );
+  });
+  return Math.min(TABLE_MAX_WIDTH, Math.ceil(Math.max(header, ...rows) + FIT_SLACK));
+}
+
+/*
+ * `tableWidth` runs per table per frame in the gesture layer, so the fit is
+ * cached on the table object and kept while the fields it reads are the same
+ * references -- which every immutable edit, and every stable Y.Doc read, keeps.
+ */
+const widthCache = new WeakMap<object, { name: string; keyStrategy?: KeyStrategy; columns?: Column[]; uniques?: UniqueConstraint[]; width: number }>();
+function fittedWidth(table: WidthInput) {
+  const cached = widthCache.get(table);
+  if (cached && cached.name === table.name && cached.keyStrategy === table.keyStrategy && cached.columns === table.columns && cached.uniques === table.uniques)
+    return cached.width;
+  const width = contentWidth(table);
+  widthCache.set(table, { name: table.name, keyStrategy: table.keyStrategy, columns: table.columns, uniques: table.uniques, width });
+  return width;
+}
+
+/** The narrowest a resize may take the card: its content, or the global minimum. */
+export const tableMinWidth = (table: WidthInput) => Math.max(TABLE_MIN_WIDTH, fittedWidth(table));
+
+/**
+ * Wide enough for the content, never narrower than the default. A manual width
+ * may go wider, but the content is a floor under it too: a resize can add room,
+ * never cut a name off.
+ */
+export function tableWidth(table: WidthInput) {
+  const fit = fittedWidth(table);
+  return typeof table.width === "number" && Number.isFinite(table.width)
+    ? clampTableWidth(Math.max(table.width, fit))
+    : Math.max(TABLE_WIDTH, fit);
 }
 
 /**
@@ -506,7 +588,7 @@ export function wrapText(text: string, maxChars: number) {
  * not measured in the DOM, so the canvas and the export agree on every card's
  * height -- relationship anchors are derived from it.
  */
-export function commentLines(table: Pick<Table, "name" | "width" | "comment">) {
+export function commentLines(table: WidthInput & Pick<Table, "comment">) {
   const comment = table.comment?.trim();
   if (!comment) return [];
   const max = Math.floor((tableWidth(table) - 2 * 12) / COMMENT_CHAR_WIDTH);
