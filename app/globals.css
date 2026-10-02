@@ -2300,13 +2300,22 @@ button {
   stroke: #0084d1;
   stroke-width: 3;
 }
+/* A light chip on the line rather than a dark lozenge: filled grey, every
+   port read as a heavier mark than the tables it joins, and pills sharing a
+   port clumped into blots. The ring keeps it on the line; the hover/active
+   rules below tint it with its edge, so the pill answers with its line. */
 .relationship-marker {
-  fill: var(--edge);
-  stroke: none;
+  fill: var(--surface-0);
+  stroke: var(--edge);
+  stroke-width: 1.5;
   pointer-events: none;
+  transition:
+    fill var(--duration-base) var(--ease-out),
+    stroke var(--duration-base) var(--ease-out);
 }
 .relationship-marker-text {
-  fill: #fff;
+  fill: var(--ink-2);
+  transition: fill var(--duration-base) var(--ease-out);
   font:
     600 11px/1 var(--font-sans),
     sans-serif;
@@ -2326,6 +2335,13 @@ button {
   stroke-width: 4px;
   stroke-linejoin: round;
   pointer-events: none;
+}
+.relationship:is(:hover, :has(.relationship-path.active)) .relationship-marker {
+  fill: #0084d1;
+  stroke: #0084d1;
+}
+.relationship:is(:hover, :has(.relationship-path.active)) .relationship-marker-text {
+  fill: #fff;
 }
 /* Marching ants on hover make it obvious which two fields are joined. */
 .relationship:hover .relationship-path {
@@ -2597,6 +2613,10 @@ button {
   font:
     500 15px/1.45 var(--font-sans),
     sans-serif;
+  /* The platform's grey scrollbar is a foreign object on a paper note: thin,
+     and in the note's own ink. */
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--memo-ink) 28%, transparent) transparent;
 }
 .memo-text::placeholder {
   color: color-mix(in srgb, var(--memo-ink) 52%, transparent);
