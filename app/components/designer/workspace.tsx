@@ -94,6 +94,9 @@ export type DesignerProps = {
   user?: (CollabUser & { email?: string | null }) | null;
 };
 
+/** One id, so the conflict toast can be withdrawn when a reconnect settles it. */
+const CONFLICT_TOAST = "save-conflict";
+
 export default function Workspace({
   initialSchema,
   projectId,
@@ -114,6 +117,8 @@ export default function Workspace({
     canUndo,
     canRedo,
     setRevision,
+    getRevision,
+    collabSync,
     collabStatus,
     peers,
     patchTable,
@@ -479,12 +484,10 @@ export default function Workspace({
    * ref, so the queue is never torn down mid-write.
    */
   const saveQueueRef = useRef<SaveQueue | null>(null);
-  const revisionRef = useRef(schema.revision);
-  revisionRef.current = schema.revision;
   const announceSaveRef = useRef<(result: SaveResult) => void>(() => {});
   if (!saveQueueRef.current)
     saveQueueRef.current = createSaveQueue({
-      revision: () => revisionRef.current,
+      revision: getRevision,
       onRevision: setRevision,
       onState: setSaveState,
       onResult: (result) => announceSaveRef.current(result),
@@ -543,6 +546,7 @@ export default function Workspace({
     setExplicitSave(false);
     if (result.status === "conflict") {
       toast.error("This project changed elsewhere.", {
+        id: CONFLICT_TOAST,
         description: "Saving now would overwrite the other changes.",
         duration: Infinity,
         action: { label: "Overwrite", onClick: () => void save(true) },
@@ -552,21 +556,60 @@ export default function Workspace({
     toast.error(result.message);
   };
 
+  /**
+   * While the collab socket is up the server persists every edit itself, and
+   * bumps `revision` each time it does. The file is no longer ours alone to
+   * version, so the optimistic `PUT` is the wrong tool: it would be redundant
+   * at best and, a store later, a conflict with nobody.
+   */
+  const collabLive = collabStatus === "connected";
+
   const save = (overwrite = false) => {
     if (readOnly) return Promise.resolve();
     setExplicitSave(true);
-    return saveQueue.flush(schemaRef.current, { overwrite });
+    /*
+     * An explicit save still writes the file -- it is what makes a history
+     * version. Once the server has acknowledged everything, what is on screen
+     * is already the merge of every peer's edits, so there is nothing for the
+     * revision check to protect and it is skipped.
+     */
+    return saveQueue.flush(schemaRef.current, {
+      overwrite: overwrite || (collabLive && collabSync.get()),
+    });
   };
 
   /**
    * The autosave itself: when enabled in settings, every edit of this client's
    * re-arms the debounce, so a burst of typing writes once when it stops.
-   * Gated on `dirty` and `relationSettings.autoSave`.
+   * Gated on `dirty` and `relationSettings.autoSave`, and only the durability
+   * path when collab is not.
    */
   useEffect(() => {
-    if (readOnly || !dirty || !relationSettings.autoSave) return;
+    if (readOnly || !dirty || !relationSettings.autoSave || collabLive) return;
     saveQueue.push(schema);
-  }, [dirty, readOnly, relationSettings.autoSave, saveQueue, schema]);
+  }, [collabLive, dirty, readOnly, relationSettings.autoSave, saveQueue, schema]);
+
+  /**
+   * With collab up, "saved" is the server's acknowledgement. `dirty` is in the
+   * deps so an edit that changed nothing in the document -- and so will never
+   * be acknowledged -- is settled too.
+   */
+  useEffect(() => {
+    if (!collabLive || !dirty || !relationSettings.autoSave) return;
+    const settle = () => { if (collabSync.get()) setDirty(false); };
+    settle();
+    return collabSync.subscribe(settle);
+  }, [collabLive, collabSync, dirty, relationSettings.autoSave, setDirty]);
+
+  /**
+   * Reconnecting merges whatever was written while the socket was down, which
+   * answers the question a queued `PUT` or a standing conflict toast was asking.
+   */
+  useEffect(() => {
+    if (!collabLive) return;
+    saveQueue.cancel();
+    toast.dismiss(CONFLICT_TOAST);
+  }, [collabLive, saveQueue]);
 
   useEffect(() => () => saveQueue.cancel(), [saveQueue]);
 

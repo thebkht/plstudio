@@ -47,12 +47,16 @@ export function createCollab(secret: string) {
           // file-store with its own in-process chain — so the lock directory is what
           // serializes this read-modify-write of `revision` against their PUT.
           const schema = schemaFromYDoc(document, { id: projectId });
-          await withProjectLock(projectId, async () => {
+          const revision = await withProjectLock(projectId, async () => {
             const stored = await readProject(projectId);
-            if (!stored) return;
+            if (!stored) return null;
             const mirrored: Schema = { ...schema, revision: stored.revision + 1, schemaFormatVersion: SCHEMA_FORMAT_VERSION };
             await updateProject(projectId, { name: mirrored.name, schemaJson: mirrored, revision: mirrored.revision, schemaFormatVersion: SCHEMA_FORMAT_VERSION });
+            return mirrored.revision;
           });
+          // That bump is ours, not a peer's edit. Tell the room, or the next `PUT`
+          // from any of them would arrive a revision behind and 409 against it.
+          if (revision !== null) document.broadcastStateless(JSON.stringify({ revision }));
         },
       }),
     ],

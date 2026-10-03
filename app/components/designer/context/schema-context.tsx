@@ -54,6 +54,10 @@ export type SchemaContextValue = {
   canUndo: boolean;
   canRedo: boolean;
   setRevision: (revision: number) => void;
+  /** The revision the next `PUT` is based on; the server keeps it current while collab is connected. */
+  getRevision: () => number;
+  /** Whether the collab server holds every edit of this client's. A store: see `createSyncStore`. */
+  collabSync: ReturnType<typeof useCollaborativeSchema>["sync"];
   collabStatus: ReturnType<typeof useCollaborativeSchema>["status"];
   peers: ReturnType<typeof useCollaborativeSchema>["peers"];
   cursors: ReturnType<typeof useCollaborativeSchema>["cursors"];
@@ -132,6 +136,8 @@ export function SchemaProvider({
     canUndo,
     canRedo,
     setRevision,
+    getRevision,
+    sync: collabSync,
     status: collabStatus,
     peers,
     cursors,
@@ -484,6 +490,8 @@ export function SchemaProvider({
       canUndo,
       canRedo,
       setRevision,
+      getRevision,
+      collabSync,
       collabStatus,
       peers,
       cursors,
@@ -517,6 +525,8 @@ export function SchemaProvider({
       canUndo,
       canRedo,
       setRevision,
+      getRevision,
+      collabSync,
       collabStatus,
       peers,
       cursors,

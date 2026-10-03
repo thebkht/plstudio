@@ -24,7 +24,7 @@ function harness({ delay = 0 } = {}) {
   const named = (name: string) => ({ ...makeEmptySchema(name), revision });
   /** Let timers and the microtask queue drain. */
   const tick = () => new Promise((resolve) => setTimeout(resolve, 1));
-  return { queue, calls, states, named, tick, current: () => revision };
+  return { queue, calls, states, named, tick, current: () => revision, advance: (next: number) => { revision = next; } };
 }
 
 describe("the save queue", () => {
@@ -55,6 +55,16 @@ describe("the save queue", () => {
     await tick();
     expect(calls).toHaveLength(2);
     expect(calls[1].schema.name).toBe("three");
+  });
+
+  it("sends the revision as it stands when the write goes out, not as it stood when queued", async () => {
+    const { queue, calls, named, tick, advance } = harness();
+    queue.push(named("edit"));
+    // The collab server stored the document in the meantime and said so.
+    advance(5);
+    await tick();
+
+    expect(calls[0].revision).toBe(5);
   });
 
   it("carries each response's revision into the next write", async () => {

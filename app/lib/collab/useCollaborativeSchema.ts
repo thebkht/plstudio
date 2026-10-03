@@ -6,6 +6,7 @@ import { HocuspocusProvider } from "@hocuspocus/provider";
 import type { Schema } from "@/app/lib/schema";
 import { applySchemaToYDoc, createReadCache, isEmptyDoc, schemaFromYDoc, schemaRoot } from "./ydoc";
 import { createCursorStore, samePeers, type CollabUser, type CursorPoint, type Peer } from "./presence";
+import { createSyncStore, revisionFromStateless } from "./sync";
 
 export type { CollabUser, Peer } from "./presence";
 export type CollabStatus = "local" | "connecting" | "connected" | "disconnected";
@@ -59,6 +60,8 @@ export function useCollaborativeSchema({
   const [peers, setPeers] = useState<Peer[]>([]);
   /** Stable for the hook's lifetime: consumers subscribe once, and cursor moves never touch React state. */
   const [cursors] = useState(createCursorStore);
+  /** Stable likewise: an acknowledged edit tells the save pipeline, not every `useSchema()` consumer. */
+  const [sync] = useState(createSyncStore);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const providerRef = useRef<HocuspocusProvider | null>(null);
@@ -152,6 +155,12 @@ export function useCollaborativeSchema({
     if (workspaceSlug) query.set("workspace", workspaceSlug);
     if (shareToken) query.set("shareToken", shareToken);
 
+    // The three facts `sync` is the conjunction of; each arrives on its own callback.
+    let connected = false;
+    let handshaken = false;
+    let unsynced = 0;
+    const report = () => sync.set(connected && handshaken && unsynced === 0);
+
     const provider = new HocuspocusProvider({
       url: collabUrl(),
       name: `project:${projectId}`,
@@ -163,10 +172,23 @@ export function useCollaborativeSchema({
         if (!response.ok) throw new Error("Not authorized for this project");
         return ((await response.json()) as { token: string }).token;
       },
-      onStatus: ({ status: next }) => setStatus(next === "connected" ? "connected" : next === "connecting" ? "connecting" : "disconnected"),
-      onAuthenticationFailed: () => setStatus("disconnected"),
+      onStatus: ({ status: next }) => {
+        setStatus(next === "connected" ? "connected" : next === "connecting" ? "connecting" : "disconnected");
+        connected = next === "connected";
+        if (!connected) handshaken = false;
+        report();
+      },
+      onAuthenticationFailed: () => { setStatus("disconnected"); connected = false; report(); },
       // Only now is "empty" trustworthy: the server has sent everything it has.
-      onSynced: () => seedIfEmpty(),
+      onSynced: ({ state }) => { seedIfEmpty(); handshaken = state; report(); },
+      onUnsyncedChanges: ({ number }) => { unsynced = number; report(); },
+      /*
+       * The server bumps `revision` every time it stores the document, and says
+       * so here. Ref only: the number matters to the next `PUT`, not to anything
+       * drawn, and a new `schema` identity every store would re-validate and
+       * re-route the whole diagram for it.
+       */
+      onStateless: ({ payload }) => { revisionRef.current = revisionFromStateless(payload) ?? revisionRef.current; },
     });
     providerRef.current = provider;
 
@@ -213,11 +235,12 @@ export function useCollaborativeSchema({
       if (peersFrame !== null) cancelAnimationFrame(peersFrame);
       provider.destroy();
       providerRef.current = null;
+      sync.set(false);
       setPeers([]);
       cursors.set(new Map());
       setStatus(collabEnabled ? "connecting" : "local");
     };
-  }, [cursors, identity, projectId, seedIfEmpty, shareToken, workspaceSlug, ydoc]);
+  }, [cursors, identity, projectId, seedIfEmpty, shareToken, sync, workspaceSlug, ydoc]);
 
   const commit = useCallback(
     (next: Schema) => { if (!readOnly) applySchemaToYDoc(ydoc, next, localOrigin); },
@@ -232,6 +255,9 @@ export function useCollaborativeSchema({
     revisionRef.current = revision;
     setSchemaState((current) => (current.revision === revision ? current : { ...current, revision }));
   }, []);
+
+  /** What the next `PUT` should claim to be based on -- fresher than `schema.revision`, which only a render updates. */
+  const getRevision = useCallback(() => revisionRef.current, []);
 
   // Cursor moves are per-pointermove; coalesce them to one frame so presence
   // never becomes the reason the canvas drops frames.
@@ -253,5 +279,5 @@ export function useCollaborativeSchema({
 
   useEffect(() => () => { if (cursorFrame.current !== null) cancelAnimationFrame(cursorFrame.current); }, []);
 
-  return { schema, commit, undo, redo, canUndo, canRedo, setRevision, status, peers, cursors, setCursor, setSelection };
+  return { schema, commit, undo, redo, canUndo, canRedo, setRevision, getRevision, sync, status, peers, cursors, setCursor, setSelection };
 }
