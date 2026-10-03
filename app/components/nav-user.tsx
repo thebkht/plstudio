@@ -84,20 +84,24 @@ export default function NavUser({
         <DropdownMenuGroup>
           <DropdownMenuLabel>Appearance</DropdownMenuLabel>
           {APPEARANCES.map(({ id, label, icon: Icon }) => (
-            <DropdownMenuItem key={id} onAction={() => setTheme(id)}>
+            <DropdownMenuItem key={id} onAction={() => setTheme(id)} className="menu-checkable">
+              {/* A leading check column, as in the pop-ups: the mark sits in
+                  the same place in every menu. */}
+              <span className="menu-check">{theme === id && <CheckIcon aria-label="Selected" />}</span>
               <Icon />
               {label}
-              {theme === id && <CheckIcon className="ml-auto" aria-label="Selected" />}
             </DropdownMenuItem>
           ))}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem
+            className="menu-checkable"
             onAction={() =>
               void authClient.signOut().then(() => router.push("/login"))
             }
           >
+            <span className="menu-check" />
             <LogOutIcon/>
             Sign out
           </DropdownMenuItem>

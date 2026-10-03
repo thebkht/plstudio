@@ -1,7 +1,9 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { PlusIcon, UserIcon } from "lucide-react";
 import { toast } from "sonner";
+import { Identicon } from "@/app/components/identicon";
 import { authClient } from "@/app/lib/auth-client";
 import {
   Select,
@@ -13,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-export type SwitchableWorkspace = { slug: string; name: string };
+export type SwitchableWorkspace = { id?: string; slug: string; name: string };
 
 const PERSONAL = "__personal";
 const CREATE = "__create";
@@ -51,12 +53,24 @@ export default function WorkspaceSwitcher({ workspaces, current }: { workspaces:
       </SelectTrigger>
       <SelectContent>
         <SelectGroup>
-          <SelectItem id={PERSONAL}>Personal space</SelectItem>
+          {/* Each space carries the mark it has everywhere else -- the same
+              identicon as its dashboard row -- so the menu and the trigger
+              both say which one you are in at a glance. */}
+          <SelectItem id={PERSONAL} textValue="Personal space">
+            <span className="switcher-icon switcher-icon-personal"><UserIcon /></span>
+            Personal space
+          </SelectItem>
           {workspaces.map((workspace) => (
-            <SelectItem key={workspace.slug} id={workspace.slug}>{workspace.name}</SelectItem>
+            <SelectItem key={workspace.slug} id={workspace.slug} textValue={workspace.name}>
+              <Identicon seed={workspace.id ?? workspace.slug} className="switcher-icon" />
+              {workspace.name}
+            </SelectItem>
           ))}
           <SelectSeparator />
-          <SelectItem id={CREATE}>New workspace…</SelectItem>
+          <SelectItem id={CREATE} textValue="New Workspace">
+            <span className="switcher-icon switcher-icon-plain"><PlusIcon /></span>
+            New Workspace…
+          </SelectItem>
         </SelectGroup>
       </SelectContent>
     </Select>

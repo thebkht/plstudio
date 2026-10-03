@@ -402,6 +402,95 @@ body {
 }
 
 /*
+ * Menus at macOS density, for every dropdown, context menu and pop-up: 13px
+ * text on 24px rows, a 6px row corner concentric with the 11px menu (its 5px
+ * padding apart), and a checkmark in a leading column rather than trailing,
+ * so a chosen row is marked without being filled. Unlayered so it overrides
+ * the components' iOS-sized utilities in one place.
+ */
+:is(
+    [data-slot="dropdown-menu-content"],
+    [data-slot="dropdown-menu-sub-content"],
+    [data-slot="context-menu-content"],
+    [data-slot="context-menu-sub-content"],
+    [data-slot="select-content"]
+  ) {
+  border-radius: 11px;
+  padding: 5px;
+  /* Thick, not 70%: text passing under a menu must not read through it. */
+  background-color: var(--material-thick);
+}
+:is(
+    [data-slot="dropdown-menu-item"],
+    [data-slot="dropdown-menu-sub-trigger"],
+    [data-slot="context-menu-item"],
+    [data-slot="context-menu-sub-trigger"],
+    [data-slot="select-item"]
+  ) {
+  min-height: 24px;
+  gap: 8px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: var(--text-footnote);
+  font-weight: 400;
+  line-height: 18px;
+}
+:is(
+    [data-slot="dropdown-menu-item"],
+    [data-slot="dropdown-menu-sub-trigger"],
+    [data-slot="context-menu-item"],
+    [data-slot="context-menu-sub-trigger"],
+    [data-slot="select-item"]
+  )
+  svg:not([class*="size-"]) {
+  width: 14px;
+  height: 14px;
+}
+:is([data-slot="dropdown-menu-item"], [data-slot="context-menu-item"])[data-inset] {
+  padding-left: 30px;
+}
+/* A pop-up opens at least as wide as its button and grows to fit its longest
+   item, rather than clipping it to the button's width. */
+[data-slot="select-content"] {
+  width: max-content;
+  min-width: var(--trigger-width);
+  max-width: min(360px, 100vw - 16px);
+}
+/* The pop-up's checkmark leads the row; every row keeps the column. */
+[data-slot="select-item"] {
+  padding-left: 26px;
+}
+[data-slot="select-item"] > span:last-child {
+  left: 7px;
+  right: auto;
+}
+[data-slot="select-item"] > span:last-child svg {
+  width: 12px;
+  height: 12px;
+}
+:is([data-slot="dropdown-menu-label"], [data-slot="context-menu-label"], [data-slot="select-label"]) {
+  padding: 4px 10px 2px;
+  color: var(--label-2);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+}
+:is([data-slot="dropdown-menu-separator"], [data-slot="context-menu-separator"], [data-slot="select-separator"]) {
+  margin: 4px 10px;
+}
+/* Opening a menu focuses its chosen row; that is not a highlight. Only the
+   pointer or the keyboard paints a row (see the tint rule below). */
+:is(
+    [data-slot="dropdown-menu-item"],
+    [data-slot="dropdown-menu-sub-trigger"],
+    [data-slot="context-menu-item"],
+    [data-slot="context-menu-sub-trigger"],
+    [data-slot="select-item"]
+  )[data-focused]:not([data-hovered], [data-focus-visible]) {
+  background: transparent;
+  color: inherit;
+}
+
+/*
  * Menus highlight the way macOS menus do: the row under the pointer (or the
  * keyboard) fills with the tint and everything on it -- icon, shortcut,
  * description -- turns white, destructive rows in red. Unlayered, so it wins
@@ -618,6 +707,26 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+/* The identity header is content, not a section label: it keeps the label
+   colour and weight the menu's section-header rule would otherwise impose. */
+[data-slot="dropdown-menu-label"].nav-user-label {
+  padding: 6px 10px 8px;
+  color: var(--label-2);
+  font-weight: 400;
+}
+.menu-checkable {
+  padding-left: 6px;
+}
+.menu-check {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 12px;
+}
+[data-slot="dropdown-menu-item"] .menu-check svg:not([class*="size-"]) {
+  width: 12px;
+  height: 12px;
 }
 .nav-user-identity {
   display: flex;
@@ -3822,6 +3931,35 @@ body {
 }
 /* Sections as a segmented control: a recessed track, the current page a
    raised thumb. */
+/* The switcher's per-space mark: the identicon, or a glyph on a fill for the
+   personal space, at one size in the menu and the trigger alike. */
+.switcher-icon {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+/* The identicon is itself an <svg>, which the menu's icon-size rule would
+   shrink to 14px and knock its row's text out of line. */
+:is([data-slot="select-item"], [data-slot="select-trigger"]) svg.switcher-icon {
+  width: 16px;
+  height: 16px;
+}
+/* As specific as the menu's own icon-size rule, and later, so it wins. */
+:is([data-slot="select-item"], [data-slot="select-trigger"]) .switcher-icon svg {
+  width: 11px;
+  height: 11px;
+}
+.switcher-icon-personal {
+  border-radius: 50%;
+  background: var(--fill-2);
+  color: var(--label-2);
+}
+.switcher-icon-plain {
+  color: var(--label-2);
+}
 .topbar-segments {
   display: inline-flex;
   gap: 2px;
