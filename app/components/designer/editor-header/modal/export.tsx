@@ -265,6 +265,7 @@ export const ExportModal = ({
         <TabsContent id="image">
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
             <ToggleGroup
+              className="segmented"
               aria-label="Image theme"
               selectionMode="single"
               disallowEmptySelection
