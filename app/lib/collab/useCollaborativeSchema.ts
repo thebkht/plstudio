@@ -109,18 +109,31 @@ export function useCollaborativeSchema({
      * typing still lands immediately.
      */
     let queued = false;
-    const sync = () => setSchemaState(readSchema());
-    const schedule = () => {
+    /*
+     * A background tab still receives every remote edit, and projecting it
+     * there re-reads the whole document and re-validates the schema for a
+     * canvas nobody can see -- with several projects open on one machine, that
+     * is most of its CPU. The Y.Doc keeps integrating updates either way, so
+     * nothing is lost; the projection just waits until the tab is shown.
+     * Local transactions always project, so this client's own edits are never
+     * the stale ones.
+     */
+    let stale = false;
+    const sync = () => { stale = false; setSchemaState(readSchema()); };
+    const schedule = (_update: Uint8Array, origin: unknown) => {
+      if (document.hidden && origin !== localOrigin) { stale = true; return; }
       if (queued) return;
       queued = true;
       queueMicrotask(() => { queued = false; sync(); });
     };
+    const onVisible = () => { if (!document.hidden && stale) sync(); };
     ydoc.on("update", schedule);
+    document.addEventListener("visibilitychange", onVisible);
     // With no server, nothing else will ever populate this doc.
     if (!collabEnabled || !identity) seedIfEmpty();
     sync();
-    return () => { ydoc.off("update", schedule); };
-  }, [identity, readSchema, seedIfEmpty, ydoc]);
+    return () => { ydoc.off("update", schedule); document.removeEventListener("visibilitychange", onVisible); };
+  }, [identity, localOrigin, readSchema, seedIfEmpty, ydoc]);
 
   // The undo manager is built after seeding, so the seed itself is never undoable.
   useEffect(() => {
