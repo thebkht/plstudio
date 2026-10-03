@@ -53,11 +53,11 @@ export default function PendingInvitations() {
 
   if (!invitations.length) return null;
   return (
-    <section className="workspace-list">
-      <h2 className="eyebrow">Pending invitations</h2>
-      <ItemGroup>
+    <section className="dashboard-section">
+      <h2 className="dashboard-section-title">Invitations</h2>
+      <ItemGroup className="grouped-list">
         {invitations.map((invitation) => (
-          <Item key={invitation.id} variant="outline">
+          <Item key={invitation.id} className="grouped-row">
             <ItemContent>
               <ItemTitle>{invitation.organizationName || "A workspace"}</ItemTitle>
               <ItemDescription>You have been invited to join this workspace.</ItemDescription>

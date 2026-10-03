@@ -3,7 +3,6 @@ import BrandMark from "@/app/components/brand-mark";
 import NavUser, { type NavUserAccount } from "@/app/components/nav-user";
 import WorkspaceSwitcher, { type SwitchableWorkspace } from "@/app/components/workspace-switcher";
 import { buttonVariants } from "@/components/ui/button-variants";
-import { Separator } from "@/components/ui/separator";
 
 /**
  * The shell shared by the dashboard, workspace, and settings pages. Navigation
@@ -34,31 +33,26 @@ export default function WorkspaceTopbar({
 }) {
   return (
     <header className="workspace-topbar">
-      <Link href="/" aria-label="PLStudio home">
-        <BrandMark />
-      </Link>
-      <Separator orientation="vertical" className="h-6" />
-      {workspaces && <WorkspaceSwitcher workspaces={workspaces} current={current} />}
-      <nav className="flex items-center gap-1">
-        {links.map((link) => (
-          <Link
-            data-slot="button"
-            key={link.href}
-            href={link.href}
-            aria-current={link.current ? "page" : undefined}
-            className={buttonVariants({ variant: "ghost", size: "sm" })}
-          >
-            {link.label}
-          </Link>
-        ))}
-      </nav>
-      <div className="ml-auto flex items-center gap-2">
+      <div className="workspace-topbar-lead">
+        <Link href="/" aria-label="PLStudio home">
+          <BrandMark />
+        </Link>
+        {workspaces && <WorkspaceSwitcher workspaces={workspaces} current={current} />}
+      </div>
+      {/* A segmented control, not a row of links: these are sibling views of
+          one space. A lone destination is not a choice, so it is not drawn. */}
+      {links.length > 1 && (
+        <nav className="topbar-segments" aria-label="Sections">
+          {links.map((link) => (
+            <Link key={link.href} href={link.href} aria-current={link.current ? "page" : undefined} className="topbar-segment">
+              {link.label}
+            </Link>
+          ))}
+        </nav>
+      )}
+      <div className="workspace-topbar-trail">
         {account && (
-          <Link
-            data-slot="button"
-            href={account.href}
-            className={buttonVariants({ variant: "outline", size: "sm" })}
-          >
+          <Link data-slot="button" href={account.href} className={buttonVariants({ variant: "outline", size: "sm" })}>
             {account.label}
           </Link>
         )}

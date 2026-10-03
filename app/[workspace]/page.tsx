@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LayoutDashboardIcon } from "lucide-react";
 import { listProjects } from "@/db/file-store";
 import { listUserWorkspaces, lookupUserNames, requireWorkspace } from "@/app/lib/session";
 import NewProjectButton from "@/app/components/new-project-button";
@@ -12,6 +13,7 @@ import {
   EmptyContent,
   EmptyDescription,
   EmptyHeader,
+  EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
 
@@ -34,11 +36,11 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
       />
       <header className="dashboard-header">
         <div>
-          <p className="eyebrow">Your workspace</p>
           <h1>{organization.name}</h1>
+          <p className="dashboard-subtitle">{rows.length} {rows.length === 1 ? "diagram" : "diagrams"}</p>
         </div>
         <div className="dashboard-actions">
-          <Link data-slot="button" className={buttonVariants({ variant: "outline" })} href="/editor">Personal diagram</Link>
+          <Link data-slot="button" className={buttonVariants({ variant: "outline" })} href="/editor">Personal Diagram</Link>
           <NewProjectButton workspace={workspace} />
         </div>
       </header>
@@ -52,6 +54,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
       ) : (
         <Empty>
           <EmptyHeader>
+            <EmptyMedia variant="icon"><LayoutDashboardIcon /></EmptyMedia>
             <EmptyTitle>Create your first diagram</EmptyTitle>
             <EmptyDescription>
               Draw tables on the canvas and PLStudio writes the Oracle DDL for you.

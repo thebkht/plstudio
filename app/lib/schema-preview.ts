@@ -1,20 +1,18 @@
 import {
   currentTableColor,
-  TABLE_COLOR_STRIP_HEIGHT,
-  TABLE_FIELD_HEIGHT,
-  TABLE_HEADER_HEIGHT,
+  GROUP_PALETTE,
   tableHeight,
   tableWidth,
   type Schema,
-  type Table,
 } from "@/app/lib/schema";
+import { MEMO_COLORS } from "@/app/components/designer/constants";
 
 /**
- * The canvas reduced to a card-sized silhouette: table blocks at their true
- * relative positions, plus the lines between them. Text is deliberately absent
- * — at this scale a column row is well under a pixel and reads as grey noise,
- * so what survives is shape and topology, which is what makes one diagram
- * recognisable against another.
+ * The canvas reduced to a card-sized map, drawn the way the editor's minimap
+ * draws it: every table a solid block in its own colour, groups and memos as
+ * faint regions underneath, and no wiring -- at this scale a line is a hair
+ * and a column row is well under a pixel, so what survives is the shape of the
+ * diagram, which is what makes one recognisable against another.
  *
  * Pure arithmetic over `Schema`, so it lives beside the other projections
  * (validation, generators) and is testable without mounting anything.
@@ -24,7 +22,7 @@ import {
 export const PREVIEW_WIDTH = 320;
 export const PREVIEW_HEIGHT = 200;
 /** Breathing room between the content's bounding box and the frame edge. */
-const PREVIEW_PADDING = 14;
+const PREVIEW_PADDING = 16;
 /**
  * Zoom ceiling. Without it a lone table would be scaled up until it filled the
  * frame, which reads as a big empty box rather than a small sparse schema.
@@ -36,34 +34,37 @@ const MAX_SCALE = 0.35;
  * card on the dashboard without adding anything to look at.
  */
 const MAX_TABLES = 60;
-const MAX_EDGES = 80;
+const MAX_REGIONS = 30;
 
 export type PreviewTable = { x: number; y: number; w: number; h: number; color: string };
-export type PreviewEdge = { x1: number; y1: number; x2: number; y2: number };
+export type PreviewRegion = PreviewTable & { kind: "group" | "memo" };
 export type PreviewGeometry = {
   width: number;
   height: number;
+  /** Groups and memos, drawn first and faint, as the minimap draws them. */
+  regions: PreviewRegion[];
   tables: PreviewTable[];
-  edges: PreviewEdge[];
 };
-
-/** Vertical centre of a column's row on the card, in canvas coordinates. */
-const rowCenter = (table: Table, index: number) =>
-  table.y + TABLE_COLOR_STRIP_HEIGHT + TABLE_HEADER_HEIGHT + index * TABLE_FIELD_HEIGHT + TABLE_FIELD_HEIGHT / 2;
 
 /**
  * `null` when there is nothing to draw — the caller's signal to render an empty
- * state rather than an empty frame.
+ * state rather than an empty frame. Tables are what make a diagram: a group or
+ * a memo on its own is still "nothing drawn yet".
  */
 export function schemaPreview(schema: Schema): PreviewGeometry | null {
   const tables = (schema.tables ?? []).slice(0, MAX_TABLES);
   if (!tables.length) return null;
 
-  const boxes = tables.map((table) => ({ table, w: tableWidth(table), h: tableHeight(table) }));
-  const minX = Math.min(...boxes.map(({ table }) => table.x));
-  const minY = Math.min(...boxes.map(({ table }) => table.y));
-  const maxX = Math.max(...boxes.map(({ table, w }) => table.x + w));
-  const maxY = Math.max(...boxes.map(({ table, h }) => table.y + h));
+  const boxes = tables.map((table) => ({ x: table.x, y: table.y, w: tableWidth(table), h: tableHeight(table), color: currentTableColor(table.color)?.a ?? "#a1a1aa" }));
+  const regions = [
+    ...(schema.groups ?? []).map((group) => ({ x: group.x, y: group.y, w: group.width, h: group.height, color: GROUP_PALETTE[group.color]?.border ?? GROUP_PALETTE.blue.border, kind: "group" as const })),
+    ...(schema.memos ?? []).map((memo) => ({ x: memo.x, y: memo.y, w: memo.width, h: memo.height, color: (MEMO_COLORS.find((color) => color.id === memo.color) ?? MEMO_COLORS[0]).border, kind: "memo" as const })),
+  ].slice(0, MAX_REGIONS);
+  const all = [...boxes, ...regions];
+  const minX = Math.min(...all.map((box) => box.x));
+  const minY = Math.min(...all.map((box) => box.y));
+  const maxX = Math.max(...all.map((box) => box.x + box.w));
+  const maxY = Math.max(...all.map((box) => box.y + box.h));
 
   const frameW = PREVIEW_WIDTH - PREVIEW_PADDING * 2;
   const frameH = PREVIEW_HEIGHT - PREVIEW_PADDING * 2;
@@ -73,43 +74,7 @@ export function schemaPreview(schema: Schema): PreviewGeometry | null {
      a small schema sits in the middle of the card instead of the top-left. */
   const offsetX = (PREVIEW_WIDTH - (maxX - minX) * scale) / 2;
   const offsetY = (PREVIEW_HEIGHT - (maxY - minY) * scale) / 2;
-  const toX = (x: number) => (x - minX) * scale + offsetX;
-  const toY = (y: number) => (y - minY) * scale + offsetY;
+  const place = <T extends PreviewTable>(box: T): T => ({ ...box, x: (box.x - minX) * scale + offsetX, y: (box.y - minY) * scale + offsetY, w: box.w * scale, h: box.h * scale });
 
-  const placed = boxes.map(({ table, w, h }) => ({
-    x: toX(table.x),
-    y: toY(table.y),
-    w: w * scale,
-    h: h * scale,
-    color: currentTableColor(table.color)?.a ?? "#a1a1aa",
-  }));
-
-  const byId = new Map(tables.map((table) => [table.id, table]));
-  const edges: PreviewEdge[] = [];
-  for (const relationship of schema.relationships ?? []) {
-    if (edges.length >= MAX_EDGES) break;
-    const from = byId.get(relationship.startTableId);
-    const to = byId.get(relationship.endTableId);
-    /* A relationship can outlive the table or column it points at; the canvas
-       drops those and so does the preview, rather than throwing on a card. */
-    if (!from || !to || from === to) continue;
-    const fromIndex = from.columns.findIndex((column) => column.id === relationship.startFieldId);
-    const toIndex = to.columns.findIndex((column) => column.id === relationship.endFieldId);
-    if (fromIndex < 0 || toIndex < 0) continue;
-
-    const fromW = tableWidth(from);
-    const toW = tableWidth(to);
-    /* Leave from whichever flank faces the other card. The designer's 30px
-       hysteresis exists to stop the anchor flipping mid-drag; nothing is
-       dragging here, so the plain comparison is the whole rule. */
-    const fromRight = from.x + fromW / 2 <= to.x + toW / 2;
-    edges.push({
-      x1: toX(from.x + (fromRight ? fromW : 0)),
-      y1: toY(rowCenter(from, fromIndex)),
-      x2: toX(to.x + (fromRight ? 0 : toW)),
-      y2: toY(rowCenter(to, toIndex)),
-    });
-  }
-
-  return { width: PREVIEW_WIDTH, height: PREVIEW_HEIGHT, tables: placed, edges };
+  return { width: PREVIEW_WIDTH, height: PREVIEW_HEIGHT, regions: regions.map(place), tables: boxes.map(place) };
 }

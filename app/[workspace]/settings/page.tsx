@@ -20,8 +20,8 @@ export default async function SettingsPage({ params }: { params: Promise<{ works
       />
       <div className="dashboard-header settings-page-heading">
         <div>
-          <p className="eyebrow">Workspace</p>
           <h1>Settings</h1>
+          <p className="dashboard-subtitle">{organization.name}</p>
         </div>
       </div>
       <SettingsClient workspace={workspace} organizationId={organization.id} organizationName={organization.name} canManage={canManageMembers(role)} viewerRole={role} viewerUserId={session.user.id} />

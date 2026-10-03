@@ -11,12 +11,13 @@ import WorkspaceTopbar from "@/app/components/workspace-topbar";
 import { formatRelative, formatTimestamp } from "@/app/lib/format";
 import { Identicon } from "@/app/components/identicon";
 import { buttonVariants } from "@/components/ui/button-variants";
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon, LayoutDashboardIcon, PlusIcon } from "lucide-react";
 import {
   Empty,
   EmptyContent,
   EmptyDescription,
   EmptyHeader,
+  EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
 
@@ -39,30 +40,33 @@ export default async function Page() {
       />
       <header className="dashboard-header">
         <div>
-          {/* No eyebrow here: the switcher two rows up already says which space
+          {/* No eyebrow here: the switcher in the bar already says which space
               this is, and repeating it makes the label read as decoration. */}
-          <h1>Your projects</h1>
+          <h1>Projects</h1>
+          <p className="dashboard-subtitle">
+            {personalProjects.length} {personalProjects.length === 1 ? "diagram" : "diagrams"}
+            {workspaces.length > 0 && <> · {workspaces.length} {workspaces.length === 1 ? "workspace" : "workspaces"}</>}
+          </p>
         </div>
         <div className="dashboard-actions">
-          <Link data-slot="button" className={buttonVariants()} href="/editor">New diagram</Link>
-          <Link data-slot="button" className={buttonVariants({ variant: "outline" })} href="/onboarding">New workspace</Link>
+          <Link data-slot="button" className={buttonVariants()} href="/editor"><PlusIcon data-icon="inline-start" />New Diagram</Link>
+          <Link data-slot="button" className={buttonVariants({ variant: "outline" })} href="/onboarding">New Workspace</Link>
         </div>
       </header>
       <PendingInvitations />
       {workspaces.length > 0 && (
-        <section className="dashboard-section workspace-list">
+        <section className="dashboard-section">
           <h2 className="dashboard-section-title">Workspaces</h2>
-          <ul>
+          {/* An inset grouped list, the System Settings pattern: rows that
+              navigate end in a disclosure chevron. */}
+          <ul className="grouped-list">
             {workspaces.map((workspace) => (
               <li key={workspace.id}>
-                <Link href={`/${workspace.slug}`}>
-                  <Identicon seed={workspace.id} className="workspace-list-icon" />
-                  <span className="workspace-list-text">
-                    <span className="workspace-list-name">{workspace.name}</span>
-                    <span className="workspace-list-role">{workspace.role}</span>
-                  </span>
-                  {/* A tile that navigates says so, the way a disclosure row does. */}
-                  <ChevronRightIcon className="workspace-list-chevron" aria-hidden />
+                <Link href={`/${workspace.slug}`} className="grouped-row">
+                  <Identicon seed={workspace.id} className="grouped-row-icon" />
+                  <span className="grouped-row-title">{workspace.name}</span>
+                  <span className="grouped-row-detail">{workspace.role}</span>
+                  <ChevronRightIcon className="grouped-row-chevron" aria-hidden />
                 </Link>
               </li>
             ))}
@@ -88,6 +92,7 @@ export default async function Page() {
       ) : (
         <Empty>
           <EmptyHeader>
+            <EmptyMedia variant="icon"><LayoutDashboardIcon /></EmptyMedia>
             <EmptyTitle>Draw your first diagram</EmptyTitle>
             <EmptyDescription>
               Start modeling tables and relationships without creating a workspace.

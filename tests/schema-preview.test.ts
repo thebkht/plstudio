@@ -1,28 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { PREVIEW_HEIGHT, PREVIEW_WIDTH, schemaPreview } from "@/app/lib/schema-preview";
-import { makeColumn, makeTable, TABLE_COLOR_STRIP_HEIGHT, TABLE_FIELD_HEIGHT, TABLE_HEADER_HEIGHT, tableWidth, type Relationship, type Schema, type Table } from "@/app/lib/schema";
+import { GROUP_PALETTE, makeMemo, makeSchemaGroup, makeTable, tableWidth, type Schema, type Table } from "@/app/lib/schema";
 
-const schemaOf = (tables: Table[], relationships: Relationship[] = []): Schema => ({
+const schemaOf = (tables: Table[]): Schema => ({
   id: "prj",
   name: "Preview",
   revision: 1,
   schemaFormatVersion: 3,
   tables,
-  relationships,
-});
-
-const relate = (from: Table, fromColumn: string, to: Table, toColumn: string): Relationship => ({
-  id: "rel",
-  startTableId: from.id,
-  startFieldId: from.columns.find((column) => column.name === fromColumn)!.id,
-  endTableId: to.id,
-  endFieldId: to.columns.find((column) => column.name === toColumn)!.id,
-  fields: [],
-  name: "FK",
-  cardinality: "one_to_many",
-  manyLabel: "",
-  updateConstraint: "No action",
-  deleteConstraint: "No action",
+  relationships: [],
 });
 
 describe("schema preview geometry", () => {
@@ -69,44 +55,33 @@ describe("schema preview geometry", () => {
     expect(schemaPreview(schemaOf([table]))!.tables[0].color).toBe("#cf7b00");
   });
 
-  it("anchors an edge to its column's row, on the facing flanks", () => {
-    const left = makeTable("LEFT", 0, 0);
-    const right = makeTable("RIGHT", 800, 0);
-    right.columns.push(makeColumn({ name: "LEFT_ID", type: "NUMBER" }));
-    const preview = schemaPreview(schemaOf([left, right], [relate(left, "ID", right, "LEFT_ID")]))!;
-    expect(preview.edges).toHaveLength(1);
-    const [edge] = preview.edges;
-    /* Leaves the left card's right flank and arrives at the right card's left. */
-    expect(edge.x1).toBeCloseTo(preview.tables[0].x + preview.tables[0].w, 5);
-    expect(edge.x2).toBeCloseTo(preview.tables[1].x, 5);
-    /* LEFT_ID is the second column, so the far end lands exactly one scaled
-       row below the near end. */
-    const scale = preview.tables[0].w / tableWidth(left);
-    expect(edge.y2 - edge.y1).toBeCloseTo(TABLE_FIELD_HEIGHT * scale, 5);
+  it("draws groups and memos as regions in their palette edge colours", () => {
+    const group = { ...makeSchemaGroup("Billing", 0, 0), color: "purple" as const, width: 400, height: 300 };
+    const memo = makeMemo("note", 500, 0, "green");
+    const preview = schemaPreview({ ...schemaOf([makeTable("A", 40, 60)]), groups: [group], memos: [memo] })!;
+    expect(preview.regions.map((region) => [region.kind, region.color])).toEqual([
+      ["group", GROUP_PALETTE.purple.border],
+      ["memo", "var(--memo-green-edge)"],
+    ]);
   });
 
-  it("anchors to the first row at the header's offset", () => {
-    const a = makeTable("A", 0, 0);
-    const b = makeTable("B", 800, 0);
-    const preview = schemaPreview(schemaOf([a, b], [relate(a, "ID", b, "ID")]))!;
-    const scale = preview.tables[0].w / tableWidth(a);
-    const expected = preview.tables[0].y + (TABLE_COLOR_STRIP_HEIGHT + TABLE_HEADER_HEIGHT + TABLE_FIELD_HEIGHT / 2) * scale;
-    expect(preview.edges[0].y1).toBeCloseTo(expected, 5);
+  it("fits the frame to regions as well as tables", () => {
+    const table = makeTable("A", 0, 0);
+    const alone = schemaPreview(schemaOf([table]))!;
+    const memo = makeMemo("far away", 2000, 1200);
+    const withMemo = schemaPreview({ ...schemaOf([table]), memos: [memo] })!;
+    /* The far memo has to fit too, so the table shrinks to make room. */
+    expect(withMemo.tables[0].w).toBeLessThan(alone.tables[0].w);
+    const right = Math.max(...withMemo.regions.map((region) => region.x + region.w));
+    expect(right).toBeLessThanOrEqual(PREVIEW_WIDTH);
   });
 
-  it("skips a relationship whose table or column has been deleted", () => {
-    const a = makeTable("A", 0, 0);
-    const b = makeTable("B", 400, 0);
-    const dangling = relate(a, "ID", b, "ID");
-    expect(schemaPreview(schemaOf([a], [dangling]))!.edges).toHaveLength(0);
-    expect(schemaPreview(schemaOf([a, b], [{ ...dangling, endFieldId: "col_gone" }]))!.edges).toHaveLength(0);
+  it("has nothing to draw when only groups or memos exist", () => {
+    expect(schemaPreview({ ...schemaOf([]), groups: [makeSchemaGroup("Empty")], memos: [makeMemo("hi")] })).toBeNull();
   });
 
   it("caps how much it will draw", () => {
     const many = Array.from({ length: 90 }, (_, index) => makeTable(`T${index}`, index * 300, index * 40));
-    const relationships = many.slice(1).map((table, index) => ({ ...relate(many[index], "ID", table, "ID"), id: `rel_${index}` }));
-    const preview = schemaPreview(schemaOf(many, relationships))!;
-    expect(preview.tables).toHaveLength(60);
-    expect(preview.edges.length).toBeLessThanOrEqual(80);
+    expect(schemaPreview(schemaOf(many))!.tables).toHaveLength(60);
   });
 });

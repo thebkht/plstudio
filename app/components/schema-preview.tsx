@@ -2,18 +2,18 @@ import { PREVIEW_HEIGHT, PREVIEW_WIDTH, schemaPreview } from "@/app/lib/schema-p
 import { type Schema } from "@/app/lib/schema";
 
 /**
- * A schema's silhouette, sized to a card. Deliberately not a client component:
- * the dashboards are server components, so the whole `schemaJson` stays on the
- * server and only this markup crosses the wire. It holds no state and reads no
- * DOM.
+ * A schema's map, sized to a card -- drawn exactly as the editor's minimap
+ * draws the same diagram, so the thumbnail you click is the overview you land
+ * on. Deliberately not a client component: the dashboards are server
+ * components, so the whole `schemaJson` stays on the server and only this
+ * markup crosses the wire. It holds no state and reads no DOM.
  *
  * Decorative: the card states the name and table count in text, so announcing
  * a wall of rectangles would only add noise.
  */
 
 /** Kept in device pixels rather than scaled, so density never changes weight. */
-const STRIP_HEIGHT = 2;
-const CORNER = 2;
+const CORNER = 1.5;
 
 export default function SchemaPreview({ schema }: { schema: Schema }) {
   const preview = schemaPreview(schema);
@@ -30,38 +30,14 @@ export default function SchemaPreview({ schema }: { schema: Schema }) {
       aria-hidden="true"
       focusable="false"
     >
-      {/* Wiring first, so the blocks sit above their own connections. */}
-      {preview.edges.map((edge, index) => (
-        <line
-          key={index}
-          x1={edge.x1}
-          y1={edge.y1}
-          x2={edge.x2}
-          y2={edge.y2}
-          className="schema-preview-edge"
-        />
+      {/* Regions first, faint, so the tables read as sitting inside them. Fill
+          goes through `style`: memo colours are custom properties, which a
+          presentation attribute cannot resolve. */}
+      {preview.regions.map((region, index) => (
+        <rect key={`r${index}`} x={region.x} y={region.y} width={region.w} height={region.h} rx={CORNER * 2} className="schema-preview-region" style={{ fill: region.color }} />
       ))}
       {preview.tables.map((table, index) => (
-        <g key={index}>
-          <rect
-            x={table.x}
-            y={table.y}
-            width={table.w}
-            height={table.h}
-            rx={CORNER}
-            className="schema-preview-table"
-          />
-          {/* The accent strip the canvas card wears, at a fixed weight. Clipped
-              to the block's own corner so it cannot outrun a short table. */}
-          <rect
-            x={table.x}
-            y={table.y}
-            width={table.w}
-            height={Math.min(STRIP_HEIGHT, table.h)}
-            rx={Math.min(CORNER, table.h / 2)}
-            fill={table.color}
-          />
-        </g>
+        <rect key={index} x={table.x} y={table.y} width={table.w} height={table.h} rx={CORNER} className="schema-preview-table" style={{ fill: table.color }} />
       ))}
     </svg>
   );

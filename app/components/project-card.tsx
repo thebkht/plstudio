@@ -16,20 +16,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardAction,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
   DropdownMenu,
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-/* Equal-lightness hues, so no project's strip outweighs another's, keyed to the
+/* Equal-lightness hues, so no project's dot outweighs another's, keyed to the
    id: four diagrams all called "Untitled" are otherwise identical at a glance. */
 const HUES = [28, 78, 148, 228, 288, 348];
 const hueOf = (id: string) => HUES[[...id].reduce((hash, character) => (hash * 31 + character.charCodeAt(0)) >>> 0, 7) % HUES.length];
@@ -45,42 +38,43 @@ export default function ProjectCard({ projectId, href, name, tableCount, updated
     else toast.error("This project could not be deleted.");
   };
   return (
-    <Card size="sm" className="project-card" style={{ "--project-hue": hueOf(projectId) } as CSSProperties}>
-      {/* Rendered upstream and passed in, so the schema it draws from never
-          leaves the server. Full-bleed, above the header. */}
-      {preview && <div className="project-card-preview">{preview}</div>}
-      <span className="project-card-strip" aria-hidden="true" />
-      <CardHeader>
-        <CardTitle>
-          <Link href={href} className="project-card-link">
-            {name}
-          </Link>
-        </CardTitle>
+    <article className="project-card" style={{ "--project-hue": hueOf(projectId) } as CSSProperties}>
+      {/* The document browser's tile: the diagram's map on its own rounded
+          surface, the name and metadata beneath it rather than boxed in with
+          it. Rendered upstream and passed in, so the schema it draws from
+          never leaves the server. */}
+      <div className="project-card-thumb">
+        {preview}
+        {canDelete && (
+          <DropdownMenuTrigger>
+            <Button variant="secondary" size="icon-xs" className="project-card-more" aria-label={`Actions for ${name}`}>
+              <EllipsisIcon/>
+            </Button>
+            <DropdownMenu placement="bottom end" className="w-auto min-w-40">
+              <DropdownMenuGroup>
+                <DropdownMenuItem variant="destructive" onAction={() => setConfirming(true)}>
+                  <Trash2Icon/>
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </DropdownMenu>
+          </DropdownMenuTrigger>
+        )}
+      </div>
+      <div className="project-card-text">
+        <Link href={href} className="project-card-link">
+          {name}
+        </Link>
         {/* One secondary line, not two at different sizes: the name is the only
-            thing on the card that should be read first. */}
-        <CardDescription className="project-card-meta">
+            thing on the card that should be read first. The dot carries the
+            id's hue, so four diagrams all called "Untitled" still differ. */}
+        <p className="project-card-meta">
+          <span className="project-card-dot" aria-hidden="true" />
           {tableCount} {tableCount === 1 ? "table" : "tables"}
           <span aria-hidden="true"> · </span>
-          <span title={updatedAt}>{author ? `${author}, ${updatedLabel}` : `Updated ${updatedLabel}`}</span>
-        </CardDescription>
-        {canDelete && (
-          <CardAction>
-            <DropdownMenuTrigger>
-              <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${name}`}>
-                <EllipsisIcon/>
-              </Button>
-              <DropdownMenu placement="bottom end" className="w-auto min-w-40">
-                <DropdownMenuGroup>
-                  <DropdownMenuItem variant="destructive" onAction={() => setConfirming(true)}>
-                    <Trash2Icon/>
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-              </DropdownMenu>
-            </DropdownMenuTrigger>
-          </CardAction>
-        )}
-      </CardHeader>
+          <span title={updatedAt}>{author ? `${author}, ${updatedLabel}` : updatedLabel}</span>
+        </p>
+      </div>
       <AlertDialog isOpen={confirming} onOpenChange={setConfirming}>
         <AlertDialogHeader>
           <AlertDialogTitle>Delete “{name}”?</AlertDialogTitle>
@@ -93,6 +87,6 @@ export default function ProjectCard({ projectId, href, name, tableCount, updated
           <AlertDialogAction variant="destructive" onClick={() => void remove()}>Delete</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialog>
-    </Card>
+    </article>
   );
 }
