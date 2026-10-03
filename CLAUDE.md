@@ -118,7 +118,8 @@ On SIGINT/SIGTERM the server closes every room and flushes the debounced stores 
 - `app/lib/collab/ydoc.ts` — pure `schemaFromYDoc()` / `applySchemaToYDoc()`. Imported by *both* browser and server, so the projection can never diverge. Tested in `tests/ydoc.test.ts`.
 - `app/lib/collab/useCollaborativeSchema.ts` — owns the `Y.Doc` and presents the designer's old surface (`schema`, `commit(next)`, `undo`, `redo`). Undo is per-user via `Y.UndoManager` tracking this client's origin.
 - `app/api/collab/token/route.ts` — the **only** place access is decided, via the same session helpers as the REST routes. It signs a 120s token bound to one `documentName`; the collab socket verifies and trusts it. Read-only shares are enforced on the connection.
-- Presence (cursors, selection) rides the Yjs awareness channel — no second transport. Cursor coordinates are canvas space, never screen space.
+- Presence (cursors, selection) rides the Yjs awareness channel — no second transport. Cursor coordinates are canvas space, never screen space. It is split by speed (`app/lib/collab/presence.ts`): the roster `peers` (user, colour, `selectedIds`) is React state in `SchemaContext` and only changes when `samePeers` says it did, while positions go to the `cursors` store that only `PeerCursors` subscribes to (`useSyncExternalStore`). Never put a cursor back into `peers` — that re-renders every `useSchema()` consumer once per frame per moving peer.
+- A hidden tab does not project remote updates: the Y.Doc still integrates them, and the schema is re-read once on `visibilitychange`. Local-origin transactions always project.
 
 Collab is on by default. With `NEXT_PUBLIC_COLLAB=off` (build time), or while the socket is unreachable, the app degrades to single-player editing and `PUT` is the only durability path via explicit Save/⌘S.
 
