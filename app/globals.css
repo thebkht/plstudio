@@ -4177,10 +4177,6 @@ a.grouped-row:hover .grouped-row-chevron {
   font-weight: 700;
   letter-spacing: var(--tracking-title);
 }
-/* The primary action fills the sheet, the way a sign-in sheet's does. */
-.auth-card form [type="submit"] {
-  width: 100%;
-}
 /* Password label sharing its row with the "Forgot password?" link. */
 .auth-label-row {
   display: flex;

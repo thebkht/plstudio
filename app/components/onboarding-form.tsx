@@ -57,7 +57,9 @@ export default function OnboardingForm({ hasWorkspaces }: { hasWorkspaces: boole
 
   return (
     <Card className="auth-card">
-      <form onSubmit={submit}>
+      {/* The form is the card's only child, so it carries the card's column gap
+          -- without it the description runs into the first label. */}
+      <form onSubmit={submit} className="flex flex-col gap-(--card-spacing)">
         <CardHeader>
           <CardTitle>{hasWorkspaces ? "Create another workspace" : "Create a workspace"}</CardTitle>
           <CardDescription>Workspaces let you share diagrams with your team. You can belong to as many as you like.</CardDescription>
@@ -86,9 +88,11 @@ export default function OnboardingForm({ hasWorkspaces }: { hasWorkspaces: boole
                 <AlertTitle>{error}</AlertTitle>
               </Alert>
             )}
-            <Field className="flex-row gap-2">
-              <Button type="submit" isDisabled={busy || !name.trim()}>{busy ? "Creating…" : "Continue"}</Button>
-              {hasWorkspaces && <Link data-slot="button" className={buttonVariants({ variant: "outline" })} href="/">Cancel</Link>}
+            {/* A sheet footer: Cancel leading, the default action trailing, the
+                two sharing the width -- the order macOS dialogs use. */}
+            <Field className="flex-row gap-2 *:flex-1">
+              {hasWorkspaces && <Link data-slot="button" className={buttonVariants({ variant: "outline", size: "lg" })} href="/">Cancel</Link>}
+              <Button type="submit" size="lg" isDisabled={busy || !name.trim()}>{busy ? "Creating…" : "Continue"}</Button>
             </Field>
           </FieldGroup>
         </CardContent>
