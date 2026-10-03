@@ -4202,6 +4202,25 @@ a.grouped-row:hover .grouped-row-chevron {
 .settings-invite [data-slot="input"] {
   flex: 1;
 }
+/* A labelled row: the label leading, the value or its field filling the
+   rest, the way a System Settings form row reads. */
+.grouped-row-label {
+  flex: none;
+  min-width: 96px;
+  color: var(--label);
+}
+.settings-field {
+  gap: 8px;
+  padding-block: 6px;
+}
+.settings-field [data-slot="input"] {
+  flex: 1;
+}
+.settings-value {
+  flex: 1;
+  text-align: right;
+  text-transform: none;
+}
 
 /* ── Auth ─────────────────────────────────────────────────────────── */
 /* A single sheet on the grouped background, the app icon standing over it --

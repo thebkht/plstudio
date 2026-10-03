@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { authClient } from "@/app/lib/auth-client";
 import { Identicon } from "@/app/components/identicon";
@@ -23,6 +24,11 @@ export default function SettingsClient({ workspace, organizationId, organization
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [email, setEmail] = useState("");
   const [pendingRoleFor, setPendingRoleFor] = useState<string | null>(null);
+  const router = useRouter();
+  const [savedName, setSavedName] = useState(organizationName);
+  const [draftName, setDraftName] = useState(organizationName);
+  const [renaming, setRenaming] = useState(false);
+  const renamable = draftName.trim() !== "" && draftName.trim() !== savedName;
   const options = assignableRoles(viewerRole);
 
   useEffect(() => {
@@ -48,6 +54,23 @@ export default function SettingsClient({ workspace, organizationId, organization
     } else toast.error(result.error?.message || "Could not create invitation.");
   };
 
+  // Only the display name changes: the slug is the workspace's URL, and every
+  // link and share already handed out would break with it.
+  const rename = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!renamable) return;
+    const name = draftName.trim();
+    setRenaming(true);
+    const result = await authClient.organization.update({ organizationId, data: { name } });
+    setRenaming(false);
+    if (result.error) return toast.error(result.error.message || "Could not rename this workspace.");
+    setSavedName(name);
+    setDraftName(name);
+    toast.success(`Workspace renamed to ${name}.`);
+    // The title, the switcher and the dashboard all read the name on the server.
+    router.refresh();
+  };
+
   const changeRole = async (member: WorkspaceMember, role: WorkspaceRole) => {
     if (role === member.role) return;
     setPendingRoleFor(member.id);
@@ -67,6 +90,33 @@ export default function SettingsClient({ workspace, organizationId, organization
      one inset grouped list, explained by a footnote beneath it. */
   return (
     <div className="settings-page">
+      <section className="dashboard-section">
+        <h2 className="dashboard-section-title">General</h2>
+        {canManage ? (
+          <form className="grouped-list" onSubmit={rename}>
+            <div className="grouped-row settings-field">
+              <label htmlFor="workspace-name" className="grouped-row-label">Name</label>
+              <Input
+                id="workspace-name"
+                value={draftName}
+                maxLength={64}
+                disabled={renaming}
+                onChange={(event) => setDraftName(event.target.value)}
+                onKeyDown={(event) => { if (event.key === "Escape") setDraftName(savedName); }}
+              />
+              {renamable && <Button type="submit" size="sm" isDisabled={renaming}>{renaming ? "Saving…" : "Rename"}</Button>}
+            </div>
+          </form>
+        ) : (
+          <div className="grouped-list">
+            <div className="grouped-row">
+              <span className="grouped-row-label">Name</span>
+              <span className="grouped-row-detail settings-value">{savedName}</span>
+            </div>
+          </div>
+        )}
+        <p className="grouped-list-footer">The workspace address stays /{workspace}{canManage ? " when you rename it" : ""}.</p>
+      </section>
       <section className="dashboard-section">
         <h2 className="dashboard-section-title">
           Members {members.length > 0 && <span className="dashboard-section-count">{members.length}</span>}
@@ -109,7 +159,7 @@ export default function SettingsClient({ workspace, organizationId, organization
             );
           })}
         </ul>
-        <p className="grouped-list-footer">Everyone with access to diagrams in {organizationName}.</p>
+        <p className="grouped-list-footer">Everyone with access to diagrams in {savedName}.</p>
       </section>
       {canManage && (
         <section className="dashboard-section">
