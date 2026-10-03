@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { LayoutDashboardIcon } from "lucide-react";
-import { listProjects } from "@/db/file-store";
+import { listProjectSummaries } from "@/app/lib/project-summaries";
 import { listUserWorkspaces, lookupUserNames, requireWorkspace } from "@/app/lib/session";
 import NewProjectButton from "@/app/components/new-project-button";
 import ProjectCard from "@/app/components/project-card";
@@ -20,7 +20,7 @@ import {
 export default async function WorkspacePage({ params }: { params: Promise<{ workspace: string }> }) {
   const { workspace } = await params;
   const { organization, session } = await requireWorkspace(workspace);
-  const [rows, workspaces] = await Promise.all([listProjects({ organizationId: organization.id }), listUserWorkspaces(session.user.id)]);
+  const [rows, workspaces] = await Promise.all([listProjectSummaries({ organizationId: organization.id }), listUserWorkspaces(session.user.id)]);
   // A workspace's projects come from several members, so the authors are looked up in one batch.
   const authors = await lookupUserNames(rows.map((project) => project.createdBy ?? ""));
   return (
@@ -47,8 +47,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
       {rows.length ? (
         <section className="dashboard-section project-grid">
           {rows.map((project) => {
-            const schema = project.schemaJson;
-            return <ProjectCard key={project.id} projectId={project.id} href={`/${workspace}/${project.id}`} name={project.name} tableCount={schema.tables?.length || 0} updatedAt={formatTimestamp(project.updatedAt)} updatedLabel={formatRelative(project.updatedAt)} author={project.createdBy ? authors.get(project.createdBy) : undefined} workspace={workspace} preview={<SchemaPreview schema={schema} />} />;
+            return <ProjectCard key={project.id} projectId={project.id} href={`/${workspace}/${project.id}`} name={project.name} tableCount={project.tables} updatedAt={formatTimestamp(project.updatedAt)} updatedLabel={formatRelative(project.updatedAt)} author={project.createdBy ? authors.get(project.createdBy) : undefined} workspace={workspace} preview={<SchemaPreview preview={project.preview} />} />;
           })}
         </section>
       ) : (

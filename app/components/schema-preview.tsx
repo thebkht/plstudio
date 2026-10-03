@@ -1,12 +1,12 @@
-import { PREVIEW_HEIGHT, PREVIEW_WIDTH, schemaPreview } from "@/app/lib/schema-preview";
-import { type Schema } from "@/app/lib/schema";
+import { PREVIEW_HEIGHT, PREVIEW_WIDTH, type PreviewGeometry } from "@/app/lib/schema-preview";
 
 /**
  * A schema's map, sized to a card -- drawn exactly as the editor's minimap
  * draws the same diagram, so the thumbnail you click is the overview you land
  * on. Deliberately not a client component: the dashboards are server
  * components, so the whole `schemaJson` stays on the server and only this
- * markup crosses the wire. It holds no state and reads no DOM.
+ * markup crosses the wire. It holds no state and reads no DOM, and it takes the
+ * geometry rather than the schema so the dashboards can hand it a cached one.
  *
  * Decorative: the card states the name and table count in text, so announcing
  * a wall of rectangles would only add noise.
@@ -15,8 +15,7 @@ import { type Schema } from "@/app/lib/schema";
 /** Kept in device pixels rather than scaled, so density never changes weight. */
 const CORNER = 1.5;
 
-export default function SchemaPreview({ schema }: { schema: Schema }) {
-  const preview = schemaPreview(schema);
+export default function SchemaPreview({ preview }: { preview: PreviewGeometry | null }) {
   if (!preview)
     return (
       <div className="schema-preview schema-preview-empty">

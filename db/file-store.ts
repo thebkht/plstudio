@@ -217,20 +217,63 @@ const readOwnerDir = async (owner: string) => {
   return Promise.all(names.filter((name) => name.endsWith(".json")).map((name) => readJson<StoredProject>(path.join(PROJECTS_DIR, owner, name))));
 };
 
+// A project carrying an organization id always lives in that organization's
+// directory, so the workspace dashboards never have to read anyone else's.
+// `matchesFilter` still runs on the record fields either way.
+const ownersFor = async (filter: ListFilter) => filter.organizationId === undefined ? ownerDirs() : [encodeURIComponent(filter.organizationId)];
+const matchesFilter = (filter: ListFilter) => (project: ProjectMeta) => (filter.organizationId === undefined || project.organizationId === filter.organizationId)
+  && (filter.createdBy === undefined || project.createdBy === filter.createdBy)
+  && (!filter.personalOnly || project.organizationId === null);
+const newestFirst = (a: ProjectMeta, b: ProjectMeta) => b.updatedAt.getTime() - a.updatedAt.getTime();
+
 /** Replaces every `orderBy(desc(projects.updatedAt))` query. */
 export async function listProjects(filter: ListFilter = {}) {
-  // A project carrying an organization id always lives in that organization's
-  // directory, so the workspace dashboards never have to read anyone else's.
-  // The filters below still run on the record fields either way.
-  const owners = filter.organizationId === undefined ? await ownerDirs() : [encodeURIComponent(filter.organizationId)];
-  const records = (await Promise.all(owners.map(readOwnerDir))).flat()
+  const records = (await Promise.all((await ownersFor(filter)).map(readOwnerDir))).flat()
     .filter((stored): stored is StoredProject => stored !== null)
     .map(hydrate);
-  return records
-    .filter((project) => (filter.organizationId === undefined || project.organizationId === filter.organizationId)
-      && (filter.createdBy === undefined || project.createdBy === filter.createdBy)
-      && (!filter.personalOnly || project.organizationId === null))
-    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  return records.filter(matchesFilter(filter)).sort(newestFirst);
+}
+
+/** What a listing needs of a project besides whatever the caller derives from its schema. */
+export type ProjectMeta = Pick<ProjectRecord, "id" | "name" | "organizationId" | "createdBy" | "updatedAt">;
+
+/**
+ * `listProjects` for callers that want something small out of every project --
+ * the dashboards want a thumbnail and a table count -- rather than the schemas
+ * themselves. `derive` runs once per *version* of a file: each entry is kept
+ * against the file's mtime and size, so listing an unchanged project costs a
+ * `stat` instead of reading and parsing its whole schema on every page view.
+ * Only the derived value is held, never the schema, so the cache stays small on
+ * a host that has little memory to give it.
+ */
+export function createProjectIndex<T extends object>(derive: (project: ProjectRecord) => T) {
+  const cache = new Map<string, { stamp: string; entry: ProjectMeta & T }>();
+  const load = async (file: string): Promise<(ProjectMeta & T) | null> => {
+    const stat = await fs.stat(file).catch((error) => { if (isMissing(error)) return null; throw error; });
+    if (!stat) return null;
+    const stamp = `${stat.mtimeMs}:${stat.size}`;
+    const hit = cache.get(file);
+    if (hit?.stamp === stamp) return hit.entry;
+    const stored = await readJson<StoredProject>(file);
+    if (!stored) return null;
+    const project = hydrate(stored);
+    const entry = { id: project.id, name: project.name, organizationId: project.organizationId, createdBy: project.createdBy, updatedAt: project.updatedAt, ...derive(project) };
+    cache.set(file, { stamp, entry });
+    return entry;
+  };
+  const loadOwner = async (owner: string) => {
+    const dir = path.join(PROJECTS_DIR, owner);
+    const names = await fs.readdir(dir).catch((error) => { if (isMissing(error)) return [] as string[]; throw error; });
+    const files = new Set(names.filter((name) => name.endsWith(".json")).map((name) => path.join(dir, name)));
+    // A deleted or moved project is never listed again, so nothing else would evict it.
+    for (const file of cache.keys()) if (path.dirname(file) === dir && !files.has(file)) cache.delete(file);
+    return Promise.all([...files].map(load));
+  };
+  return async (filter: ListFilter = {}) =>
+    (await Promise.all((await ownersFor(filter)).map(loadOwner))).flat()
+      .flatMap((entry) => (entry ? [entry] : []))
+      .filter(matchesFilter(filter))
+      .sort(newestFirst);
 }
 
 /** Better Auth's anonymous plugin re-owns a guest's projects on account linking. */

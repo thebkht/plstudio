@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { auth } from "@/app/lib/auth";
-import { listProjects } from "@/db/file-store";
+import { listProjectSummaries } from "@/app/lib/project-summaries";
 import { listUserWorkspaces } from "@/app/lib/session";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -26,7 +26,7 @@ export default async function Page() {
   if (!session) redirect("/login");
   const [workspaces, personalProjects] = await Promise.all([
     listUserWorkspaces(session.user.id),
-    listProjects({ createdBy: session.user.id, personalOnly: true }),
+    listProjectSummaries({ createdBy: session.user.id, personalOnly: true }),
   ]);
   return (
     <main className="dashboard-shell">
@@ -82,10 +82,9 @@ export default async function Page() {
           </h2>
           <div className="project-grid">
             {personalProjects.map((project) => {
-              const schema = project.schemaJson;
               /* No author here: every project in the personal space is yours, so
                  the name would be the same string on every card. */
-              return <ProjectCard key={project.id} projectId={project.id} href={`/project/${project.id}`} name={project.name} tableCount={schema.tables?.length || 0} updatedAt={formatTimestamp(project.updatedAt)} updatedLabel={formatRelative(project.updatedAt)} preview={<SchemaPreview schema={schema} />} />;
+              return <ProjectCard key={project.id} projectId={project.id} href={`/project/${project.id}`} name={project.name} tableCount={project.tables} updatedAt={formatTimestamp(project.updatedAt)} updatedLabel={formatRelative(project.updatedAt)} preview={<SchemaPreview preview={project.preview} />} />;
             })}
           </div>
         </section>

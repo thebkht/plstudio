@@ -129,6 +129,52 @@ describe("listProjects", () => {
   });
 });
 
+describe("createProjectIndex", () => {
+  const index = () => {
+    let derived = 0;
+    const list = store.createProjectIndex((project) => { derived += 1; return { tables: project.schemaJson.tables.length }; });
+    return { list, derived: () => derived };
+  };
+
+  it("lists what listProjects lists, carrying the derived value instead of the schema", async () => {
+    await seed("org-a", { organizationId: "org-1" });
+    await seed("mine");
+    await seed("theirs", { createdBy: "user-2" });
+    const { list } = index();
+
+    expect((await list({ organizationId: "org-1" })).map((p) => p.id)).toEqual(["org-a"]);
+    const [mine] = await list({ createdBy: "user-1", personalOnly: true });
+    expect(mine).toMatchObject({ id: "mine", name: "mine", tables: 0 });
+    expect(mine.updatedAt).toBeInstanceOf(Date);
+    expect(mine).not.toHaveProperty("schemaJson");
+  });
+
+  it("derives once per version of a project, not once per listing", async () => {
+    await seed("p1");
+    const { list, derived } = index();
+    await list();
+    await list();
+    expect(derived()).toBe(1);
+
+    // Any rewrite is a new version. The explicit mtime keeps the test honest on a filesystem with coarse timestamps.
+    await store.updateProject("p1", { name: "renamed" });
+    const file = path.join(root, "projects", "user-1", "p1.json");
+    await fs.utimes(file, new Date(), new Date(Date.now() + 5_000));
+    expect((await list())[0].name).toBe("renamed");
+    expect(derived()).toBe(2);
+  });
+
+  it("forgets a deleted project and is empty before any exists", async () => {
+    const { list } = index();
+    expect(await list()).toEqual([]);
+    await seed("p1");
+    await seed("p2");
+    expect(await list()).toHaveLength(2);
+    await store.deleteProject("p1");
+    expect((await list()).map((p) => p.id)).toEqual(["p2"]);
+  });
+});
+
 describe("deleteProject", () => {
   it("removes the Yjs blob and the share file too", async () => {
     await seed("p1");
