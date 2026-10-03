@@ -16,9 +16,12 @@ type UpgradeHandler = (req: IncomingMessage, socket: Duplex, head: Buffer) => un
 export function createCollab(secret: string) {
   return new Hocuspocus({
     // Store on a trailing edge so a burst of edits is one write, but never let a
-    // busy room go more than 10s without being durable.
-    debounce: 2000,
-    maxDebounce: 10000,
+    // busy room go more than 20s without being durable. Each store re-projects
+    // the whole document and rewrites two files, so with several rooms active
+    // on one host this is the server's main recurring cost; shutdown flushes
+    // whatever is pending, and Save/⌘S still writes through `PUT`.
+    debounce: 4000,
+    maxDebounce: 20000,
     quiet: true,
 
     async onAuthenticate({ token, documentName, connectionConfig }) {

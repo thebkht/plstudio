@@ -164,7 +164,9 @@ export async function readProject(id: string) {
 async function writeProject(record: ProjectRecord, previousFile?: string) {
   const owner = ownerSegment(record);
   const file = projectFile(owner, record.id);
-  await writeAtomic(file, JSON.stringify({ ...record, createdAt: record.createdAt.toISOString(), updatedAt: record.updatedAt.toISOString() }, null, 2));
+  // Compact: the collab server rewrites this on every store of every busy room,
+  // and nothing but this module reads it.
+  await writeAtomic(file, JSON.stringify({ ...record, createdAt: record.createdAt.toISOString(), updatedAt: record.updatedAt.toISOString() }));
   ownerOfProject.set(record.id, owner);
   if (previousFile && previousFile !== file) await fs.rm(previousFile, { force: true }).then(() => pruneOwnerDir(previousFile));
   return record;

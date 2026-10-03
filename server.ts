@@ -40,7 +40,7 @@ app.prepare().then(() => {
 
   server.listen(port, () => console.log(`> Ready on http://localhost:${port}${shutdownCollab ? ` (collab on ${COLLAB_PATH})` : ""}`));
 
-  // Flush every room's debounced store before exiting, or the last ≤10s of edits
+  // Flush every room's debounced store before exiting, or the last ≤20s of edits
   // only ever reach the in-memory Y.Doc.
   const stop = async () => {
     server.close();
