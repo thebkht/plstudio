@@ -409,7 +409,7 @@ body {
     [data-slot="context-menu-item"],
     [data-slot="context-menu-sub-trigger"],
     [data-slot="select-item"]
-  ):is([data-focused], :focus-visible) {
+  ):is([data-hovered], [data-focus-visible]) {
   background: var(--primary);
   color: var(--primary-foreground);
 }
@@ -419,10 +419,10 @@ body {
     [data-slot="context-menu-item"],
     [data-slot="context-menu-sub-trigger"],
     [data-slot="select-item"]
-  ):is([data-focused], :focus-visible) * {
+  ):is([data-hovered], [data-focus-visible]) * {
   color: inherit;
 }
-:is([data-slot="dropdown-menu-item"], [data-slot="context-menu-item"])[data-variant="destructive"]:is([data-focused], :focus-visible) {
+:is([data-slot="dropdown-menu-item"], [data-slot="context-menu-item"])[data-variant="destructive"]:is([data-hovered], [data-focus-visible]) {
   background: var(--destructive);
   color: #fff;
 }
@@ -4096,7 +4096,13 @@ a.grouped-row:hover .grouped-row-chevron {
   backdrop-filter: var(--material-blur);
   box-shadow: 0 0 0 0.5px var(--hairline), 0 1px 3px rgb(0 0 0 / 0.1);
   opacity: 0;
-  transition: opacity var(--duration-fast) var(--ease-out);
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    transform var(--spring-duration) var(--spring);
+}
+/* Rides the thumbnail's lift, so it stays pinned to the same corner. */
+.project-card:hover .project-card-more {
+  transform: translateY(-2px);
 }
 .project-card-more:hover {
   background: var(--material-thick);

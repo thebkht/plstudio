@@ -45,21 +45,6 @@ export default function ProjectCard({ projectId, href, name, tableCount, updated
           never leaves the server. */}
       <div className="project-card-thumb">
         {preview}
-        {canDelete && (
-          <DropdownMenuTrigger>
-            <Button variant="secondary" size="icon-xs" className="project-card-more" aria-label={`Actions for ${name}`}>
-              <EllipsisIcon/>
-            </Button>
-            <DropdownMenu placement="bottom end" className="w-auto min-w-40">
-              <DropdownMenuGroup>
-                <DropdownMenuItem variant="destructive" onAction={() => setConfirming(true)}>
-                  <Trash2Icon/>
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-            </DropdownMenu>
-          </DropdownMenuTrigger>
-        )}
       </div>
       <div className="project-card-text">
         <Link href={href} className="project-card-link">
@@ -75,6 +60,25 @@ export default function ProjectCard({ projectId, href, name, tableCount, updated
           <span title={updatedAt}>{author ? `${author}, ${updatedLabel}` : updatedLabel}</span>
         </p>
       </div>
+      {/* A sibling of the thumbnail, not its child: the thumbnail lifts with a
+          transform, which makes it a stacking context, and a button inside it
+          could never rise above the card-wide link overlay -- every press on
+          it opened the editor. */}
+      {canDelete && (
+        <DropdownMenuTrigger>
+          <Button variant="secondary" size="icon-xs" className="project-card-more" aria-label={`Actions for ${name}`}>
+            <EllipsisIcon/>
+          </Button>
+          <DropdownMenu placement="bottom end" className="w-auto min-w-40">
+            <DropdownMenuGroup>
+              <DropdownMenuItem variant="destructive" onAction={() => setConfirming(true)}>
+                <Trash2Icon/>
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </DropdownMenu>
+        </DropdownMenuTrigger>
+      )}
       <AlertDialog isOpen={confirming} onOpenChange={setConfirming}>
         <AlertDialogHeader>
           <AlertDialogTitle>Delete “{name}”?</AlertDialogTitle>
