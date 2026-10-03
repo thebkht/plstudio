@@ -120,7 +120,7 @@ powershell -ExecutionPolicy Bypass -File scripts\install-boot.ps1 -Native  # at 
 On macOS and Linux the same three steps apply, then start the server yourself:
 
 ```bash
-pnpm start     # Next + collab, on http://localhost:4000 (PORT overrides)
+pnpm start     # the compiled server (dist/server.cjs): Next + collab, on http://localhost:4000 (PORT overrides)
 ```
 
 What differs from the Docker path:
