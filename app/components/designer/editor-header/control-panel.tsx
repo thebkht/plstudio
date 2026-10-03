@@ -41,8 +41,9 @@ export function ControlPanel({
       <a className="appbar-brand" aria-label="PLStudio home" href="/">
         <BrandMark compact />
       </a>
-      <div className="flex flex-col">
-        <div className="appbar-title">
+      {/* One row, the macOS unified toolbar: the document's identity, then
+          its menus, then its state and sharing at the trailing edge. */}
+      <div className="appbar-title">
           <a
             className="appbar-crumb"
             href={workspaceSlug ? `/${workspaceSlug}` : "/"}
@@ -62,8 +63,9 @@ export function ControlPanel({
               }));
             }}
           />
-        </div>
-        <Menubar
+      </div>
+      <span className="appbar-divider" aria-hidden="true" />
+      <Menubar
           label="Diagram menus"
           count={menus.length}
           isOpen={openMenu !== null}
@@ -85,8 +87,7 @@ export function ControlPanel({
               onOpenChange={setOpenMenu}
             />
           ))}
-        </Menubar>
-      </div>
+      </Menubar>
       <div className="appbar-actions">
         {/*
          * Feedback for save state: displays whether changes are saved,
@@ -116,8 +117,8 @@ export function ControlPanel({
                   : "Saved"}
         </Badge>
         <PeerAvatars peers={peers} status={collabStatus} />
-        <Button className="share-btn" onClick={() => setModal("share")}>
-          <ShareIcon size={15} /> Share
+        <Button size="sm" className="share-btn" onClick={() => setModal("share")}>
+          <ShareIcon data-icon="inline-start" /> Share
         </Button>
         <NavUser
           user={user}

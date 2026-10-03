@@ -75,7 +75,7 @@ The camera follows the same rule one level up. `applyViewport(pan, zoom)` (`cont
 
 Wheel handling is attached natively with `{ passive: false }` because React registers `wheel` passively, which silently no-ops `preventDefault`. Scroll pans; ctrl/⌘-scroll zooms anchored at the cursor.
 
-`app/globals.css` (~3300 lines) owns all workspace layout, light-mode materials, table-card styling, and responsive breakpoints. It supports `prefers-reduced-motion` and `prefers-reduced-transparency` — keep new styles consistent with that.
+`app/globals.css` (~4200 lines) owns all workspace layout, materials, table-card styling, and responsive breakpoints. Its colours are Apple's semantic system roles (`--label*`, `--bg-grouped*`, `--fill-1…4`, `--separator`, `--material-thin/regular/thick`, systemBlue as `--primary`); the older names (`--ink-*`, `--surface-*`, `--brand-*`) are aliases of them. Dark mode follows `prefers-color-scheme` only — the first `:root` block restates just the base roles under the media query, and Tailwind's `dark:` variant is that same media query, not a `.dark` class. Write new colours as those roles, never hexes. It supports `prefers-reduced-motion` and `prefers-reduced-transparency` — keep new styles consistent with that.
 
 ### Persistence
 

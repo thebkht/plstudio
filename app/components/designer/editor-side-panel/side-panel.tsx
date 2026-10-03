@@ -72,15 +72,17 @@ export function SidePanel({
           selectedKey={panelTab}
           onSelectionChange={(key) => setPanelTab(key as PanelTab)}
         >
-          <TabsList variant="line">
+          {/* A segmented control: three views of one diagram. Counts ride
+              along in the secondary label colour rather than in brackets. */}
+          <TabsList className="panel-segments">
             <TabsTrigger id="tables">
-              Tables ({schema.tables.length})
+              Tables <span className="panel-segment-count">{schema.tables.length}</span>
             </TabsTrigger>
             <TabsTrigger id="relationships">
-              Relationships ({relationshipCount})
+              Relationships <span className="panel-segment-count">{relationshipCount}</span>
             </TabsTrigger>
             <TabsTrigger id="queries">
-              Queries ({(schema.queries ?? []).length})
+              Queries <span className="panel-segment-count">{(schema.queries ?? []).length}</span>
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -112,9 +114,7 @@ export function SidePanel({
           </span>
           <ToggleGroup
             aria-label="Panel view"
-            size="sm"
-            spacing={0}
-            variant="outline"
+            className="segmented"
             selectionMode="single"
             disallowEmptySelection
             selectedKeys={[panelMode]}

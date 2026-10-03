@@ -253,7 +253,7 @@
   /* A floor, not a fixed height: the brand block (38px) plus its padding *is*
      the bar, so the token and the rendered edge can never drift apart. The
      sidebar is positioned off this value. */
-  --appbar-height: 76px;
+  --appbar-height: 52px;
 
   /* Chrome ramp the editor CSS is written against, now aliases: surfaces
      ascend from the page, ink descends from the label colour. */
@@ -466,9 +466,10 @@ body {
   min-height: var(--appbar-height);
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 7px 16px;
-  background: var(--material-regular);
+  gap: 10px;
+  padding: 6px 12px;
+  border-bottom: 0.5px solid var(--separator);
+  background: var(--material-thick);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   backdrop-filter: blur(24px) saturate(180%);
 }
@@ -500,12 +501,12 @@ body {
   background: var(--surface-0);
 }
 .appbar-brand {
-  width: 38px;
-  height: 38px;
-  flex: 0 0 38px;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
   display: grid;
   place-items: center;
-  border-radius: calc(var(--radius) * 10 / 14);
+  border-radius: 6.5px;
   background: var(--app-icon);
   box-shadow: var(--app-icon-shadow);
   color: #fff;
@@ -518,17 +519,17 @@ body {
   box-shadow: none;
 }
 .appbar-brand .brand-mark-icon svg {
-  width: 18px;
-  height: 18px;
+  width: 15px;
+  height: 15px;
 }
 /* Shrinks before the menus do, so a long name truncates rather than pushing
    File/Edit/View off the end of the bar. */
 .appbar-title {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 4px;
   min-width: 0;
-  font-size: var(--text-base);
+  font-size: var(--text-body);
   letter-spacing: var(--tracking-tight);
 }
 .appbar-title-icon {
@@ -544,8 +545,12 @@ body {
 .appbar-crumb {
   flex: 0 0 auto;
   white-space: nowrap;
-  color: var(--ink-1);
+  color: var(--label-2);
   font-weight: 500;
+  text-decoration: none;
+}
+.appbar-crumb:hover {
+  color: var(--label);
 }
 .appbar-slash {
   flex: 0 0 auto;
@@ -567,7 +572,7 @@ body {
   background: transparent;
   box-shadow: none;
   font-size: inherit;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: inherit;
 }
 @supports not (field-sizing: content) {
@@ -576,8 +581,18 @@ body {
   }
 }
 .appbar-name:hover {
-  border-color: var(--border);
-  background: var(--surface-2);
+  background: var(--fill-3);
+}
+.appbar-name:focus-visible {
+  background: var(--bg-grouped-2);
+}
+/* A short vertical hairline between the document and its menus, the way a
+   toolbar separates item groups. */
+.appbar-divider {
+  flex: none;
+  width: 0.5px;
+  height: 18px;
+  background: var(--separator);
 }
 
 .menubar {
@@ -622,9 +637,28 @@ body {
 .panel-tabs {
   flex-direction: row;
   align-items: center;
-  gap: 2px;
-  padding: 4px 6px;
-  border-bottom: 1px solid var(--hairline);
+  gap: 6px;
+  padding: 8px 10px 6px;
+}
+.panel-tabs [data-slot="tabs"] {
+  flex: 1;
+  min-width: 0;
+}
+.panel-segments {
+  width: 100%;
+  height: 28px;
+  padding: 2px;
+  border-radius: 8px;
+}
+.panel-segments [data-slot="tabs-trigger"] {
+  gap: 5px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-size: var(--text-xs);
+}
+.panel-segment-count {
+  color: color-mix(in srgb, currentColor 60%, transparent);
+  font-variant-numeric: tabular-nums;
 }
 .panel-toolbar {
   flex: 0 0 auto;
@@ -1987,8 +2021,8 @@ body {
   bottom: 22px;
   z-index: 10;
   overflow: hidden;
-  border: 1px solid var(--hairline);
-  border-radius: calc(var(--radius) * 12 / 14);
+  border: 0.5px solid var(--hairline-strong);
+  border-radius: 12px;
   /* A material the canvas shows through, not a white card: at 88% it read as
      opaque. Thin enough that the grid and nearby cards blur through, with
      saturation lifted so what shows through keeps its colour. The gesture and
@@ -2062,10 +2096,12 @@ body {
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 6px;
-  border: 1px solid var(--hairline);
-  border-radius: calc(var(--radius) * 14 / 14);
-  background: var(--material-thick);
+  padding: 5px;
+  border: 0.5px solid var(--hairline-strong);
+  /* A capsule: half its own height, so the round buttons inside sit
+     concentric with its ends. */
+  border-radius: 999px;
+  background: var(--material-regular);
   -webkit-backdrop-filter: blur(18px) saturate(160%);
   backdrop-filter: blur(18px) saturate(160%);
   box-shadow: var(--shadow-dock);
@@ -2084,7 +2120,7 @@ body {
 /* Concentric with the dock: its corner less its 6px padding (floored, so a small base keeps a visible round). */
 .dock [data-slot="button"],
 .dock .dock-disabled {
-  border-radius: max(4px, calc(var(--radius) - 6px));
+  border-radius: 999px;
 }
 /* Dock toggles (the hand tool) read as pressed the way column flags do. */
 .dock [aria-pressed="true"] {
@@ -2521,7 +2557,7 @@ body {
     sans-serif;
   letter-spacing: var(--tracking-wide);
   paint-order: stroke;
-  stroke: var(--background);
+  stroke: var(--canvas-surface);
   stroke-width: 4px;
   stroke-linejoin: round;
   pointer-events: none;
