@@ -2,6 +2,7 @@
 
 import {
   memo as reactMemo,
+  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { DatabaseIcon, PaletteIcon, SquareDashedMousePointerIcon, StickyNoteIcon, TableIcon, TagIcon, Trash2Icon } from "lucide-react";
@@ -83,19 +84,16 @@ function SchemaGroupCardComponent({
         transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
         width: position.width,
         height: position.height,
-        background: palette.background,
-        borderColor: palette.border,
+        "--group-pastel": palette.background,
+        "--group-pastel-header": palette.header,
+        "--group-pastel-text": palette.text,
+        "--group-edge": palette.border,
         zIndex: 0,
-      }}
+      } as CSSProperties}
       onPointerDown={(event) => onPointerDown(event, group.id)}
     >
       <div
         className="schema-group-head"
-        style={{
-          background: palette.header,
-          color: palette.text,
-          borderColor: palette.border,
-        }}
         onPointerDown={(event) => onHeadPointerDown(event, group)}
       >
         <DatabaseIcon size={15} aria-hidden="true" />

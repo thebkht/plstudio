@@ -2,124 +2,86 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (@media (prefers-color-scheme: dark));
 
+/*
+ * Apple's semantic system colours, by role rather than by value: labels
+ * descend in emphasis, grouped backgrounds ascend toward the viewer, fills are
+ * translucent greys that read on any surface, and one tint (systemBlue) marks
+ * everything interactive. Every other token below is an alias of these, so the
+ * dark block at the end of this file only has to restate this first group.
+ */
 :root {
-  color-scheme: light;
-  --muted: oklch(0.97 0.001 106.424);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.147 0.004 49.25);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.147 0.004 49.25);
-  --primary: oklch(0.511 0.096 228.5);
-  --primary-foreground: oklch(0.984 0.01 228.5);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted-foreground: oklch(0.553 0.013 58.071);
-  --accent: oklch(0.97 0.001 106.424);
-  --accent-foreground: oklch(0.216 0.006 56.043);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.923 0.003 48.717);
-  --input: oklch(0.923 0.003 48.717);
-  --ring: oklch(0.709 0.01 56.259);
-  --chart-1: oklch(0.855 0.138 181.071);
-  --chart-2: oklch(0.704 0.14 182.503);
-  --chart-3: oklch(0.6 0.118 184.704);
-  --chart-4: oklch(0.511 0.096 186.391);
-  --chart-5: oklch(0.437 0.078 188.216);
-  /* The base corner. Every surface radius is written as a share of it --
-     `calc(var(--radius) * N / 14)`, N being its size when the base was 14px --
-     so changing this one value rescales them all in proportion. */
-  --radius: 0.625rem;
-  --sidebar: var(--grouped-bg);
-  --sidebar-foreground: oklch(0.147 0.004 49.25);
-  --sidebar-primary: oklch(0.6 0.114 228.5);
-  --sidebar-primary-foreground: oklch(0.984 0.01 228.5);
-  --sidebar-accent: oklch(0.97 0.001 106.424);
-  --sidebar-accent-foreground: oklch(0.216 0.006 56.043);
-  --sidebar-border: oklch(0.923 0.003 48.717);
-  --sidebar-ring: oklch(0.709 0.01 56.259);
-
-  /* Type scale. Tracking tightens as size grows; leading loosens as it shrinks. */
-  --text-2xs: 0.6875rem; /* 11px — smallest permitted, metadata only */
-  --text-xs: 0.75rem; /* 12px */
-  --text-sm: 0.875rem; /* 14px */
-  --text-base: 1rem; /* 16px */
-  --text-lg: 1.125rem; /* 18px */
-  --text-xl: 1.25rem; /* 20px */
-  --leading-tight: 1.2;
-  --leading-snug: 1.4;
-  --leading-normal: 1.55;
-  --tracking-tight: -0.011em;
-  --tracking-normal: 0;
-  --tracking-wide: 0.02em;
-  --tracking-caps: 0.06em;
-
-  /* Motion. Exits run shorter than entrances so dismissal feels responsive. */
-  --ease-out: cubic-bezier(0.2, 0, 0, 1);
-  --ease-in: cubic-bezier(0.4, 0, 1, 1);
-  --duration-fast: 120ms;
-  --duration-base: 180ms;
-  --duration-slow: 240ms;
-
-  /* A floor, not a fixed height: the brand block (38px) plus its padding *is*
-     the bar, so the token and the rendered edge can never drift apart. The
-     sidebar is positioned off this value. */
-  --appbar-height: 76px;
-
-  /* Chrome ramp. Surfaces ascend from page white; ink descends from near-black. */
-  --surface-0: #ffffff;
-  --surface-1: #fafafa;
-  --surface-2: #f4f4f5;
-  --surface-3: #e4e4e7;
-  --ink-1: #18181b;
-  --ink-2: #3f3f46;
-  --ink-3: #71717a;
-  --ink-4: #a1a1aa;
-  --hairline: #e4e4e7;
-  --hairline-strong: #d4d4d8;
-  --warn: #f59e0b;
-  --warn-ink: #b45309;
-  --danger: #dc2626;
-  --shadow-pop: 0 10px 24px rgb(0 0 0 / 0.1), 0 2px 6px rgb(0 0 0 / 0.06);
-  --shadow-dock: 0 12px 32px rgb(0 0 0 / 0.12), 0 2px 8px rgb(0 0 0 / 0.06);
-
-  /* Geist everywhere; the system face only while it loads. */
-  --font-sans: var(--font-geist), system-ui, -apple-system, sans-serif;
-
-  /* Inset grouped lists (iOS Settings, System Settings). White groups float
-     on a faintly darker base; rows inside them are divided by an inset
-     separator, never boxed. */
-  --grouped-bg: #f2f2f4;
-  --grouped-surface: #ffffff;
-  --separator: color-mix(in srgb, var(--ink-1) 11%, transparent);
-  --tint: var(--primary);
-  --tint-fill: color-mix(in oklch, var(--primary) 12%, transparent);
-  --row-height: 2.75rem;
-  --row-height-compact: 2.25rem;
-  --radius-group: calc(var(--radius) * 12 / 14);
-  --material-bar: color-mix(in srgb, var(--surface-0) 72%, transparent);
+  color-scheme: light dark;
+  --system-blue: #007aff;
+  --system-red: #ff3b30;
+  --system-orange: #ff9500;
+  --system-green: #34c759;
+  --system-gray: #8e8e93;
+  /* Opaque rather than Apple's alpha labels: these are mixed into other
+     colours (`color-mix`) and must hold 4.5:1 on white at --label-2. */
+  --label: #1d1d1f;
+  --label-2: #6e6e73;
+  --label-3: #aeaeb2;
+  --label-4: #d1d1d6;
+  --fill-1: rgb(120 120 128 / 0.2);
+  --fill-2: rgb(120 120 128 / 0.16);
+  --fill-3: rgb(118 118 128 / 0.12);
+  --fill-4: rgb(116 116 128 / 0.08);
+  --bg: #ffffff;
+  --bg-grouped: #f2f2f7;
+  --bg-grouped-2: #ffffff;
+  --bg-grouped-3: #f2f2f7;
+  --bg-raised: #fafafc;
+  --separator: rgb(60 60 67 / 0.29);
+  --separator-opaque: #c6c6c8;
+  /* Card and group edges: lighter than a list separator, which divides rows
+     inside one surface rather than outlining the surface itself. */
+  --hairline: rgb(60 60 67 / 0.13);
+  --hairline-strong: rgb(60 60 67 / 0.22);
+  /* Materials, thin to thick. A bigger surface reads as thicker: more opacity
+     here, and more blur at the use site. */
+  --material-thin: rgb(255 255 255 / 0.55);
+  --material-regular: rgb(255 255 255 / 0.72);
+  --material-thick: rgb(255 255 255 / 0.85);
   --material-blur: blur(20px) saturate(180%);
+  --material-edge: rgb(255 255 255 / 0.5);
+  --segment-selected: #ffffff;
+  --warn-ink: #c93400;
+  --shadow-card: 0 0 0 0.5px rgb(0 0 0 / 0.04), 0 1px 2px rgb(0 0 0 / 0.04), 0 6px 16px -8px rgb(0 0 0 / 0.12);
+  --shadow-card-hover: 0 0 0 0.5px rgb(0 0 0 / 0.04), 0 2px 4px rgb(0 0 0 / 0.05), 0 16px 32px -12px rgb(0 0 0 / 0.2);
+  --shadow-pop: 0 10px 30px rgb(0 0 0 / 0.12), 0 2px 6px rgb(0 0 0 / 0.06);
+  --shadow-dock: 0 12px 32px rgb(0 0 0 / 0.12), 0 2px 8px rgb(0 0 0 / 0.06);
+  --shadow-segment: 0 3px 8px rgb(0 0 0 / 0.12), 0 3px 1px rgb(0 0 0 / 0.04), 0 0 0 0.5px rgb(0 0 0 / 0.04);
 
-  /* Brand ramp. One hue (~228deg) carries the wordmark, headings and accents;
-     the roles differ by lightness, never by hue. --primary shares that hue, so
-     a primary button and the wordmark above it read as the same brand. */
-  --brand-ink: #12495e;
-  --brand-accent: #175e7a;
-  --brand-muted: #9cb8c5;
-
-  /* Cards and workspace rows are peers, so they share one radius and one
-     material. Buttons keep their pill shape: a control, not a surface. */
-  --radius-surface: var(--radius);
-  --shadow-card:
-    0 1px 2px rgb(18 73 94 / 0.05), 0 6px 16px -8px rgb(18 73 94 / 0.14);
-  --shadow-card-hover:
-    0 2px 4px rgb(18 73 94 / 0.06), 0 14px 28px -12px rgb(18 73 94 / 0.2);
-
+  /* Canvas, table cards and memos. */
+  --canvas-surface: #ffffff;
+  --grid-dot: #b8b8c0;
+  --table-surface: #f5f5f7;
+  --table-ink: #1d1d1f;
+  /* Muted is still read (the key strategy, the nullable mark), so it holds
+     ~4.5:1 on the card surface; the divider under the header is a hairline,
+     never darker than the card's own border. */
+  --table-muted: #6e6e73;
+  --table-border: #d1d1d6;
+  --table-line: #d1d1d6;
+  /* Datatype label colours, keyed by category. One lightness and chroma, so
+     every label clears 4.5:1 on the card at 12px, and the hues spread so the
+     two commonest Oracle types -- VARCHAR2 and NUMBER -- sit furthest apart
+     (rust against blue). Deeper and quieter than the table accents, so a type
+     never reads as a table's colour. */
+  --type-string: #a44c1d;
+  --type-integer: #2e69b2;
+  --type-decimal: #6f57ab;
+  --type-date: #00805d;
+  --type-binary: #9e4573;
+  --type-other: #6e6e73;
+  /* systemGray: neutral in the edge layer, so the blue of a highlighted edge
+     is the only colour a line ever carries. */
+  --edge: #8e8e93;
   /* Memo palette. Four peers, so they share a lightness and a chroma and
-     differ only in hue -- the old set ranged from a near-white yellow to a
-     mid pink, which read as a ranking. Each memo's border, its swatch and its
-     selected outline are the same value, so the control shows what it makes. */
+     differ only in hue. Each memo's border, its swatch and its selected
+     outline are the same value, so the control shows what it makes. */
   --memo-ink: #322c28;
   --memo-yellow-surface: #f4efdc;
   --memo-yellow-edge: #a88d19;
@@ -129,42 +91,220 @@
   --memo-blue-edge: #3598d4;
   --memo-pink-surface: #fee8ef;
   --memo-pink-edge: #ca6c93;
+  --badge-pk-fill: #fff4d6;
+  --badge-pk-ink: #b45309;
+  --badge-fk-fill: #e0edff;
+  --badge-fk-ink: #0060df;
+  --badge-uq-fill: #efe9fe;
+  --badge-uq-ink: #7c3aed;
+}
 
-  /* Table card surfaces (zinc ramp, matching the diagram's neutral tone). */
-  --table-surface: #f4f4f5;
-  --table-ink: #27272a;
-  /* Muted is still read (the key strategy, the nullable mark), so it holds
-     ~4.5:1 on the card surface; the divider under the header is a hairline,
-     never darker than the card's own border. */
-  --table-muted: #71717a;
-  --table-border: #d4d4d8;
-  --table-line: #d4d4d8;
-  --table-accent: #3b82f6;
+/*
+ * Dark appearance, following the system. Only the base roles change; every
+ * alias in the block below resolves through them. Elevation comes from
+ * lighter surfaces here, so shadows thin out instead of deepening.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --system-blue: #0a84ff;
+    --system-red: #ff453a;
+    --system-orange: #ff9f0a;
+    --system-green: #30d158;
+    --system-gray: #8e8e93;
+    --label: #f5f5f7;
+    --label-2: #98989d;
+    --label-3: #636366;
+    --label-4: #48484a;
+    --fill-1: rgb(120 120 128 / 0.36);
+    --fill-2: rgb(120 120 128 / 0.32);
+    --fill-3: rgb(118 118 128 / 0.24);
+    --fill-4: rgb(118 118 128 / 0.18);
+    --bg: #000000;
+    --bg-grouped: #000000;
+    --bg-grouped-2: #1c1c1e;
+    --bg-grouped-3: #2c2c2e;
+    --bg-raised: #1c1c1e;
+    --separator: rgb(84 84 88 / 0.6);
+    --separator-opaque: #38383a;
+    --hairline: rgb(255 255 255 / 0.1);
+    --hairline-strong: rgb(255 255 255 / 0.16);
+    --material-thin: rgb(37 37 39 / 0.55);
+    --material-regular: rgb(30 30 32 / 0.72);
+    --material-thick: rgb(28 28 30 / 0.86);
+    --material-edge: rgb(255 255 255 / 0.08);
+    --segment-selected: #636366;
+    --warn-ink: #ffb340;
+    --shadow-card: 0 0 0 0.5px rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.3);
+    --shadow-card-hover: 0 0 0 0.5px rgb(255 255 255 / 0.1), 0 12px 28px -12px rgb(0 0 0 / 0.6);
+    --shadow-pop: 0 0 0 0.5px rgb(255 255 255 / 0.1), 0 12px 32px rgb(0 0 0 / 0.5);
+    --shadow-dock: 0 0 0 0.5px rgb(255 255 255 / 0.1), 0 12px 32px rgb(0 0 0 / 0.45);
+    --shadow-segment: 0 3px 8px rgb(0 0 0 / 0.3), 0 0 0 0.5px rgb(255 255 255 / 0.06);
 
-  /* Datatype label colours, keyed by category. One OKLCH lightness (0.52) and
-     chroma (0.13), so every label clears 4.5:1 on the card at 12px, and the
-     hues spread so the two commonest Oracle types -- VARCHAR2 and NUMBER --
-     sit furthest apart (rust against blue). Deeper and quieter than the table
-     accents, so a type never reads as a table's colour. */
-  --type-string: #a44c1d;
-  --type-integer: #2e69b2;
-  --type-decimal: #6f57ab;
-  --type-date: #00805d;
-  --type-binary: #9e4573;
-  --type-other: #71717a;
-  /* systemGray: neutral in the edge layer, so the blue of a highlighted edge
-     is the only colour a line ever carries. */
-  --edge: #8e8e93;
+    --canvas-surface: #1c1c1e;
+    --grid-dot: #545458;
+    --table-surface: #2c2c2e;
+    --table-ink: #f5f5f7;
+    --table-muted: #98989d;
+    --table-border: #48484a;
+    --table-line: #3a3a3c;
+    --type-string: #ff9f6b;
+    --type-integer: #64a8ff;
+    --type-decimal: #b39cff;
+    --type-date: #4cd6a4;
+    --type-binary: #f28dc0;
+    --type-other: #98989d;
+    --edge: #8e8e93;
+    --memo-ink: #f5f5f7;
+    --memo-yellow-surface: #3a3420;
+    --memo-yellow-edge: #d6b52c;
+    --memo-green-surface: #1f3324;
+    --memo-green-edge: #5fc27a;
+    --memo-blue-surface: #172d3d;
+    --memo-blue-edge: #4aaee8;
+    --memo-pink-surface: #3d1f2b;
+    --memo-pink-edge: #e283aa;
+    --badge-pk-fill: #422006;
+    --badge-pk-ink: #fbbf24;
+    --badge-fk-fill: #10284d;
+    --badge-fk-ink: #64a8ff;
+    --badge-uq-fill: #2e1065;
+    --badge-uq-ink: #b39cff;
+  }
+}
+
+/* Roles built on the system colours: shadcn's names, the chrome ramp the
+   editor CSS was written against, and the type and motion scales. */
+:root {
+  --background: var(--bg);
+  --foreground: var(--label);
+  --card: var(--bg-grouped-2);
+  --card-foreground: var(--label);
+  --popover: var(--bg-grouped-2);
+  --popover-foreground: var(--label);
+  --primary: var(--system-blue);
+  --primary-foreground: #ffffff;
+  --secondary: var(--fill-3);
+  --secondary-foreground: var(--label);
+  --muted: var(--fill-4);
+  --muted-foreground: var(--label-2);
+  --accent: var(--fill-3);
+  --accent-foreground: var(--label);
+  --destructive: var(--system-red);
+  --border: var(--hairline-strong);
+  --input: var(--hairline-strong);
+  --ring: var(--system-blue);
+  --chart-1: oklch(0.855 0.138 181.071);
+  --chart-2: oklch(0.704 0.14 182.503);
+  --chart-3: oklch(0.6 0.118 184.704);
+  --chart-4: oklch(0.511 0.096 186.391);
+  --chart-5: oklch(0.437 0.078 188.216);
+  /* The base corner. Every surface radius is written as a share of it --
+     `calc(var(--radius) * N / 14)`, N being its size when the base was 14px --
+     so changing this one value rescales them all in proportion. */
+  --radius: 0.75rem;
+  --sidebar: var(--bg-grouped);
+  --sidebar-foreground: var(--label);
+  --sidebar-primary: var(--system-blue);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--fill-3);
+  --sidebar-accent-foreground: var(--label);
+  --sidebar-border: var(--hairline);
+  --sidebar-ring: var(--system-blue);
+
+  /* Type scale. Tracking tightens as size grows; leading loosens as it shrinks. */
+  --text-2xs: 0.6875rem; /* 11px — smallest permitted, metadata only */
+  --text-xs: 0.75rem; /* 12px — caption */
+  --text-footnote: 0.8125rem; /* 13px */
+  --text-sm: 0.875rem; /* 14px — subheadline */
+  --text-body: 0.9375rem; /* 15px */
+  --text-base: 1rem; /* 16px */
+  --text-headline: 1.0625rem; /* 17px */
+  --text-lg: 1.125rem; /* 18px */
+  --text-xl: 1.25rem; /* 20px — title 3 */
+  --text-title2: 1.375rem; /* 22px */
+  --text-title1: 1.75rem; /* 28px */
+  --text-large-title: 2.125rem; /* 34px */
+  --leading-tight: 1.2;
+  --leading-snug: 1.4;
+  --leading-normal: 1.55;
+  --tracking-display: -0.022em;
+  --tracking-title: -0.017em;
+  --tracking-tight: -0.011em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.02em;
+  --tracking-caps: 0.06em;
+
+  /* Motion. Exits run shorter than entrances so dismissal feels responsive. */
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --duration-press: 100ms;
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 240ms;
+  /* Springs sampled into `linear()`: critically damped at a 0.35s response
+     (settles in --spring-duration), and damping 0.8 at 0.3s for the few
+     motions a gesture threw. Interruptible because a CSS transition re-targets
+     from the current value. */
+  --spring: linear(0, 0.057, 0.179, 0.319, 0.453, 0.571, 0.669, 0.748, 0.811, 0.859, 0.895, 0.923, 0.944, 0.959, 0.97, 0.979, 0.985, 0.989, 0.992, 0.994, 0.996, 0.997, 0.998, 0.999, 1);
+  --spring-duration: 500ms;
+  --spring-bounce: linear(0, 0.032, 0.111, 0.216, 0.331, 0.445, 0.552, 0.648, 0.732, 0.802, 0.859, 0.904, 0.939, 0.965, 0.984, 0.998, 1.006, 1.012, 1.014, 1.015, 1.015, 1.014, 1.012, 1.01, 1.009, 1.007, 1.006, 1.004, 1.003, 1.002, 1.002, 1.001, 1);
+  --spring-bounce-duration: 420ms;
+
+  /* A floor, not a fixed height: the brand block (38px) plus its padding *is*
+     the bar, so the token and the rendered edge can never drift apart. The
+     sidebar is positioned off this value. */
+  --appbar-height: 76px;
+
+  /* Chrome ramp the editor CSS is written against, now aliases: surfaces
+     ascend from the page, ink descends from the label colour. */
+  --surface-0: var(--bg-grouped-2);
+  --surface-1: var(--bg-raised);
+  --surface-2: var(--bg-grouped);
+  --surface-3: var(--fill-1);
+  --ink-1: var(--label);
+  --ink-2: color-mix(in srgb, var(--label) 72%, var(--bg-grouped-2));
+  --ink-3: var(--label-2);
+  --ink-4: var(--label-3);
+  --warn: var(--system-orange);
+  --danger: var(--system-red);
+
+  /* Geist everywhere; the system face only while it loads. */
+  --font-sans: var(--font-geist), system-ui, -apple-system, sans-serif;
+
+  /* Inset grouped lists (iOS Settings, System Settings). Groups float on a
+     faintly darker base; rows inside them are divided by an inset separator,
+     never boxed. */
+  --grouped-bg: var(--bg-grouped);
+  --grouped-surface: var(--bg-grouped-2);
+  --tint: var(--primary);
+  --tint-fill: color-mix(in srgb, var(--primary) 14%, transparent);
+  --row-height: 2.75rem;
+  --row-height-compact: 2.25rem;
+  --radius-group: calc(var(--radius) * 12 / 14);
+  --material-bar: var(--material-regular);
+
+  /* Headings are label-coloured, not tinted: the tint is reserved for what
+     can be pressed. */
+  --brand-ink: var(--label);
+  --brand-accent: var(--primary);
+  --brand-muted: var(--label-3);
+  /* The app icon: a squircle of the tint, lit from above. */
+  --app-icon: linear-gradient(180deg, color-mix(in srgb, var(--system-blue) 70%, white), var(--system-blue) 70%);
+  --app-icon-shadow: 0 1px 2px rgb(0 0 0 / 0.14), inset 0 0.5px 0 rgb(255 255 255 / 0.4);
+
+  /* Cards and workspace rows are peers, so they share one radius and one
+     material. Buttons keep their capsule shape: a control, not a surface. */
+  --radius-surface: var(--radius);
+  --table-accent: var(--primary);
 
   /*
-   * Canvas surface and grid. The camera (`--pan-x/y`, `--zoom`,
-   * `--inverse-zoom`) and the grid pattern derived from it (`--grid-size`,
-   * `--grid-dot-radius`, `--grid-x/y`, `--grid-opacity`) are all rewritten on
-   * `.canvas-wrap` by `applyViewport` every frame of a pan or zoom, without a
-   * React render — the values here are only what a canvas at rest looks like,
-   * and what the first paint uses before the canvas mounts.
+   * The camera (`--pan-x/y`, `--zoom`, `--inverse-zoom`) and the grid pattern
+   * derived from it (`--grid-size`, `--grid-dot-radius`, `--grid-x/y`,
+   * `--grid-opacity`) are all rewritten on `.canvas-wrap` by `applyViewport`
+   * every frame of a pan or zoom, without a React render — the values here are
+   * only what a canvas at rest looks like, and what the first paint uses before
+   * the canvas mounts.
    */
-  --canvas-surface: #ffffff;
   --pan-x: 0px;
   --pan-y: 0px;
   --zoom: 1;
@@ -174,9 +314,6 @@
   --grid-x: 0px;
   --grid-y: 0px;
   --grid-opacity: 1;
-  --grid-dot: rgb(99, 152, 191);
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.147 0.004 49.25);
 }
 * {
   box-sizing: border-box;
@@ -294,7 +431,7 @@ button {
   align-items: center;
   gap: 14px;
   padding: 7px 16px;
-  background: color-mix(in srgb, var(--surface-0) 72%, transparent);
+  background: var(--material-regular);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   backdrop-filter: blur(24px) saturate(180%);
 }
@@ -332,7 +469,8 @@ button {
   display: grid;
   place-items: center;
   border-radius: calc(var(--radius) * 10 / 14);
-  background: var(--brand-ink);
+  background: var(--app-icon);
+  box-shadow: var(--app-icon-shadow);
   color: #fff;
   text-decoration: none;
 }
@@ -1818,7 +1956,7 @@ button {
      opaque. Thin enough that the grid and nearby cards blur through, with
      saturation lifted so what shows through keeps its colour. The gesture and
      reduced-transparency rules below still make it solid when needed. */
-  background: color-mix(in srgb, var(--surface-0) 55%, transparent);
+  background: var(--material-thin);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   backdrop-filter: blur(20px) saturate(180%);
   box-shadow: var(--shadow-dock);
@@ -1890,7 +2028,7 @@ button {
   padding: 6px;
   border: 1px solid var(--hairline);
   border-radius: calc(var(--radius) * 14 / 14);
-  background: color-mix(in srgb, var(--surface-0) 88%, transparent);
+  background: var(--material-thick);
   -webkit-backdrop-filter: blur(18px) saturate(160%);
   backdrop-filter: blur(18px) saturate(160%);
   box-shadow: var(--shadow-dock);
@@ -2104,7 +2242,7 @@ button {
   translate: -50% 0;
   border: 1px solid var(--hairline);
   border-radius: calc(var(--radius) * 12 / 14);
-  background: color-mix(in srgb, var(--surface-0) 88%, transparent);
+  background: var(--material-thick);
   -webkit-backdrop-filter: blur(18px) saturate(160%);
   backdrop-filter: blur(18px) saturate(160%);
   box-shadow: var(--shadow-dock);
@@ -2144,9 +2282,13 @@ button {
   left: 0;
   top: 0;
   overflow: visible;
-  border: 2px solid;
+  --group-fill: var(--group-pastel);
+  --group-header: var(--group-pastel-header);
+  --group-text: var(--group-pastel-text);
+  border: 2px solid var(--group-edge);
   border-radius: calc(var(--radius) * 12 / 14);
-  box-shadow: 0 8px 20px rgb(50 70 80 / 8%);
+  background: var(--group-fill);
+  box-shadow: 0 8px 20px rgb(0 0 0 / 8%);
   transform-origin: 0 0;
   pointer-events: none;
   /* Layout and style only -- the head is absolutely positioned above the group's
@@ -2161,7 +2303,16 @@ button {
   outline-offset: 4px;
 }
 .schema-group.moving {
-  box-shadow: 0 16px 28px rgb(50 70 80 / 14%);
+  box-shadow: 0 16px 28px rgb(0 0 0 / 14%);
+}
+/* The palette's pastels are light-only; on the dark canvas a group is its
+   edge colour thinly laid over the surface, as the dark export draws it. */
+@media (prefers-color-scheme: dark) {
+  .schema-group {
+    --group-fill: color-mix(in srgb, var(--group-edge) 12%, transparent);
+    --group-header: color-mix(in srgb, var(--group-edge) 24%, var(--canvas-surface));
+    --group-text: color-mix(in srgb, var(--group-edge) 55%, white);
+  }
 }
 .schema-group-head {
   position: absolute;
@@ -2173,7 +2324,9 @@ button {
   align-items: center;
   gap: 7px;
   padding: 0 10px;
-  border: 2px solid;
+  border: 2px solid var(--group-edge);
+  background: var(--group-header);
+  color: var(--group-text);
   border-radius: calc(var(--radius) * 12 / 14) calc(var(--radius) * 12 / 14) 0 0;
   cursor: move;
   user-select: none;
@@ -2253,7 +2406,7 @@ button {
 }
 .schema-group-color[data-selected] {
   box-shadow:
-    0 0 0 2px #fff,
+    0 0 0 2px var(--bg-grouped-2),
     0 0 0 3px currentColor;
 }
 .schema-group-resize {
@@ -2267,9 +2420,9 @@ button {
   background: linear-gradient(
     135deg,
     transparent 0 47%,
-    rgb(60 70 80 / 42%) 48% 53%,
+    color-mix(in srgb, var(--label-2) 70%, transparent) 48% 53%,
     transparent 54% 62%,
-    rgb(60 70 80 / 42%) 63% 68%,
+    color-mix(in srgb, var(--label-2) 70%, transparent) 63% 68%,
     transparent 69%
   );
   cursor: nwse-resize;
@@ -2297,7 +2450,7 @@ button {
     stroke-width var(--duration-base) var(--ease-out);
 }
 .relationship-path.active {
-  stroke: #0084d1;
+  stroke: var(--primary);
   stroke-width: 3;
 }
 /* A light chip on the line rather than a dark lozenge: filled grey, every
@@ -2337,15 +2490,15 @@ button {
   pointer-events: none;
 }
 .relationship:is(:hover, :has(.relationship-path.active)) .relationship-marker {
-  fill: #0084d1;
-  stroke: #0084d1;
+  fill: var(--primary);
+  stroke: var(--primary);
 }
 .relationship:is(:hover, :has(.relationship-path.active)) .relationship-marker-text {
   fill: #fff;
 }
 /* Marching ants on hover make it obvious which two fields are joined. */
 .relationship:hover .relationship-path {
-  stroke: #0084d1;
+  stroke: var(--primary);
   stroke-width: 3.5;
   stroke-dasharray: 12 8;
   animation: dash-right 1s linear infinite;
@@ -2520,7 +2673,7 @@ button {
   border: 2px solid;
   border-radius: calc(var(--radius) * 10 / 14);
   color: var(--memo-ink);
-  box-shadow: 0 10px 18px rgb(51 43 34 / 13%);
+  box-shadow: 0 10px 18px rgb(0 0 0 / 13%);
   transform-origin: 0 0;
   transition:
     box-shadow var(--duration-base) var(--ease-out),
@@ -2528,7 +2681,7 @@ button {
 }
 .memo-card:hover,
 .memo-card.selected {
-  box-shadow: 0 16px 26px rgb(51 43 34 / 18%);
+  box-shadow: 0 16px 26px rgb(0 0 0 / 18%);
 }
 .memo-card.selected {
   outline: 2px solid color-mix(in oklch, var(--primary) 72%, transparent);
@@ -2540,7 +2693,7 @@ button {
   gap: 6px;
   min-height: 30px;
   padding: 0 8px;
-  border-bottom: 1px solid rgb(73 60 45 / 15%);
+  border-bottom: 1px solid color-mix(in srgb, var(--memo-ink) 15%, transparent);
   cursor: move;
   user-select: none;
   touch-action: none;
@@ -2577,7 +2730,7 @@ button {
   min-width: 18px;
   height: 18px;
   padding: 0;
-  border: 1px solid rgb(73 60 45 / 20%);
+  border: 1px solid color-mix(in srgb, var(--memo-ink) 20%, transparent);
   border-radius: 50%;
 }
 .memo-color {
@@ -2585,7 +2738,7 @@ button {
 }
 .memo-color[data-selected] {
   box-shadow:
-    0 0 0 2px #fff,
+    0 0 0 2px var(--bg-grouped-2),
     0 0 0 3px var(--memo-ink);
 }
 .memo-color-yellow {
@@ -2843,7 +2996,7 @@ button {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #2f68adcc;
+  background: color-mix(in srgb, var(--primary) 80%, transparent);
   cursor: crosshair;
   transition:
     transform var(--duration-fast) var(--ease-out),
@@ -2891,7 +3044,7 @@ button {
   border-radius: 6px;
 }
 .table-row-slot.lifted .table-row {
-  background: color-mix(in srgb, var(--surface-0) 90%, transparent);
+  background: var(--material-thick);
   backdrop-filter: blur(12px) saturate(180%);
   -webkit-backdrop-filter: blur(12px) saturate(180%);
   box-shadow:
@@ -2989,15 +3142,15 @@ button {
   white-space: nowrap;
 }
 .fk-dot {
-  color: #2f68ad;
+  color: var(--badge-fk-ink);
 }
 /* A column's own unique, and one that is a member of a multi-column
    constraint: the same glyph, told apart by tint rather than by shape. */
 .uk-dot {
-  color: #8a6d1f;
+  color: var(--badge-pk-ink);
 }
 .uk-group {
-  color: #7a4fb5;
+  color: var(--badge-uq-ink);
 }
 
 /*
@@ -3058,28 +3211,16 @@ button {
   text-align: center;
 }
 .row-badge[data-kind="pk"] {
-  background: #fef3c7;
-  color: #b45309;
+  background: var(--badge-pk-fill);
+  color: var(--badge-pk-ink);
 }
 .row-badge[data-kind="fk"] {
-  background: #dbeafe;
-  color: #2563eb;
+  background: var(--badge-fk-fill);
+  color: var(--badge-fk-ink);
 }
 .row-badge[data-kind="uq"] {
-  background: #ede9fe;
-  color: #7c3aed;
-}
-.dark .row-badge[data-kind="pk"] {
-  background: #422006;
-  color: #fbbf24;
-}
-.dark .row-badge[data-kind="fk"] {
-  background: #172554;
-  color: #60a5fa;
-}
-.dark .row-badge[data-kind="uq"] {
-  background: #2e1065;
-  color: #a78bfa;
+  background: var(--badge-uq-fill);
+  color: var(--badge-uq-ink);
 }
 /* The document style's curves, in the export's blue. `:where` keeps this at the
    base rule's weight, so hover, selection, the heatmap and impact still win. */
@@ -3378,7 +3519,7 @@ button {
   }
   [data-slot="dialog-overlay"],
   [data-slot="alert-dialog-overlay"] {
-    background: color-mix(in srgb, var(--surface-0) 92%, transparent);
+    background: var(--material-thick);
   }
 }
 @media (prefers-contrast: more) {
@@ -3472,44 +3613,6 @@ button {
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-.dark {
-  /*
-   * `--grid-dot` deliberately carries over from light: the same blue reads
-   * correctly on both surfaces, and drawDB uses one dot colour for both too.
-   */
-  --canvas-surface: #16161a;
-  --background: oklch(0.147 0.004 49.25);
-  --foreground: oklch(0.985 0.001 106.423);
-  --card: oklch(0.216 0.006 56.043);
-  --card-foreground: oklch(0.985 0.001 106.423);
-  --popover: oklch(0.216 0.006 56.043);
-  --popover-foreground: oklch(0.985 0.001 106.423);
-  --primary: oklch(0.437 0.078 188.216);
-  --primary-foreground: oklch(0.984 0.014 180.72);
-  --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.268 0.007 34.298);
-  --muted-foreground: oklch(0.709 0.01 56.259);
-  --accent: oklch(0.268 0.007 34.298);
-  --accent-foreground: oklch(0.985 0.001 106.423);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.553 0.013 58.071);
-  --chart-1: oklch(0.855 0.138 181.071);
-  --chart-2: oklch(0.704 0.14 182.503);
-  --chart-3: oklch(0.6 0.118 184.704);
-  --chart-4: oklch(0.511 0.096 186.391);
-  --chart-5: oklch(0.437 0.078 188.216);
-  --sidebar: oklch(0.216 0.006 56.043);
-  --sidebar-foreground: oklch(0.985 0.001 106.423);
-  --sidebar-primary: oklch(0.704 0.14 182.503);
-  --sidebar-primary-foreground: oklch(0.277 0.046 192.524);
-  --sidebar-accent: oklch(0.268 0.007 34.298);
-  --sidebar-accent-foreground: oklch(0.985 0.001 106.423);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.553 0.013 58.071);
-}
 
 @layer base {
   * {
@@ -3575,15 +3678,15 @@ button {
   height: 35px;
   place-items: center;
   border-radius: calc(var(--radius) * 10 / 14);
-  background: var(--brand-ink);
-  color: white;
-  box-shadow: 0 5px 12px rgb(18 73 94 / 20%);
+  background: var(--app-icon);
+  color: #fff;
+  box-shadow: var(--app-icon-shadow);
 }
 .brand-mark-word {
   font-weight: 800;
 }
 .brand-mark-word span {
-  color: #6b7280;
+  color: var(--label-2);
   font-weight: 500;
 }
 .brand-mark-compact {
@@ -3610,7 +3713,7 @@ button {
   position: relative;
   min-height: 100vh;
   padding: 32px;
-  background: #f4f4f5;
+  background: var(--bg-grouped);
 }
 .auth-shell::before {
   position: absolute;
@@ -3797,7 +3900,7 @@ button {
   gap: 24px;
   padding: 12px max(24px, calc((100% - 1220px) / 2));
   border-bottom: 1px solid var(--hairline);
-  background: color-mix(in oklch, var(--surface-0) 72%, transparent);
+  background: var(--material-regular);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
@@ -3994,13 +4097,13 @@ button {
    one deep, soft shadow for lift plus a tight one for the contact edge. */
 .auth-card {
   box-shadow:
-    0 26px 60px -28px rgb(18 73 94 / 26%),
-    0 2px 5px rgb(18 73 94 / 6%);
+    0 26px 60px -28px rgb(0 0 0 / 26%),
+    0 2px 5px rgb(0 0 0 / 6%);
 }
 .auth-footer {
   justify-content: center;
   padding-top: 2px;
-  color: #71717a;
+  color: var(--label-2);
   font-size: 0.82rem;
 }
 .auth-footer p {
