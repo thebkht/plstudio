@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogOutIcon } from "lucide-react";
+import { CheckIcon, LogOutIcon, MonitorIcon, MoonIcon, SunIcon, type LucideIcon } from "lucide-react";
+import { useTheme } from "next-themes";
 import { authClient } from "@/app/lib/auth-client";
 import { Identicon } from "@/app/components/identicon";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -15,6 +16,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
+/* System first: following the Mac is the default, and the override is the
+   exception -- the same order as System Settings > Appearance. */
+const APPEARANCES: { id: string; label: string; icon: LucideIcon }[] = [
+  { id: "system", label: "System", icon: MonitorIcon },
+  { id: "light", label: "Light", icon: SunIcon },
+  { id: "dark", label: "Dark", icon: MoonIcon },
+];
 
 export type NavUserAccount = {
   name?: string | null;
@@ -39,6 +48,7 @@ export default function NavUser({
   onOpenChange?: (open: boolean) => void;
 }) {
   const router = useRouter();
+  const { theme = "system", setTheme } = useTheme();
   const [uncontrolled, setUncontrolled] = useState(false);
   const name = user?.name?.trim() || "Guest";
   const seed = user?.email || user?.name;
@@ -70,6 +80,17 @@ export default function NavUser({
             )}
           </span>
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Appearance</DropdownMenuLabel>
+          {APPEARANCES.map(({ id, label, icon: Icon }) => (
+            <DropdownMenuItem key={id} onAction={() => setTheme(id)}>
+              <Icon />
+              {label}
+              {theme === id && <CheckIcon className="ml-auto" aria-label="Selected" />}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem
