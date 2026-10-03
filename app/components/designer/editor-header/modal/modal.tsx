@@ -1,18 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import type { Schema } from "@/app/lib/schema";
 import type { ValidationIssue } from "@/app/lib/validation";
 import { useLayout, useSchema } from "@/app/hooks";
-import { ExportModal, type ExportTab, type MigrationBaseline } from "./export";
-import {
-  ImportModal,
-  type ImportFormat,
-  type ImportMessage,
-} from "./import";
-import { HistoryModal } from "./history";
-import { ShareModal } from "./share";
-import { ShortcutsModal } from "./shortcuts";
+import type { ExportTab, MigrationBaseline } from "./export";
+import type { ImportFormat, ImportMessage } from "./import";
+
+/*
+ * Each dialog is its own chunk, fetched the first time it is opened. Between
+ * them they carry the parsers, the migration differ and the SVG export -- none
+ * of which a session that only draws ever runs -- so the editor's first load
+ * no longer pays for them.
+ */
+const ExportModal = dynamic(() => import("./export").then((module) => module.ExportModal), { ssr: false });
+const ImportModal = dynamic(() => import("./import").then((module) => module.ImportModal), { ssr: false });
+const HistoryModal = dynamic(() => import("./history").then((module) => module.HistoryModal), { ssr: false });
+const ShareModal = dynamic(() => import("./share").then((module) => module.ShareModal), { ssr: false });
+const ShortcutsModal = dynamic(() => import("./shortcuts").then((module) => module.ShortcutsModal), { ssr: false });
 
 export type ModalsProps = {
   projectId: string;
@@ -51,20 +57,26 @@ export function Modals({
   const { modal, setModal } = useLayout();
   const { schema, errors } = useSchema();
   const close = (open: boolean) => !open && setModal(null);
+  /*
+   * A dialog mounts on its first opening and then stays, closed: unmounting it
+   * with `modal` would cut its exit animation and drop whatever it had typed in.
+   */
+  const opened = useRef(new Set<string>()).current;
+  if (modal) opened.add(modal);
   const [exportTab, setExportTab] = useState<ExportTab>("ddl");
   // Kept across openings: comparing against the same baseline is the common case.
   const [baseline, setBaseline] = useState<MigrationBaseline | null>(null);
 
   return (
     <>
-      <ShareModal
+      {opened.has("share") && <ShareModal
         isOpen={modal === "share"}
         onOpenChange={close}
         projectId={projectId}
         workspaceSlug={workspaceSlug}
         workspaceId={workspaceId}
-      />
-      <ExportModal
+      />}
+      {opened.has("export") && <ExportModal
         isOpen={modal === "export"}
         onOpenChange={close}
         schema={schema as Schema}
@@ -74,8 +86,8 @@ export function Modals({
         onExportTabChange={setExportTab}
         baseline={baseline}
         onBaselineChange={setBaseline}
-      />
-      <ImportModal
+      />}
+      {opened.has("import") && <ImportModal
         isOpen={modal === "import"}
         onOpenChange={close}
         schema={schema}
@@ -84,8 +96,8 @@ export function Modals({
         onMessage={onImportMessage}
         onReplace={onReplace}
         onAppend={onAppend}
-      />
-      <HistoryModal
+      />}
+      {opened.has("history") && <HistoryModal
         isOpen={modal === "history"}
         onOpenChange={close}
         projectId={projectId}
@@ -100,12 +112,12 @@ export function Modals({
           setExportTab("migration");
           setModal("export");
         }}
-      />
-      <ShortcutsModal
+      />}
+      {opened.has("shortcuts") && <ShortcutsModal
         isOpen={modal === "shortcuts"}
         onOpenChange={close}
         readOnly={readOnly}
-      />
+      />}
     </>
   );
 }

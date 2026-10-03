@@ -21,13 +21,6 @@ import {
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { generateDDL } from "@/app/lib/generators";
-import {
-  appendCreateTable,
-  appendMermaidER,
-  parseCreateTable,
-  parseMermaidER,
-} from "@/app/lib/parser";
 import { mergeSchemaJson, parseSchemaJson } from "@/app/lib/schema-json";
 import {
   createSaveQueue,
@@ -359,7 +352,15 @@ export default function Workspace({
     [foreignKeyCandidates],
   );
 
-  const importSchema = (text: string) => {
+  /*
+   * The parsers are fetched when an import actually runs: they are a third of
+   * the editor's own code and most sessions never import anything. By then the
+   * import dialog has usually pulled the same chunk in, so this resolves at once.
+   * `schemaRef`, not `schema`: the document may have moved while it loaded.
+   */
+  const loadParser = () => import("@/app/lib/parser");
+  const importSchema = async (text: string) => {
+    const { parseCreateTable } = await loadParser();
     const result = parseCreateTable(text);
     if (!result.schema) {
       setImportMessage({ ok: false, text: result.errors.join(" ") });
@@ -377,8 +378,9 @@ export default function Workspace({
    * under it. Nothing already on the canvas is edited, so the only new thing
    * to say is what was added and what was already there.
    */
-  const appendSchema = (text: string) => {
-    const result = appendCreateTable(schema, text);
+  const appendSchema = async (text: string) => {
+    const { appendCreateTable } = await loadParser();
+    const result = appendCreateTable(schemaRef.current, text);
     if (!result.schema) {
       setImportMessage({ ok: false, text: result.errors.join(" ") });
       return;
@@ -423,7 +425,8 @@ export default function Workspace({
     selectTable(result.added[0]?.id ?? null);
     revealTables(result.added);
   };
-  const importMermaid = (text: string) => {
+  const importMermaid = async (text: string) => {
+    const { parseMermaidER } = await loadParser();
     const result = parseMermaidER(text);
     if (!result.schema) {
       setImportMessage({ ok: false, text: result.errors.join(" ") });
@@ -436,8 +439,9 @@ export default function Workspace({
     commit({ ...result.schema, id: schema.id, revision: schema.revision });
     selectTable(result.schema.tables[0]?.id ?? null);
   };
-  const appendMermaid = (text: string) => {
-    const result = appendMermaidER(schema, text);
+  const appendMermaid = async (text: string) => {
+    const { appendMermaidER } = await loadParser();
+    const result = appendMermaidER(schemaRef.current, text);
     if (!result.schema) {
       setImportMessage({ ok: false, text: result.errors.join(" ") });
       return;
@@ -1335,13 +1339,13 @@ export default function Workspace({
         onImportMessage={setImportMessage}
         onReplace={(text, format) => {
           if (format === "json") importJson(text);
-          else if (format === "mermaid") importMermaid(text);
-          else importSchema(text);
+          else if (format === "mermaid") void importMermaid(text);
+          else void importSchema(text);
         }}
         onAppend={(text, format) => {
           if (format === "json") appendJson(text);
-          else if (format === "mermaid") appendMermaid(text);
-          else appendSchema(text);
+          else if (format === "mermaid") void appendMermaid(text);
+          else void appendSchema(text);
         }}
         onClearInvalidForeignKeys={clearInvalidForeignKeys}
       />

@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import dynamic from "next/dynamic";
 import { ChevronLeftIcon, CodeXmlIcon, DatabaseIcon, LayoutGridIcon, LinkIcon } from "lucide-react";
 import {
   Sidebar,
@@ -13,9 +14,11 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useLayout, useSchema } from "@/app/hooks";
 import type { PanelMode, PanelTab } from "../constants";
-import { CodeView } from "./code-view";
 import { Issues } from "./issues";
-import { QueriesTab } from "./queries-tab/queries-tab";
+
+// The panel opens on the tables tab; the code view and the query workbench load when first shown.
+const CodeView = dynamic(() => import("./code-view").then((module) => module.CodeView), { ssr: false });
+const QueriesTab = dynamic(() => import("./queries-tab/queries-tab").then((module) => module.QueriesTab), { ssr: false });
 
 export type SidePanelProps = {
   /** Count shown on the relationships tab and in the footer. */
