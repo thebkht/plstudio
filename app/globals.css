@@ -278,8 +278,8 @@
   --grouped-surface: var(--bg-grouped-2);
   --tint: var(--primary);
   --tint-fill: color-mix(in srgb, var(--primary) 14%, transparent);
-  --row-height: 2.75rem;
-  --row-height-compact: 2.25rem;
+  --row-height: 2.125rem;
+  --row-height-compact: 1.875rem;
   --radius-group: calc(var(--radius) * 12 / 14);
   --material-bar: var(--material-regular);
 
@@ -665,7 +665,7 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 12px;
+  padding: 4px 10px 8px;
 }
 .toolbar-add {
   flex: 0 0 auto;
@@ -674,7 +674,7 @@ body {
 .panel-body {
   flex: 1;
   min-height: 0;
-  padding: 0 12px 14px;
+  padding: 0 8px 12px;
 }
 /* Clears the app bar by hand: `.body` now runs to the top of the window, so
    10px from its edge would put this underneath the floating bar. */
@@ -1039,30 +1039,36 @@ body {
   }
 }
 
+/*
+ * The table list is a macOS source list, not an iOS inset card: rows sit on
+ * the sidebar material itself at 28px, nothing divides them, and the only
+ * fill is the hover and the selection. Groups are section headers above
+ * their rows rather than boxes around them.
+ */
 .entity-group {
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 .entity-group-head {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 28px;
-  padding: 4px 8px;
+  gap: 6px;
+  min-height: 24px;
+  padding: 2px 8px;
   border: 0;
-  border-radius: calc(var(--radius) * 8 / 14);
+  border-radius: 6px;
   background: transparent;
-  color: var(--ink-2);
+  color: var(--label-2);
   text-align: left;
-  font-size: 0.8125rem;
+  font-size: var(--text-2xs);
 }
 .entity-group-head:hover {
-  background: color-mix(in srgb, var(--ink-1) 5%, transparent);
+  background: var(--fill-4);
 }
 .entity-group-dot {
-  flex: 0 0 8px;
-  width: 8px;
-  height: 8px;
+  flex: 0 0 6px;
+  width: 6px;
+  height: 6px;
   border-radius: 999px;
 }
 .entity-group-name {
@@ -1071,109 +1077,88 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
+  letter-spacing: var(--tracking-wide);
 }
-/* The prefix this schema stamps on the tables created in it, shown as the
-   fragment it actually is -- monospaced, so `MLL_` reads as a name part. */
+/* The prefix a table created here is stamped with -- typed, so set in mono. */
 .entity-group-keyword {
   flex: 0 0 auto;
-  padding: 1px 5px;
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--ink-1) 6%, transparent);
-  color: var(--ink-3);
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--fill-3);
+  color: var(--label-2);
   font-family: var(--font-mono), ui-monospace, monospace;
-  font-size: var(--text-2xs);
+  font-size: 10px;
+  line-height: 16px;
 }
 .entity-group-count {
   margin-left: auto;
-  color: var(--ink-3);
-  font-size: var(--text-xs);
+  color: var(--label-3);
+  font-size: var(--text-2xs);
   font-variant-numeric: tabular-nums;
 }
+/* Disclosure, the macOS way: present on hover, otherwise out of the way. */
 .entity-group-chevron {
-  color: var(--ink-3);
-  transition: transform var(--duration-base) var(--ease-out);
+  color: var(--label-3);
+  opacity: 0;
+  transition:
+    transform var(--duration-base) var(--spring),
+    opacity var(--duration-fast) var(--ease-out);
 }
-.entity-group.open .entity-group-chevron {
-  transform: rotate(180deg);
+.entity-group-head:is(:hover, :focus-visible) .entity-group-chevron {
+  opacity: 1;
+}
+.entity-group:not(.open) .entity-group-chevron {
+  transform: rotate(-90deg);
 }
 .entity-group-body {
   display: flex;
   flex-direction: column;
-  padding: 2px 0 4px;
+  padding: 1px 0 0;
 }
-/*
- * A list of tables or relationships: one inset group, rows divided by hairlines
- * inset past the leading swatch -- a Settings list, not a stack of cards. Each
- * row keeps its own surface only when open, when it grows to hold its editor.
- */
 .entity-list {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  border-radius: var(--radius-group);
-  background: var(--grouped-surface);
-  box-shadow: 0 0 0 0.5px var(--separator);
+  gap: 1px;
 }
 .entity-list:empty {
   display: none;
 }
-.entity-list > * {
-  position: relative;
-}
-.entity-list > * + *::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 30px;
-  z-index: 1;
-  height: 1px;
-  background: var(--separator);
-  transform: scaleY(0.5);
-  transform-origin: top;
-  pointer-events: none;
-}
-/* An open row is set off full width: its editor is a different surface. */
-.entity-list > .open::before,
-.entity-list > .open + *::before {
-  left: 0;
-}
 .entity-group-empty {
-  padding: 4px 12px 6px;
-  color: var(--ink-3);
+  margin: 0;
+  padding: 2px 10px 4px 22px;
+  color: var(--label-3);
   font-size: var(--text-xs);
 }
-
-/*
- * A table: a single white row when closed, the same surface grown to hold
- * its editor when open. The editor's own groups sit on the grouped base
- * inside it, so an open table reads as one sheet, not boxes within boxes.
- */
 .entity {
-  background: var(--grouped-surface);
-}
-.entity.open {
-  background: var(--grouped-bg);
+  border-radius: 7px;
 }
 .entity-head {
   width: 100%;
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: var(--row-height-compact);
-  padding: 4px 10px 4px 12px;
+  min-height: 28px;
+  padding: 2px 8px 2px 10px;
   border: 0;
-  border-radius: 0;
+  border-radius: 6px;
   background: transparent;
-  color: var(--ink-1);
+  color: var(--label);
   text-align: left;
-  transition: background var(--duration-fast) var(--ease-out);
 }
 .entity-head:hover {
-  background: color-mix(in srgb, var(--ink-1) 4%, transparent);
+  background: var(--fill-4);
 }
+/* Selected: the row fills with the tint and everything on it turns white --
+   the open editor beneath it is unmistakably this table's. */
 .entity.open .entity-head {
-  background: var(--grouped-surface);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.entity.open .entity-head :is(.entity-count, .entity-chevron) {
+  color: color-mix(in srgb, var(--primary-foreground) 75%, transparent);
+}
+.entity.open .entity-swatch {
+  box-shadow: 0 0 0 1.5px var(--primary-foreground);
 }
 .entity-swatch {
   flex: 0 0 8px;
@@ -1189,34 +1174,43 @@ body {
   white-space: nowrap;
   font-family: var(--font-mono), ui-monospace, monospace;
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 500;
 }
 .entity-count {
   margin-left: auto;
-  color: var(--ink-3);
-  font-size: var(--text-xs);
+  color: var(--label-3);
+  font-size: var(--text-2xs);
   font-variant-numeric: tabular-nums;
 }
 .entity-chevron,
 .entity-group-chevron {
   flex: 0 0 auto;
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
 }
 .entity-chevron {
-  flex: 0 0 auto;
-  color: var(--ink-4);
-  transition: transform var(--duration-base) var(--ease-out);
+  color: var(--label-3);
+  opacity: 0;
+  transition:
+    transform var(--duration-base) var(--spring),
+    opacity var(--duration-fast) var(--ease-out);
+}
+.entity-head:is(:hover, :focus-visible) .entity-chevron,
+.entity.open .entity-chevron,
+.relationship-editor-head:is(:hover, :focus-visible) .entity-chevron,
+.relationship-editor.open .entity-chevron {
+  opacity: 1;
 }
 .entity.open .entity-chevron {
   transform: rotate(180deg);
 }
+/* The open table's editor, under its selected row: its own inset groups are
+   the surfaces, so the body adds none (a card in a card doubles the edge). */
 .entity-body {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 14px 10px 12px;
-  border-top: 0.5px solid var(--separator);
+  gap: 14px;
+  padding: 10px 2px 12px;
 }
 .inset-row-action {
   justify-content: flex-start;
@@ -1934,11 +1928,14 @@ body {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 8px 12px;
-  border-top: 1px solid var(--hairline);
-  color: var(--ink-3);
+  gap: 12px;
+  padding: 6px 10px;
+  border-top: 0.5px solid var(--separator);
+  color: var(--label-2);
   font-size: var(--text-xs);
+}
+.panel-footer .segmented {
+  margin-left: auto;
 }
 .counter {
   display: inline-flex;
