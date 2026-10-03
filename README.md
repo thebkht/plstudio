@@ -65,6 +65,7 @@ docker compose --env-file .env.local up --build -d
 - **Collaboration**: `ws://localhost:5555/collab` — the same port as the app, so a reverse proxy or tunnel needs only that one port (with WebSocket upgrades allowed)
 - **Data Persistence**: the named volume `<project>_app-data` is mounted at `/data`, holding `auth.db`, `projects/`, `yjs/` and `shares/`. It is a named volume rather than a bind mount into the checkout on purpose — see the comment at the top of `docker-compose.yml`. Move it between machines with `scripts/data-backup.sh` / `scripts/data-restore.sh` (below).
 - **Schema**: the web container runs `drizzle-kit push` before starting the server, so a fresh volume gets its auth tables automatically and an older one is brought up to date. It is idempotent — an unchanged schema logs `No changes detected`.
+- **Resources**: the service is capped at 2 CPUs and 1 GB (`cpus`/`mem_limit` in `docker-compose.yml`) so a busy collaboration session leaves the host's own browser room to work. Raise the caps on a dedicated server; on macOS and Windows, Docker Desktop → Settings → Resources bounds the VM itself as well.
 
 To stop the containers:
 
