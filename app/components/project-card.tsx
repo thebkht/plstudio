@@ -57,7 +57,9 @@ export default function ProjectCard({ projectId, href, name, tableCount, updated
           <span className="project-card-dot" aria-hidden="true" />
           {tableCount} {tableCount === 1 ? "table" : "tables"}
           <span aria-hidden="true"> · </span>
-          <span title={updatedAt}>{author ? `${author}, ${updatedLabel}` : updatedLabel}</span>
+          {/* When before who: on a narrow tile the line truncates from the
+              end, and the date is the part worth keeping. */}
+          <span title={author ? `${updatedAt} · ${author}` : updatedAt}>{author ? `${updatedLabel} · ${author}` : updatedLabel}</span>
         </p>
       </div>
       {/* A sibling of the thumbnail, not its child: the thumbnail lifts with a

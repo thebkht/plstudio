@@ -3980,6 +3980,52 @@ a.grouped-row:active {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.grouped-row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.grouped-row-subtitle {
+  overflow: hidden;
+  color: var(--label-2);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.grouped-row-avatar {
+  border-radius: 50%;
+}
+.grouped-row-placeholder {
+  color: var(--label-3);
+  font-size: var(--text-footnote);
+}
+/* A pop-up button inside a row: no field, just the value and its chevrons
+   in the detail colour until pressed -- the System Settings control. */
+.grouped-row-popup[data-slot="select-trigger"] {
+  width: auto;
+  gap: 4px;
+  padding-inline: 8px;
+  background: transparent;
+  color: var(--label-2);
+}
+.grouped-row-popup[data-slot="select-trigger"]:hover,
+.grouped-row-popup[data-slot="select-trigger"][aria-expanded="true"] {
+  background: var(--fill-3);
+  color: var(--label);
+}
+.grouped-list-footer {
+  max-width: 560px;
+  margin: 6px 0 0;
+  padding: 0 12px;
+  color: var(--label-2);
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+}
+.settings-page .grouped-list-footer {
+  max-width: none;
+}
 .grouped-row-detail {
   color: var(--label-2);
   font-size: var(--text-footnote);
@@ -4140,9 +4186,21 @@ a.grouped-row:hover .grouped-row-chevron {
 }
 
 /* ── Settings ─────────────────────────────────────────────────────── */
-.settings-card {
+/* A readable column, the width System Settings gives its panes. Set on the
+   sections, not the page: the page is a shell child, whose wider rule wins,
+   and keeping it wide also keeps the column aligned under the title. */
+.settings-page > * {
   max-width: 640px;
-  margin: 0 0 24px;
+}
+.settings-page .grouped-list {
+  max-width: none;
+}
+.settings-invite {
+  gap: 8px;
+  padding-block: 8px;
+}
+.settings-invite [data-slot="input"] {
+  flex: 1;
 }
 
 /* ── Auth ─────────────────────────────────────────────────────────── */

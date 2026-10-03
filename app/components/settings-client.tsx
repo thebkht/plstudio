@@ -2,24 +2,9 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { authClient } from "@/app/lib/auth-client";
-import { Badge } from "@/components/ui/badge";
+import { Identicon } from "@/app/components/identicon";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemGroup,
-  ItemTitle,
-} from "@/components/ui/item";
 import {
   Select,
   SelectContent,
@@ -76,58 +61,68 @@ export default function SettingsClient({ workspace, organizationId, organization
     } else toast.success(`${member.user?.name || member.user?.email} is now ${ROLE_LABELS[role].toLowerCase()}.`);
   };
 
+  const roleLabel = (role: string) => ROLE_LABELS[role as WorkspaceRole] ?? role;
+
+  /* System Settings, not a form: each concern is a titled section holding
+     one inset grouped list, explained by a footnote beneath it. */
   return (
-    <Card className="settings-card">
-      <CardHeader>
-        <CardTitle>{organizationName} members</CardTitle>
-        <CardDescription>Everyone with access to this workspace.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <FieldGroup>
-          <ItemGroup>
-            {members.map((member) => (
-              <Item key={member.id} variant="outline">
-                <ItemContent>
-                  <ItemTitle>{member.user?.name || member.user?.email}</ItemTitle>
-                </ItemContent>
-                <ItemActions>
-                  {canChangeMemberRole(viewerRole, member.role, member.userId === viewerUserId) ? (
-                    <Select
-                      className="w-36"
-                      aria-label={`Role for ${member.user?.name || member.user?.email}`}
-                      isDisabled={pendingRoleFor === member.id}
-                      selectedKey={member.role}
-                      onSelectionChange={(key) => void changeRole(member, key as WorkspaceRole)}
-                    >
-                      <SelectTrigger size="sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          {options.map((role) => (
-                            <SelectItem key={role} id={role}>{ROLE_LABELS[role]}</SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Badge variant="secondary">{member.role}</Badge>
-                  )}
-                </ItemActions>
-              </Item>
-            ))}
-          </ItemGroup>
-          {canManage && (
-            <Field>
-              <FieldLabel htmlFor="invite-email">Invite a member</FieldLabel>
-              <div className="flex gap-2">
-                <Input id="invite-email" placeholder="person@example.com" type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
-                <Button isDisabled={!email.trim()} onPress={invite}>Copy invitation link</Button>
-              </div>
-            </Field>
+    <div className="settings-page">
+      <section className="dashboard-section">
+        <h2 className="dashboard-section-title">
+          Members {members.length > 0 && <span className="dashboard-section-count">{members.length}</span>}
+        </h2>
+        <ul className="grouped-list">
+          {members.length === 0 && (
+            <li className="grouped-row grouped-row-placeholder">Loading members…</li>
           )}
-        </FieldGroup>
-      </CardContent>
-    </Card>
+          {members.map((member) => {
+            const name = member.user?.name || member.user?.email || "Unknown member";
+            return (
+              <li key={member.id} className="grouped-row">
+                <Identicon seed={member.user?.email || member.userId} className="grouped-row-icon grouped-row-avatar" />
+                <span className="grouped-row-text">
+                  <span className="grouped-row-title">{name}</span>
+                  {member.user?.name && member.user.email && <span className="grouped-row-subtitle">{member.user.email}</span>}
+                </span>
+                {canChangeMemberRole(viewerRole, member.role, member.userId === viewerUserId) ? (
+                  <Select
+                    aria-label={`Role for ${name}`}
+                    isDisabled={pendingRoleFor === member.id}
+                    selectedKey={member.role}
+                    onSelectionChange={(key) => void changeRole(member, key as WorkspaceRole)}
+                  >
+                    <SelectTrigger size="sm" className="grouped-row-popup">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {options.map((role) => (
+                          <SelectItem key={role} id={role}>{ROLE_LABELS[role]}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <span className="grouped-row-detail">{roleLabel(member.role)}</span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+        <p className="grouped-list-footer">Everyone with access to diagrams in {organizationName}.</p>
+      </section>
+      {canManage && (
+        <section className="dashboard-section">
+          <h2 className="dashboard-section-title">Invite</h2>
+          <div className="grouped-list">
+            <div className="grouped-row settings-invite">
+              <Input id="invite-email" aria-label="Email address to invite" placeholder="person@example.com" type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+              <Button size="sm" isDisabled={!email.trim()} onPress={invite}>Copy Link</Button>
+            </div>
+          </div>
+          <p className="grouped-list-footer">Creates a one-time invitation and copies its link. New members join as Member.</p>
+        </section>
+      )}
+    </div>
   );
 }
