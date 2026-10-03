@@ -28,7 +28,6 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
         current={workspace}
         links={[
           { href: `/${workspace}`, label: "Projects", current: true },
-          { href: "/templates", label: "Templates" },
           { href: `/${workspace}/settings`, label: "Settings" },
         ]}
         user={{ name: session.user.name, email: session.user.email, image: session.user.image }}
@@ -40,7 +39,6 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
         </div>
         <div className="dashboard-actions">
           <Link data-slot="button" className={buttonVariants({ variant: "outline" })} href="/editor">Personal diagram</Link>
-          <Link data-slot="button" className={buttonVariants({ variant: "outline" })} href="/templates">Browse templates</Link>
           <NewProjectButton workspace={workspace} />
         </div>
       </header>
@@ -54,13 +52,13 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
       ) : (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>Start from a template</EmptyTitle>
+            <EmptyTitle>Create your first diagram</EmptyTitle>
             <EmptyDescription>
-              Build your first Oracle diagram from a ready-made foundation.
+              Draw tables on the canvas and PLStudio writes the Oracle DDL for you.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
-            <Link data-slot="button" className={buttonVariants()} href="/templates">Browse templates</Link>
+            <NewProjectButton workspace={workspace} />
           </EmptyContent>
         </Empty>
       )}

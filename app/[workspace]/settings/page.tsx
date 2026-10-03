@@ -14,7 +14,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ works
         current={workspace}
         links={[
           { href: `/${workspace}`, label: "Projects" },
-          { href: "/templates", label: "Templates" },
+          { href: `/${workspace}/settings`, label: "Settings", current: true },
         ]}
         user={{ name: session.user.name, email: session.user.email, image: session.user.image }}
       />

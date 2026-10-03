@@ -3331,8 +3331,7 @@ button {
   .project-card:active,
   .workspace-list a:hover,
   .workspace-list a:active,
-  .workspace-list a:hover .workspace-list-chevron,
-  .template-card:hover {
+  .workspace-list a:hover .workspace-list-chevron {
     transform: none;
   }
 }
@@ -3555,14 +3554,6 @@ button {
 .share-read-only {
   padding-top: 2.25rem;
 }
-/* DrawDB-inspired product surfaces. The existing editor tokens remain the
-   source of truth for canvas behavior; these layers define the shared shell. */
-.templates-page {
-  min-height: 100vh;
-  background: #f4f4f5;
-  color: #18181b;
-  overflow: hidden;
-}
 
 .brand-link {
   display: inline-flex;
@@ -3615,78 +3606,6 @@ button {
   text-transform: uppercase;
 }
 
-.templates-page {
-  background: #fff;
-}
-.templates-header {
-  display: flex;
-  align-items: center;
-  gap: 25px;
-  padding: 22px max(24px, calc((100% - 1250px) / 2));
-  border-bottom: 1px solid #e4e4e7;
-}
-.templates-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-left: 24px;
-  border-left: 1px solid #d4d4d8;
-  color: #52525b;
-  font-size: 0.94rem;
-  font-weight: 700;
-}
-.templates-intro {
-  max-width: 1250px;
-  margin: auto;
-  padding: 65px 24px 24px;
-}
-.templates-intro h1 {
-  margin: 12px 0 8px;
-  color: var(--brand-ink);
-  font-size: clamp(2rem, 4vw, 3.2rem);
-  letter-spacing: -0.05em;
-}
-.templates-intro > p:last-child {
-  max-width: 570px;
-  margin: 0;
-  color: #71717a;
-  line-height: 1.65;
-}
-.template-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 25px;
-  max-width: 1250px;
-  margin: auto;
-  padding: 34px 24px 85px;
-}
-.template-card {
-  overflow: hidden;
-  border: 1px solid #e4e4e7;
-  border-radius: calc(var(--radius) * 13 / 14);
-  background: #f8f8f8;
-  transition:
-    transform 0.25s ease,
-    box-shadow 0.25s ease;
-}
-.template-card:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 18px 34px rgb(0 0 0 / 9%);
-}
-.template-preview {
-  position: relative;
-  aspect-ratio: 8 / 5;
-  overflow: hidden;
-  border-bottom: 1px solid #e4e4e7;
-  background: #f4f4f5;
-}
-.templates-footer {
-  padding: 20px;
-  border-top: 1px solid #e4e4e7;
-  color: #a1a1aa;
-  font-size: 0.72rem;
-  text-align: center;
-}
 .auth-shell {
   position: relative;
   min-height: 100vh;
@@ -3912,12 +3831,6 @@ button {
 /* The .appbar-* rules that used to sit here shadowed the app-bar block above;
    they now live there, declared once. */
 @media (max-width: 900px) {
-  .template-grid {
-    grid-template-columns: 1fr;
-  }
-  .templates-header {
-    padding: 18px 20px;
-  }
   .dashboard-header {
     display: block;
     padding-top: 38px;
@@ -3932,16 +3845,6 @@ button {
 @media (max-width: 520px) {
   .auth-shell {
     padding: 16px;
-  }
-  .template-grid {
-    padding-left: 16px;
-    padding-right: 16px;
-  }
-  .templates-intro {
-    padding-top: 42px;
-  }
-  .templates-title {
-    font-size: 0.8rem;
   }
   .brand-mark {
     font-size: 1.2rem;

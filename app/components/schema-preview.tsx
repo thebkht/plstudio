@@ -5,7 +5,7 @@ import { type Schema } from "@/app/lib/schema";
  * A schema's silhouette, sized to a card. Deliberately not a client component:
  * the dashboards are server components, so the whole `schemaJson` stays on the
  * server and only this markup crosses the wire. It holds no state and reads no
- * DOM, which also lets the (client) templates gallery render it unchanged.
+ * DOM.
  *
  * Decorative: the card states the name and table count in text, so announcing
  * a wall of rectangles would only add noise.

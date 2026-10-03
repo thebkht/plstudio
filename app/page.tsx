@@ -34,7 +34,6 @@ export default async function Page() {
         current={null}
         links={[
           { href: "/", label: "Personal projects", current: true },
-          { href: "/templates", label: "Templates" },
         ]}
         user={{ name: session.user.name, email: session.user.email, image: session.user.image }}
       />
