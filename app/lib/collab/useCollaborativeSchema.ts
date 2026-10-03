@@ -5,9 +5,9 @@ import * as Y from "yjs";
 import { HocuspocusProvider } from "@hocuspocus/provider";
 import type { Schema } from "@/app/lib/schema";
 import { applySchemaToYDoc, createReadCache, isEmptyDoc, schemaFromYDoc, schemaRoot } from "./ydoc";
+import { createCursorStore, samePeers, type CollabUser, type CursorPoint, type Peer } from "./presence";
 
-export type CollabUser = { id: string; name: string; image?: string | null };
-export type Peer = { clientId: number; user: CollabUser; color: string; cursor: { x: number; y: number } | null; selectedIds: string[] };
+export type { CollabUser, Peer } from "./presence";
 export type CollabStatus = "local" | "connecting" | "connected" | "disconnected";
 
 /** Peer colours are derived from the user id so everyone sees the same person in the same colour. */
@@ -57,6 +57,8 @@ export function useCollaborativeSchema({
   const [schema, setSchemaState] = useState<Schema>(initialSchema);
   const [status, setStatus] = useState<CollabStatus>(collabEnabled ? "connecting" : "local");
   const [peers, setPeers] = useState<Peer[]>([]);
+  /** Stable for the hook's lifetime: consumers subscribe once, and cursor moves never touch React state. */
+  const [cursors] = useState(createCursorStore);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const providerRef = useRef<HocuspocusProvider | null>(null);
@@ -161,28 +163,26 @@ export function useCollaborativeSchema({
     const awareness = provider.awareness;
     const readPeers = () => {
       if (!awareness) return;
-      setPeers(
-        [...awareness.getStates().entries()]
-          .filter(([clientId, state]) => clientId !== awareness.clientID && (state as Peer).user)
-          .map(([clientId, state]) => {
-            const peer = state as Omit<Peer, "clientId"> & { selectedId?: string | null };
-            return {
-              clientId,
-              user: peer.user,
-              color: peer.color ?? peerColor(peer.user.id),
-              cursor: peer.cursor ?? null,
-              // A peer on a build that predates multi-selection still sends the
-              // single `selectedId`; read either shape rather than losing them.
-              selectedIds: Array.isArray(peer.selectedIds) ? peer.selectedIds : peer.selectedId ? [peer.selectedId] : [],
-            };
-          }),
-      );
+      const states = [...awareness.getStates().entries()]
+        .filter(([clientId, state]) => clientId !== awareness.clientID && (state as Peer).user)
+        .map(([clientId, state]) => [clientId, state as Omit<Peer, "clientId"> & { cursor?: CursorPoint | null; selectedId?: string | null }] as const);
+      const next = states.map(([clientId, peer]) => ({
+        clientId,
+        user: peer.user,
+        color: peer.color ?? peerColor(peer.user.id),
+        // A peer on a build that predates multi-selection still sends the
+        // single `selectedId`; read either shape rather than losing them.
+        selectedIds: Array.isArray(peer.selectedIds) ? peer.selectedIds : peer.selectedId ? [peer.selectedId] : [],
+      }));
+      // `peers` is read by the designer itself, so it only changes when the
+      // roster or someone's selection does; a pointer move goes to `cursors`,
+      // which only the cursor layer subscribes to.
+      setPeers((current) => (samePeers(current, next) ? current : next));
+      cursors.set(new Map(states.flatMap(([clientId, peer]) => (peer.cursor ? [[clientId, peer.cursor] as const] : []))));
     };
     /**
-     * A remote cursor fires an awareness change per frame, and `peers` is read
-     * by the designer itself — so an unthrottled sync means every peer's every
-     * pointermove re-renders the whole canvas. Coalesce to one frame, the same
-     * way `setCursor` below coalesces the send side.
+     * A remote cursor fires an awareness change per frame; coalesce to one
+     * frame, the same way `setCursor` below coalesces the send side.
      */
     let peersFrame: number | null = null;
     const syncPeers = () => {
@@ -201,9 +201,10 @@ export function useCollaborativeSchema({
       provider.destroy();
       providerRef.current = null;
       setPeers([]);
+      cursors.set(new Map());
       setStatus(collabEnabled ? "connecting" : "local");
     };
-  }, [identity, projectId, seedIfEmpty, shareToken, workspaceSlug, ydoc]);
+  }, [cursors, identity, projectId, seedIfEmpty, shareToken, workspaceSlug, ydoc]);
 
   const commit = useCallback(
     (next: Schema) => { if (!readOnly) applySchemaToYDoc(ydoc, next, localOrigin); },
@@ -239,5 +240,5 @@ export function useCollaborativeSchema({
 
   useEffect(() => () => { if (cursorFrame.current !== null) cancelAnimationFrame(cursorFrame.current); }, []);
 
-  return { schema, commit, undo, redo, canUndo, canRedo, setRevision, status, peers, setCursor, setSelection };
+  return { schema, commit, undo, redo, canUndo, canRedo, setRevision, status, peers, cursors, setCursor, setSelection };
 }

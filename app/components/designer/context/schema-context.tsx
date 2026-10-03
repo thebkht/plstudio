@@ -56,6 +56,7 @@ export type SchemaContextValue = {
   setRevision: (revision: number) => void;
   collabStatus: ReturnType<typeof useCollaborativeSchema>["status"];
   peers: ReturnType<typeof useCollaborativeSchema>["peers"];
+  cursors: ReturnType<typeof useCollaborativeSchema>["cursors"];
   setCursor: ReturnType<typeof useCollaborativeSchema>["setCursor"];
   broadcastSelection: ReturnType<typeof useCollaborativeSchema>["setSelection"];
   patchTable: (id: string, patch: Partial<Table>) => void;
@@ -133,6 +134,7 @@ export function SchemaProvider({
     setRevision,
     status: collabStatus,
     peers,
+    cursors,
     setCursor,
     setSelection: broadcastSelection,
   } = useCollaborativeSchema({
@@ -484,6 +486,7 @@ export function SchemaProvider({
       setRevision,
       collabStatus,
       peers,
+      cursors,
       setCursor,
       broadcastSelection,
       patchTable,
@@ -516,6 +519,7 @@ export function SchemaProvider({
       setRevision,
       collabStatus,
       peers,
+      cursors,
       setCursor,
       broadcastSelection,
       patchTable,

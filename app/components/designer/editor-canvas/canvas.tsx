@@ -195,7 +195,7 @@ export type CanvasProps = {
 };
 
 export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
-  const { schema, groupsById, peers, addColumn, addIndex, deleteTable, reorderColumns } =
+  const { schema, groupsById, peers, cursors, addColumn, addIndex, deleteTable, reorderColumns } =
     useSchema();
   const { heatmap, analysis, setImpactTarget } = useOverlay();
   const showImpact = useCallback(
@@ -532,7 +532,7 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
               onAdd={addIndex}
             />
           )}
-          <PeerCursors peers={peers} />
+          <PeerCursors peers={peers} cursors={cursors} />
         </div>
         {heatmap && <HeatLegend />}
         <ImpactPanel />

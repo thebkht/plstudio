@@ -1,11 +1,12 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useSyncExternalStore } from "react";
 import { AvatarStack } from "@/components/kibo-ui/avatar-stack";
 import { Cursor, CursorBody, CursorName, CursorPointer } from "@/components/kibo-ui/cursor";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Identicon } from "@/app/components/identicon";
 import type { CollabStatus, Peer } from "@/app/lib/collab/useCollaborativeSchema";
+import type { CursorStore } from "@/app/lib/collab/presence";
 
 /**
  * Collaborators' pointers. Rendered inside the canvas transform so a peer's
@@ -13,16 +14,20 @@ import type { CollabStatus, Peer } from "@/app/lib/collab/useCollaborativeSchema
  * `--inverse-zoom` so the label stays legible at any zoom level. Reading the
  * scale from the custom property rather than a `zoom` prop is what keeps this
  * layer off the per-frame render path — see `context/transform-context`.
+ *
+ * Positions come from the cursor store rather than `peers`, so this is the only
+ * component a remote pointer move re-renders.
  */
-export const PeerCursors = memo(function PeerCursors({ peers }: { peers: Peer[] }) {
+export const PeerCursors = memo(function PeerCursors({ peers, cursors }: { peers: Peer[]; cursors: CursorStore }) {
+  const points = useSyncExternalStore(cursors.subscribe, cursors.getSnapshot, cursors.getSnapshot);
   return (
     <>
-      {peers.filter((peer) => peer.cursor).map((peer) => (
+      {peers.flatMap((peer) => { const point = points.get(peer.clientId); return point ? [{ peer, point }] : []; }).map(({ peer, point }) => (
         <Cursor
           className="peer-cursor"
           key={peer.clientId}
           style={{
-            transform: `translate3d(${peer.cursor!.x}px, ${peer.cursor!.y}px, 0) scale(var(--inverse-zoom, 1))`,
+            transform: `translate3d(${point.x}px, ${point.y}px, 0) scale(var(--inverse-zoom, 1))`,
             color: peer.color,
           }}
         >
