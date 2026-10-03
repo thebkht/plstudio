@@ -186,9 +186,10 @@ export function useCollaborativeSchema({
        * The server bumps `revision` every time it stores the document, and says
        * so here. Ref only: the number matters to the next `PUT`, not to anything
        * drawn, and a new `schema` identity every store would re-validate and
-       * re-route the whole diagram for it.
+       * re-route the whole diagram for it. `max`, because the server's revision
+       * only climbs and this can arrive after the response to a later `PUT`.
        */
-      onStateless: ({ payload }) => { revisionRef.current = revisionFromStateless(payload) ?? revisionRef.current; },
+      onStateless: ({ payload }) => { revisionRef.current = Math.max(revisionRef.current, revisionFromStateless(payload) ?? 0); },
     });
     providerRef.current = provider;
 
