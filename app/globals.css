@@ -2,7 +2,9 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (@media (prefers-color-scheme: dark));
+/* Dark is whatever <html data-theme> says: next-themes resolves the choice
+   (System, Light or Dark) and stamps it before first paint. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 /*
  * Apple's semantic system colours, by role rather than by value: labels
@@ -12,7 +14,7 @@
  * dark block at the end of this file only has to restate this first group.
  */
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --system-blue: #007aff;
   --system-red: #ff3b30;
   --system-orange: #ff9500;
@@ -47,6 +49,7 @@
   --material-blur: blur(20px) saturate(180%);
   --material-edge: rgb(255 255 255 / 0.5);
   --segment-selected: #ffffff;
+  --field-autofill: #efeff0;
   --warn-ink: #c93400;
   --shadow-card: 0 0 0 0.5px rgb(0 0 0 / 0.04), 0 1px 2px rgb(0 0 0 / 0.04), 0 6px 16px -8px rgb(0 0 0 / 0.12);
   --shadow-card-hover: 0 0 0 0.5px rgb(0 0 0 / 0.04), 0 2px 4px rgb(0 0 0 / 0.05), 0 16px 32px -12px rgb(0 0 0 / 0.2);
@@ -100,76 +103,77 @@
 }
 
 /*
- * Dark appearance, following the system. Only the base roles change; every
- * alias in the block below resolves through them. Elevation comes from
- * lighter surfaces here, so shadows thin out instead of deepening.
+ * Dark appearance, chosen by the theme toggle or followed from the system.
+ * Only the base roles change; every alias in the block below resolves through
+ * them. Elevation comes from lighter surfaces here, so shadows thin out
+ * instead of deepening.
  */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --system-blue: #0a84ff;
-    --system-red: #ff453a;
-    --system-orange: #ff9f0a;
-    --system-green: #30d158;
-    --system-gray: #8e8e93;
-    --label: #f5f5f7;
-    --label-2: #98989d;
-    --label-3: #636366;
-    --label-4: #48484a;
-    --fill-1: rgb(120 120 128 / 0.36);
-    --fill-2: rgb(120 120 128 / 0.32);
-    --fill-3: rgb(118 118 128 / 0.24);
-    --fill-4: rgb(118 118 128 / 0.18);
-    --bg: #000000;
-    --bg-grouped: #000000;
-    --bg-grouped-2: #1c1c1e;
-    --bg-grouped-3: #2c2c2e;
-    --bg-raised: #1c1c1e;
-    --separator: rgb(84 84 88 / 0.6);
-    --separator-opaque: #38383a;
-    --hairline: rgb(255 255 255 / 0.1);
-    --hairline-strong: rgb(255 255 255 / 0.16);
-    --material-thin: rgb(37 37 39 / 0.55);
-    --material-regular: rgb(30 30 32 / 0.72);
-    --material-thick: rgb(28 28 30 / 0.86);
-    --material-edge: rgb(255 255 255 / 0.08);
-    --segment-selected: #636366;
-    --warn-ink: #ffb340;
-    --shadow-card: 0 0 0 0.5px rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.3);
-    --shadow-card-hover: 0 0 0 0.5px rgb(255 255 255 / 0.1), 0 12px 28px -12px rgb(0 0 0 / 0.6);
-    --shadow-pop: 0 0 0 0.5px rgb(255 255 255 / 0.1), 0 12px 32px rgb(0 0 0 / 0.5);
-    --shadow-dock: 0 0 0 0.5px rgb(255 255 255 / 0.1), 0 12px 32px rgb(0 0 0 / 0.45);
-    --shadow-segment: 0 3px 8px rgb(0 0 0 / 0.3), 0 0 0 0.5px rgb(255 255 255 / 0.06);
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --system-blue: #0a84ff;
+  --system-red: #ff453a;
+  --system-orange: #ff9f0a;
+  --system-green: #30d158;
+  --system-gray: #8e8e93;
+  --label: #f5f5f7;
+  --label-2: #98989d;
+  --label-3: #636366;
+  --label-4: #48484a;
+  --fill-1: rgb(120 120 128 / 0.36);
+  --fill-2: rgb(120 120 128 / 0.32);
+  --fill-3: rgb(118 118 128 / 0.24);
+  --fill-4: rgb(118 118 128 / 0.18);
+  --bg: #000000;
+  --bg-grouped: #000000;
+  --bg-grouped-2: #1c1c1e;
+  --bg-grouped-3: #2c2c2e;
+  --bg-raised: #1c1c1e;
+  --separator: rgb(84 84 88 / 0.6);
+  --separator-opaque: #38383a;
+  --hairline: rgb(255 255 255 / 0.1);
+  --hairline-strong: rgb(255 255 255 / 0.16);
+  --material-thin: rgb(37 37 39 / 0.55);
+  --material-regular: rgb(30 30 32 / 0.72);
+  --material-thick: rgb(28 28 30 / 0.86);
+  --material-edge: rgb(255 255 255 / 0.08);
+  --segment-selected: #636366;
+  --field-autofill: #323234;
+  --warn-ink: #ffb340;
+  --shadow-card: 0 0 0 0.5px rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-card-hover: 0 0 0 0.5px rgb(255 255 255 / 0.1), 0 12px 28px -12px rgb(0 0 0 / 0.6);
+  --shadow-pop: 0 0 0 0.5px rgb(255 255 255 / 0.1), 0 12px 32px rgb(0 0 0 / 0.5);
+  --shadow-dock: 0 0 0 0.5px rgb(255 255 255 / 0.1), 0 12px 32px rgb(0 0 0 / 0.45);
+  --shadow-segment: 0 3px 8px rgb(0 0 0 / 0.3), 0 0 0 0.5px rgb(255 255 255 / 0.06);
 
-    --canvas-surface: #1c1c1e;
-    --grid-dot: #545458;
-    --table-surface: #2c2c2e;
-    --table-ink: #f5f5f7;
-    --table-muted: #98989d;
-    --table-border: #48484a;
-    --table-line: #3a3a3c;
-    --type-string: #ff9f6b;
-    --type-integer: #64a8ff;
-    --type-decimal: #b39cff;
-    --type-date: #4cd6a4;
-    --type-binary: #f28dc0;
-    --type-other: #98989d;
-    --edge: #8e8e93;
-    --memo-ink: #f5f5f7;
-    --memo-yellow-surface: #3a3420;
-    --memo-yellow-edge: #d6b52c;
-    --memo-green-surface: #1f3324;
-    --memo-green-edge: #5fc27a;
-    --memo-blue-surface: #172d3d;
-    --memo-blue-edge: #4aaee8;
-    --memo-pink-surface: #3d1f2b;
-    --memo-pink-edge: #e283aa;
-    --badge-pk-fill: #422006;
-    --badge-pk-ink: #fbbf24;
-    --badge-fk-fill: #10284d;
-    --badge-fk-ink: #64a8ff;
-    --badge-uq-fill: #2e1065;
-    --badge-uq-ink: #b39cff;
-  }
+  --canvas-surface: #1c1c1e;
+  --grid-dot: #545458;
+  --table-surface: #2c2c2e;
+  --table-ink: #f5f5f7;
+  --table-muted: #98989d;
+  --table-border: #48484a;
+  --table-line: #3a3a3c;
+  --type-string: #ff9f6b;
+  --type-integer: #64a8ff;
+  --type-decimal: #b39cff;
+  --type-date: #4cd6a4;
+  --type-binary: #f28dc0;
+  --type-other: #98989d;
+  --edge: #8e8e93;
+  --memo-ink: #f5f5f7;
+  --memo-yellow-surface: #3a3420;
+  --memo-yellow-edge: #d6b52c;
+  --memo-green-surface: #1f3324;
+  --memo-green-edge: #5fc27a;
+  --memo-blue-surface: #172d3d;
+  --memo-blue-edge: #4aaee8;
+  --memo-pink-surface: #3d1f2b;
+  --memo-pink-edge: #e283aa;
+  --badge-pk-fill: #422006;
+  --badge-pk-ink: #fbbf24;
+  --badge-fk-fill: #10284d;
+  --badge-fk-ink: #64a8ff;
+  --badge-uq-fill: #2e1065;
+  --badge-uq-ink: #b39cff;
 }
 
 /* Roles built on the system colours: shadcn's names, the chrome ramp the
@@ -2377,12 +2381,10 @@ body {
 }
 /* The palette's pastels are light-only; on the dark canvas a group is its
    edge colour thinly laid over the surface, as the dark export draws it. */
-@media (prefers-color-scheme: dark) {
-  .schema-group {
-    --group-fill: color-mix(in srgb, var(--group-edge) 12%, transparent);
-    --group-header: color-mix(in srgb, var(--group-edge) 24%, var(--canvas-surface));
-    --group-text: color-mix(in srgb, var(--group-edge) 55%, white);
-  }
+[data-theme="dark"] .schema-group {
+  --group-fill: color-mix(in srgb, var(--group-edge) 12%, transparent);
+  --group-header: color-mix(in srgb, var(--group-edge) 24%, var(--canvas-surface));
+  --group-text: color-mix(in srgb, var(--group-edge) 55%, white);
 }
 .schema-group-head {
   position: absolute;
@@ -4242,17 +4244,27 @@ a.grouped-row:hover .grouped-row-chevron {
     display: none;
   }
 }
-/* Chrome paints autofilled fields with its own opaque yellow/blue, which
-   overrides the input material. Clipping the background to the glyphs keeps
-   the field's own surface; the absurd transition delay stops the repaint. */
+/* Chrome paints autofilled fields with its own yellow/blue and ignores the
+   background. Clipping it to the glyphs (the old fix) also erased the field's
+   fill, so the field is repainted from inside with an inset shadow in the
+   opaque equivalent of --fill-3 on a card; the absurd transition delay stops
+   Chrome's own repaint. The focus ring is restated beside it. */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus {
   -webkit-text-fill-color: var(--foreground);
-  -webkit-background-clip: text;
-  background-clip: text;
+  -webkit-box-shadow: inset 0 0 0 1000px var(--field-autofill);
+  box-shadow: inset 0 0 0 1000px var(--field-autofill);
   caret-color: var(--foreground);
   transition: background-color 0s 600000s;
+}
+input:-webkit-autofill:focus-visible {
+  -webkit-box-shadow:
+    inset 0 0 0 1000px var(--field-autofill),
+    0 0 0 3px color-mix(in srgb, var(--ring) 30%, transparent);
+  box-shadow:
+    inset 0 0 0 1000px var(--field-autofill),
+    0 0 0 3px color-mix(in srgb, var(--ring) 30%, transparent);
 }
 /* Presence. Cursors live inside the canvas transform so a peer's pointer sits
    over the same table for everyone; the counter-scale keeps the label legible. */
