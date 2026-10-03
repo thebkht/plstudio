@@ -32,12 +32,13 @@ services:
     environment:
       DATA_DIR: /data
       # Under mem_limit, with room left for the native heap (sockets, Yjs buffers).
-      NODE_OPTIONS: --max-old-space-size=768
+      NODE_OPTIONS: --max-old-space-size=${WEB_HEAP_MB:-768}
     # Caps so a busy collab session cannot take every core from the host's own
     # browser, which is usually editing on the same machine. Raise them on a
-    # dedicated server.
-    cpus: "2"
-    mem_limit: 1g
+    # dedicated server; on a 512 MB host, WEB_MEM_LIMIT=448m WEB_HEAP_MB=320
+    # WEB_CPUS=1 in the env file leaves the OS its share.
+    cpus: "${WEB_CPUS:-2}"
+    mem_limit: ${WEB_MEM_LIMIT:-1g}
     volumes:
       - app-data:/data
     ports:

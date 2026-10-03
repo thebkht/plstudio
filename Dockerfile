@@ -28,7 +28,7 @@ ENV BETTER_AUTH_SECRET=build-time-placeholder
 ENV BETTER_AUTH_URL=http://localhost:3000
 ENV DATABASE_URL=file:/tmp/build-data/auth.db
 
-# `next build --webpack`; see CLAUDE.md.
+# `next build --webpack`, then `server.ts` compiled to dist/server.cjs; see CLAUDE.md.
 RUN pnpm build
 
 FROM base AS runtime
@@ -36,11 +36,11 @@ ENV NODE_ENV=production
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
 COPY package.json ./
-# `server.ts` runs from source through tsx — Next plus the Hocuspocus socket on
-# one port — so it needs the modules the collab server imports, not just .next.
-COPY server.ts tsconfig.json next.config.ts ./
-COPY collab ./collab
-COPY app ./app
+# Next plus the Hocuspocus socket on one port, compiled ahead of time: the
+# collab server and file store are inside dist/server.cjs, so no source and no
+# tsx loader are needed at runtime.
+COPY --from=build /app/dist ./dist
+COPY tsconfig.json next.config.ts ./
 # No `public/` in this repo; add a COPY for it if static assets are ever introduced.
 
 # Needed by the `drizzle-kit push` in CMD below: the config reads ./db/paths.ts
@@ -62,4 +62,4 @@ EXPOSE 3000
 # every later start; `--force` skips the interactive prompt it would otherwise
 # raise for destructive statements. `exec` keeps the server as PID 1, so SIGTERM
 # reaches it and flushes pending collab stores before the container stops.
-CMD ["sh", "-c", "node_modules/.bin/drizzle-kit push --force && exec node --import tsx server.ts"]
+CMD ["sh", "-c", "node_modules/.bin/drizzle-kit push --force && exec node dist/server.cjs"]
