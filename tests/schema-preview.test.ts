@@ -80,6 +80,13 @@ describe("schema preview geometry", () => {
     expect(schemaPreview({ ...schemaOf([]), groups: [makeSchemaGroup("Empty")], memos: [makeMemo("hi")] })).toBeNull();
   });
 
+  it("ignores malformed regions instead of collapsing the frame", () => {
+    const broken = { ...makeMemo("bad"), width: Number.NaN };
+    const preview = schemaPreview({ ...schemaOf([makeTable("A", 0, 0)]), memos: [broken] })!;
+    expect(preview.regions).toHaveLength(0);
+    expect(Number.isFinite(preview.tables[0].x)).toBe(true);
+  });
+
   it("caps how much it will draw", () => {
     const many = Array.from({ length: 90 }, (_, index) => makeTable(`T${index}`, index * 300, index * 40));
     expect(schemaPreview(schemaOf(many))!.tables).toHaveLength(60);

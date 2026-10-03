@@ -56,11 +56,16 @@ export function schemaPreview(schema: Schema): PreviewGeometry | null {
   if (!tables.length) return null;
 
   const boxes = tables.map((table) => ({ x: table.x, y: table.y, w: tableWidth(table), h: tableHeight(table), color: currentTableColor(table.color)?.a ?? "#a1a1aa" }));
+  /* Stored JSON is not trusted to be well-formed: bound the work before
+     mapping, and drop any box whose geometry is not a finite number rather
+     than letting one NaN collapse the whole frame. */
+  const finite = (box: { x: number; y: number; w: number; h: number }) => [box.x, box.y, box.w, box.h].every(Number.isFinite);
   const regions = [
-    ...(schema.groups ?? []).map((group) => ({ x: group.x, y: group.y, w: group.width, h: group.height, color: GROUP_PALETTE[group.color]?.border ?? GROUP_PALETTE.blue.border, kind: "group" as const })),
-    ...(schema.memos ?? []).map((memo) => ({ x: memo.x, y: memo.y, w: memo.width, h: memo.height, color: (MEMO_COLORS.find((color) => color.id === memo.color) ?? MEMO_COLORS[0]).border, kind: "memo" as const })),
-  ].slice(0, MAX_REGIONS);
-  const all = [...boxes, ...regions];
+    ...(schema.groups ?? []).slice(0, MAX_REGIONS).map((group) => ({ x: group.x, y: group.y, w: group.width, h: group.height, color: GROUP_PALETTE[group.color]?.border ?? GROUP_PALETTE.blue.border, kind: "group" as const })),
+    ...(schema.memos ?? []).slice(0, MAX_REGIONS).map((memo) => ({ x: memo.x, y: memo.y, w: memo.width, h: memo.height, color: (MEMO_COLORS.find((color) => color.id === memo.color) ?? MEMO_COLORS[0]).border, kind: "memo" as const })),
+  ].filter(finite).slice(0, MAX_REGIONS);
+  const all = [...boxes.filter(finite), ...regions];
+  if (!all.length) return null;
   const minX = Math.min(...all.map((box) => box.x));
   const minY = Math.min(...all.map((box) => box.y));
   const maxX = Math.max(...all.map((box) => box.x + box.w));
@@ -76,5 +81,5 @@ export function schemaPreview(schema: Schema): PreviewGeometry | null {
   const offsetY = (PREVIEW_HEIGHT - (maxY - minY) * scale) / 2;
   const place = <T extends PreviewTable>(box: T): T => ({ ...box, x: (box.x - minX) * scale + offsetX, y: (box.y - minY) * scale + offsetY, w: box.w * scale, h: box.h * scale });
 
-  return { width: PREVIEW_WIDTH, height: PREVIEW_HEIGHT, regions: regions.map(place), tables: boxes.map(place) };
+  return { width: PREVIEW_WIDTH, height: PREVIEW_HEIGHT, regions: regions.map(place), tables: boxes.filter(finite).map(place) };
 }

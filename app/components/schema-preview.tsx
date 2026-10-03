@@ -30,14 +30,15 @@ export default function SchemaPreview({ schema }: { schema: Schema }) {
       aria-hidden="true"
       focusable="false"
     >
-      {/* Regions first, faint, so the tables read as sitting inside them. Fill
-          goes through `style`: memo colours are custom properties, which a
-          presentation attribute cannot resolve. */}
+      {/* Regions first, faint, so the tables read as sitting inside them.
+          Their fill goes through `style` because memo colours are custom
+          properties, which a presentation attribute cannot resolve -- safe
+          only because region colours come from the built-in palettes. */}
       {preview.regions.map((region, index) => (
         <rect key={`r${index}`} x={region.x} y={region.y} width={region.w} height={region.h} rx={CORNER * 2} className="schema-preview-region" style={{ fill: region.color }} />
       ))}
       {preview.tables.map((table, index) => (
-        <rect key={index} x={table.x} y={table.y} width={table.w} height={table.h} rx={CORNER} className="schema-preview-table" style={{ fill: table.color }} />
+        <rect key={index} x={table.x} y={table.y} width={table.w} height={table.h} rx={CORNER} fill={table.color} className="schema-preview-table" />
       ))}
     </svg>
   );
