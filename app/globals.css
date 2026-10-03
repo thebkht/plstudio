@@ -4518,3 +4518,44 @@ input:-webkit-autofill:focus-visible {
     backdrop-filter: none;
   }
 }
+
+/*
+ * Reduced effects. `data-effects` is stamped on <html> before first paint
+ * (`app/lib/effects.ts`): by the device when the setting is System, otherwise
+ * by the setting. A blurred material re-reads and re-blurs whatever is behind
+ * it on every frame that anything beneath changes, which on integrated
+ * graphics is most of the cost of having the editor open -- so here every
+ * material becomes the opaque surface it was tinting, and the wide soft
+ * shadows become the hairline they were softening. Layout is untouched.
+ *
+ * The blanket rule is deliberate: the shadcn menus and overlays blur through
+ * utility classes this file does not own.
+ */
+:root[data-effects="reduced"] {
+  --material-thin: var(--bg-grouped-2);
+  --material-regular: var(--bg-grouped-2);
+  --material-thick: var(--bg-grouped-2);
+  --material-bar: var(--bg-grouped-2);
+  --material-blur: none;
+  --shadow-card-hover: var(--shadow-card);
+  --shadow-pop: 0 0 0 0.5px var(--hairline-strong);
+  --shadow-dock: 0 0 0 0.5px var(--hairline-strong);
+}
+:root[data-effects="reduced"] *,
+:root[data-effects="reduced"] *::before,
+:root[data-effects="reduced"] *::after {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+/* The menus are a 70% tint over their own blur; without the blur they need the whole colour. */
+:root[data-effects="reduced"] [class*="bg-popover/"] {
+  background: var(--popover);
+}
+:root[data-effects="reduced"] [data-sonner-toast] {
+  --normal-bg: var(--bg-grouped-2) !important;
+}
+/* The dashes still mark the hovered edge and the link in flight; they just hold still. */
+:root[data-effects="reduced"] .relationship:hover .relationship-path,
+:root[data-effects="reduced"] .linking-overlay path {
+  animation: none;
+}

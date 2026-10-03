@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckIcon, LogOutIcon, MonitorIcon, MoonIcon, SunIcon, type LucideIcon } from "lucide-react";
+import { CheckIcon, GaugeIcon, LogOutIcon, MonitorIcon, MoonIcon, SparklesIcon, SunIcon, type LucideIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { authClient } from "@/app/lib/auth-client";
+import { applyEffectsPreference, readEffectsPreference, type EffectsPreference } from "@/app/lib/effects";
 import { Identicon } from "@/app/components/identicon";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,13 @@ const APPEARANCES: { id: string; label: string; icon: LucideIcon }[] = [
   { id: "system", label: "System", icon: MonitorIcon },
   { id: "light", label: "Light", icon: SunIcon },
   { id: "dark", label: "Dark", icon: MoonIcon },
+];
+
+/* Same order: System asks the device, which reduces them on modest hardware. */
+const EFFECT_CHOICES: { id: EffectsPreference; label: string; icon: LucideIcon }[] = [
+  { id: "system", label: "System", icon: MonitorIcon },
+  { id: "reduced", label: "Reduced", icon: GaugeIcon },
+  { id: "full", label: "Full", icon: SparklesIcon },
 ];
 
 export type NavUserAccount = {
@@ -50,6 +58,9 @@ export default function NavUser({
   const router = useRouter();
   const { theme = "system", setTheme } = useTheme();
   const [uncontrolled, setUncontrolled] = useState(false);
+  // Read after mount: the choice lives in localStorage, which the server render cannot see.
+  const [effects, setEffects] = useState<EffectsPreference>("system");
+  useEffect(() => setEffects(readEffectsPreference()), []);
   const name = user?.name?.trim() || "Guest";
   const seed = user?.email || user?.name;
   return (
@@ -88,6 +99,17 @@ export default function NavUser({
               {/* A leading check column, as in the pop-ups: the mark sits in
                   the same place in every menu. */}
               <span className="menu-check">{theme === id && <CheckIcon aria-label="Selected" />}</span>
+              <Icon />
+              {label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Effects</DropdownMenuLabel>
+          {EFFECT_CHOICES.map(({ id, label, icon: Icon }) => (
+            <DropdownMenuItem key={id} onAction={() => { applyEffectsPreference(id); setEffects(id); }} className="menu-checkable">
+              <span className="menu-check">{effects === id && <CheckIcon aria-label="Selected" />}</span>
               <Icon />
               {label}
             </DropdownMenuItem>
