@@ -1,3 +1,5 @@
+import { nextId } from "@/app/lib/schema";
+
 /**
  * Presence comes in two speeds. Who is in the room and what they have selected
  * changes a few times a minute; where their pointer is changes every frame. The
@@ -40,16 +42,19 @@ export const peerColor = (id: string) => PEER_COLORS[hash(id) % PEER_COLORS.leng
 
 const DEVICE_KEY = "drawsql:collab-device";
 
-/** One per browser, so a person's tabs share a name and a reload keeps it; per load when storage is blocked. */
+/**
+ * One per browser, so a person's tabs share a name and a reload keeps it; per load when storage is blocked.
+ * Minted by `nextId`, not `crypto.randomUUID`, which is absent on plain-http LAN addresses and would crash the designer.
+ */
 export function deviceId() {
   try {
     const stored = localStorage.getItem(DEVICE_KEY);
     if (stored) return stored;
-    const minted = crypto.randomUUID();
+    const minted = nextId("device");
     localStorage.setItem(DEVICE_KEY, minted);
     return minted;
   } catch {
-    return crypto.randomUUID();
+    return nextId("device");
   }
 }
 

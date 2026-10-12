@@ -132,7 +132,11 @@ export const ExportModal = ({
   const reviewNotes = [...(baseline?.warnings ?? []), ...(migration?.warnings ?? [])];
 
   const copyOutput = async () => {
-    await navigator.clipboard.writeText(output);
+    try {
+      await navigator.clipboard.writeText(output);
+    } catch {
+      return void toast.error("Clipboard access failed. Use Download instead.");
+    }
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1200);
   };
