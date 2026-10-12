@@ -1,4 +1,5 @@
 import type { IncomingMessage, Server as HttpServer } from "node:http";
+import type { Server as HttpsServer } from "node:https";
 import type { Duplex } from "node:stream";
 import { Hocuspocus } from "@hocuspocus/server";
 import { Database } from "@hocuspocus/extension-database";
@@ -68,7 +69,7 @@ export function createCollab(secret: string) {
  * other upgrade (Next's HMR socket, in dev) to `fallback`. This is the wiring
  * Hocuspocus's own `Server` does around its private `crossws`, minus the port.
  */
-export function attachCollab(server: HttpServer, hocuspocus: Hocuspocus, fallback: UpgradeHandler) {
+export function attachCollab(server: HttpServer | HttpsServer, hocuspocus: Hocuspocus, fallback: UpgradeHandler) {
   const connections = new WeakMap<object, ReturnType<Hocuspocus["handleConnection"]>>();
   const ws = crossws({
     hooks: {

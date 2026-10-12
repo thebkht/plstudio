@@ -88,6 +88,7 @@ Everything durable lives under `DATA_DIR` (default `./data`), resolved once in `
 <DATA_DIR>/projects/<ownerId>/<projectId>.json   one ProjectRecord each
 <DATA_DIR>/yjs/<projectId>.bin                   raw Yjs update log
 <DATA_DIR>/shares/<tokenHash>.json               share links
+<DATA_DIR>/tls/self-signed.json                  the generated HTTPS certificate (absent with HTTPS_CERT or HTTPS=off)
 ```
 
 `ownerId` is `organizationId ?? createdBy ?? "_unowned"` (`ownerSegment()`). Callers still address a project by **id alone** — a share link is opened by a non-owner and the collab server knows only the document name — so the store resolves id → owner itself by scanning the owner directories, memoized in a `Map` that is only ever a hint (a stale entry costs one failed read and a rescan). Changing a project's organization or creator therefore *moves* its file: `writeProject` writes the new path before removing the old one. `listProjects({ organizationId })` reads only that organization's directory; the other filters still scan. The dashboards do not call it: they use `listProjectSummaries` (`app/lib/project-summaries.ts`), built on `createProjectIndex`, which caches a derived value per file against its mtime and size so an unchanged project costs a `stat` rather than a parse of its schema.
@@ -114,6 +115,8 @@ It runs **inside the app's process, on the app's port**. Next has no WebSocket r
 
 - `didWebSocketSetup = true` stops Next attaching its own `upgrade` listener on the first request. That listener runs the router (and `proxy.ts`) on every non-HMR upgrade and `socket.end()`s when a page matches — `/collab` matches `/[workspace]` — which kills collab sockets.
 - `upgradeHandler` (the router-level handler) is what we forward to. The public `getUpgradeHandler()` reaches only the inner page server and never answers HMR, so using it silently breaks hot reload.
+
+The server speaks **HTTPS by default** (`server/tls.ts`): plain http is not a secure context, so `crypto.randomUUID` and the clipboard vanish on a LAN address. A `net` front peeks at each connection's first byte — `0x16` is a TLS handshake and goes to the `https` server, anything else gets a 308 to `https://` — so one port serves both. `HTTPS_CERT`/`HTTPS_KEY` supply a certificate; otherwise a self-signed one covering localhost, the host name and every interface IP is kept in `<DATA_DIR>/tls/self-signed.json` and reissued only near expiry or for a new name. `HTTPS=off` restores plain http, for a reverse proxy that terminates TLS.
 
 On SIGINT/SIGTERM the server closes every room and flushes the debounced stores before exiting.
 
