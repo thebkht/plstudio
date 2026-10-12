@@ -692,6 +692,7 @@ export default function Workspace({
     undo,
     redo,
     addColumn: () => selected && addColumn(selected.id),
+    bulkColumns: () => setModal("bulk-columns"),
     addTable,
     addGroup,
     addMemo,
@@ -946,6 +947,11 @@ export default function Workspace({
       hint: hint("junction"),
     },
     { separator: true },
+    {
+      label: "Edit columns…",
+      onSelect: run("bulkColumns"),
+      hint: hint("bulkColumns"),
+    },
     {
       label: "Duplicate",
       onSelect: run("duplicate"),

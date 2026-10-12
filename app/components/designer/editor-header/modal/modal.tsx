@@ -18,6 +18,7 @@ const ExportModal = dynamic(() => import("./export").then((module) => module.Exp
 const ImportModal = dynamic(() => import("./import").then((module) => module.ImportModal), { ssr: false });
 const HistoryModal = dynamic(() => import("./history").then((module) => module.HistoryModal), { ssr: false });
 const ShareModal = dynamic(() => import("./share").then((module) => module.ShareModal), { ssr: false });
+const BulkColumnsModal = dynamic(() => import("./bulk-columns").then((module) => module.BulkColumnsModal), { ssr: false });
 const ShortcutsModal = dynamic(() => import("./shortcuts").then((module) => module.ShortcutsModal), { ssr: false });
 
 export type ModalsProps = {
@@ -112,6 +113,11 @@ export function Modals({
           setExportTab("migration");
           setModal("export");
         }}
+      />}
+      {opened.has("bulk-columns") && <BulkColumnsModal
+        isOpen={modal === "bulk-columns"}
+        onOpenChange={close}
+        readOnly={readOnly}
       />}
       {opened.has("shortcuts") && <ShortcutsModal
         isOpen={modal === "shortcuts"}

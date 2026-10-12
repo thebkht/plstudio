@@ -15,6 +15,7 @@ export type ShortcutId =
   | "undo"
   | "redo"
   | "addColumn"
+  | "bulkColumns"
   | "addTable"
   | "addGroup"
   | "addMemo"
@@ -77,6 +78,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { id: "undo", group: "Edit", label: "Undo", chords: [{ key: "z", mod: true }], mutating: true },
   { id: "redo", group: "Edit", label: "Redo", chords: [{ key: "z", mod: true, shift: true }, { key: "y", mod: true }], mutating: true },
   { id: "addColumn", group: "Edit", label: "Add column to selected table", chords: [{ key: "enter", mod: true }], mutating: true, allowWhileEditing: true },
+  { id: "bulkColumns", group: "Edit", label: "Edit columns across tables", chords: [{ key: "f", mod: true, shift: true }], mutating: true },
   { id: "addTable", group: "Canvas", label: "Add table", chords: [{ key: "t" }], mutating: true },
   { id: "addGroup", group: "Canvas", label: "Add schema group", chords: [{ key: "g" }], mutating: true },
   { id: "addMemo", group: "Canvas", label: "Add memo", chords: [{ key: "m" }], mutating: true },
