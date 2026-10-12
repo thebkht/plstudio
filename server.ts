@@ -15,6 +15,7 @@ import { loadTls } from "@/server/tls";
 if (process.argv.includes("--production")) Object.assign(process.env, { NODE_ENV: "production" });
 const dev = process.env.NODE_ENV !== "production";
 const port = Number(process.env.PORT ?? 4000);
+const FIRST_BYTE_TIMEOUT_MS = 10_000;
 const app = next({ dev, port });
 
 /**
@@ -47,14 +48,20 @@ app.prepare().then(async () => {
   // bare `host:port` typed into the address bar still lands on the app.
   const redirect = http.createServer((req, res) => void res.writeHead(308, { Location: `https://${req.headers.host ?? `localhost:${port}`}${req.url ?? "/"}` }).end());
   const front = tls
-    ? net.createServer((socket) =>
+    ? net.createServer((socket) => {
+        // Until the first byte picks a server, neither server's timeouts or error
+        // handling cover the socket: bound the wait, and swallow a reset rather than
+        // let an unhandled "error" take the process down.
+        const drop = () => socket.destroy();
+        socket.on("error", drop).setTimeout(FIRST_BYTE_TIMEOUT_MS, drop);
         socket.once("data", (chunk) => {
+          socket.off("error", drop).setTimeout(0).off("timeout", drop);
           socket.pause();
           socket.unshift(chunk);
           (chunk[0] === 0x16 ? server : redirect).emit("connection", socket);
           process.nextTick(() => socket.resume());
-        }),
-      )
+        });
+      })
     : server;
 
   const scheme = tls ? "https" : "http";
