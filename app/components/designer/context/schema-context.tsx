@@ -13,6 +13,7 @@ import {
   type CollabUser,
 } from "@/app/lib/collab/useCollaborativeSchema";
 import {
+  applyColumnTemplate,
   makeColumn,
   makeIndex,
   makeUniqueConstraint,
@@ -20,6 +21,7 @@ import {
   normalizeRelationships,
   typeUsesSize,
   type Column,
+  type ColumnTemplate,
   type Schema,
   type SchemaGroup,
   type Table,
@@ -88,6 +90,9 @@ export type SchemaContextValue = {
     patch: Partial<TableIndex>,
   ) => void;
   deleteIndex: (tableId: string, indexId: string) => void;
+  applyTemplate: (tableId: string, template: ColumnTemplate) => void;
+  saveTemplate: (template: ColumnTemplate) => void;
+  deleteTemplate: (templateId: string) => void;
   tablesById: Map<string, Table>;
   groupsById: Map<string, SchemaGroup>;
   columnsById: Map<string, { table: Table; column: Column }>;
@@ -437,6 +442,37 @@ export function SchemaProvider({
     [withIndexes],
   );
 
+  const applyTemplate = useCallback(
+    (tableId: string, template: ColumnTemplate) =>
+      commitWith((current) => ({
+        ...current,
+        tables: current.tables.map((table) =>
+          table.id === tableId ? applyColumnTemplate(table, template) : table,
+        ),
+      })),
+    [commitWith],
+  );
+
+  const saveTemplate = useCallback(
+    (template: ColumnTemplate) =>
+      commitWith((current) => ({
+        ...current,
+        columnTemplates: [...(current.columnTemplates ?? []), template],
+      })),
+    [commitWith],
+  );
+
+  const deleteTemplate = useCallback(
+    (templateId: string) =>
+      commitWith((current) => ({
+        ...current,
+        columnTemplates: (current.columnTemplates ?? []).filter(
+          (template) => template.id !== templateId,
+        ),
+      })),
+    [commitWith],
+  );
+
   const tablesById = useMemo(
     () => new Map(schema.tables.map((table) => [table.id, table])),
     [schema.tables],
@@ -509,6 +545,9 @@ export function SchemaProvider({
       addIndex,
       patchIndex,
       deleteIndex,
+      applyTemplate,
+      saveTemplate,
+      deleteTemplate,
       tablesById,
       groupsById,
       columnsById,
@@ -544,6 +583,9 @@ export function SchemaProvider({
       addIndex,
       patchIndex,
       deleteIndex,
+      applyTemplate,
+      saveTemplate,
+      deleteTemplate,
       tablesById,
       groupsById,
       columnsById,

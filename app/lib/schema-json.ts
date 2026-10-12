@@ -1,5 +1,5 @@
 import { findColumn, findTable, type AppendResult, type ParseResult } from "./parser";
-import { APPEND_GAP, contentEdges, KEY_STRATEGIES, makeColumn, nextId, normalizeGroups, normalizeMemos, normalizeQueries, normalizeRelationships, normalizeTables, ORACLE_TYPES, PALETTE, SCHEMA_FORMAT_VERSION, type Column, type ForeignKeyRef, type KeyStrategy, type OracleType, type Relationship, type Schema, type SchemaGroup, type Table, type TableIndex, type UniqueConstraint } from "./schema";
+import { APPEND_GAP, contentEdges, KEY_STRATEGIES, makeColumn, nextId, normalizeGroups, normalizeColumnTemplates, normalizeMemos, normalizeQueries, normalizeRelationships, normalizeTables, ORACLE_TYPES, PALETTE, SCHEMA_FORMAT_VERSION, type Column, type ForeignKeyRef, type KeyStrategy, type OracleType, type Relationship, type Schema, type SchemaGroup, type Table, type TableIndex, type UniqueConstraint } from "./schema";
 
 /**
  * The lossless counterpart to `generateDDL`. DDL carries none of the canvas --
@@ -45,6 +45,7 @@ export function exportSchemaJson(schema: Schema, exportedAt = new Date().toISOSt
         relationships: schema.relationships ?? [],
         memos: schema.memos ?? [],
         queries: schema.queries ?? [],
+        columnTemplates: schema.columnTemplates ?? [],
       },
     } satisfies SchemaExport,
     null,
@@ -212,6 +213,7 @@ export function parseSchemaJson(text: string): ParseResult {
     relationships: Array.isArray(rawSchema.relationships) ? (rawSchema.relationships as Relationship[]) : [],
     memos: normalizeMemos(rawSchema.memos),
     queries: normalizeQueries(rawSchema.queries),
+    columnTemplates: normalizeColumnTemplates(rawSchema.columnTemplates),
   };
   /*
    * `prepareCanvasSchema`'s pipeline minus `repairInitialLayout`: that one

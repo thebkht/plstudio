@@ -44,6 +44,7 @@ import {
   type Schema,
   type Table,
   type Column,
+  type ColumnTemplate,
   type KeyStrategy,
   type Relationship,
 } from "@/app/lib/schema";
@@ -52,6 +53,7 @@ import { type MenuItem } from "@/app/components/designer/primitives";
 import { ColumnList } from "./editor-side-panel/tables-tab/column-list";
 import { UniqueConstraints } from "./editor-side-panel/tables-tab/unique-constraints";
 import { Indexes } from "./editor-side-panel/tables-tab/indexes";
+import { ColumnTemplatesMenu } from "./editor-side-panel/tables-tab/column-templates";
 import type { ImportMessage } from "./editor-header/modal/import";
 import {
   useCanvasCommands,
@@ -89,6 +91,8 @@ export type DesignerProps = {
 
 /** One id, so the conflict toast can be withdrawn when a reconnect settles it. */
 const CONFLICT_TOAST = "save-conflict";
+/** Stable, so the memoized template menu does not re-render for a project with none. */
+const NO_TEMPLATES: ColumnTemplate[] = [];
 
 export default function Workspace({
   initialSchema,
@@ -126,6 +130,9 @@ export default function Workspace({
     addIndex,
     patchIndex,
     deleteIndex,
+    applyTemplate,
+    saveTemplate,
+    deleteTemplate,
     tablesById,
     groupsById,
     issues,
@@ -1168,6 +1175,15 @@ export default function Workspace({
                   >
                     <PlusIcon size={16} />
                   </button>
+                )}
+                {!readOnly && (
+                  <ColumnTemplatesMenu
+                    table={table}
+                    templates={schema.columnTemplates ?? NO_TEMPLATES}
+                    applyTemplate={applyTemplate}
+                    saveTemplate={saveTemplate}
+                    deleteTemplate={deleteTemplate}
+                  />
                 )}
               </h3>
               <ColumnList

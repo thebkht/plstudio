@@ -3,6 +3,7 @@ import {
   currentTableColor,
   SCHEMA_FORMAT_VERSION,
   type Column,
+  type ColumnTemplate,
   type Memo,
   type Relationship,
   type SavedQuery,
@@ -28,6 +29,7 @@ export type YSchemaRoot = {
   groups: Y.Array<Y.Map<unknown>>;
   memos: Y.Array<Y.Map<unknown>>;
   queries: Y.Array<Y.Map<unknown>>;
+  columnTemplates: Y.Array<Y.Map<unknown>>;
 };
 
 export const schemaRoot = (ydoc: Y.Doc): YSchemaRoot => ({
@@ -37,12 +39,13 @@ export const schemaRoot = (ydoc: Y.Doc): YSchemaRoot => ({
   groups: ydoc.getArray<Y.Map<unknown>>("groups"),
   memos: ydoc.getArray<Y.Map<unknown>>("memos"),
   queries: ydoc.getArray<Y.Map<unknown>>("queries"),
+  columnTemplates: ydoc.getArray<Y.Map<unknown>>("columnTemplates"),
 });
 
 /** A doc nobody has seeded yet. Guards against two clients both seeding on first open. */
 export const isEmptyDoc = (ydoc: Y.Doc) => {
   const root = schemaRoot(ydoc);
-  return root.meta.size === 0 && root.tables.length === 0 && root.groups.length === 0 && root.memos.length === 0 && root.relationships.length === 0 && root.queries.length === 0;
+  return root.meta.size === 0 && root.tables.length === 0 && root.groups.length === 0 && root.memos.length === 0 && root.relationships.length === 0 && root.queries.length === 0 && root.columnTemplates.length === 0;
 };
 
 /**
@@ -173,6 +176,10 @@ const writeMemo = (map: Y.Map<unknown>, memo: Memo) =>
 const writeQuery = (map: Y.Map<unknown>, query: SavedQuery) =>
   writeFields(map, { id: query.id, name: query.name, sql: query.sql, executions: query.executions });
 
+// `columns` is one plain value: a template is edited whole, never column by column.
+const writeColumnTemplate = (map: Y.Map<unknown>, template: ColumnTemplate) =>
+  writeFields(map, { id: template.id, name: template.name, columns: template.columns });
+
 /**
  * Applies a whole next `Schema` to the doc as one transaction. Taking a whole
  * schema — rather than granular operations — is what lets every existing
@@ -189,6 +196,7 @@ export function applySchemaToYDoc(ydoc: Y.Doc, next: Schema, origin?: unknown) {
     reconcileList(root.groups, next.groups ?? [], writeGroup);
     reconcileList(root.memos, next.memos ?? [], writeMemo);
     reconcileList(root.queries, next.queries ?? [], writeQuery);
+    reconcileList(root.columnTemplates, next.columnTemplates ?? [], writeColumnTemplate);
   }, origin);
   return ydoc;
 }
@@ -206,6 +214,7 @@ const RELATIONSHIP_KEYS = ["id", "startTableId", "startFieldId", "endTableId", "
 const GROUP_KEYS = ["id", "name", "keyword", "x", "y", "width", "height", "color"] as const;
 const MEMO_KEYS = ["id", "text", "x", "y", "width", "height", "color", "schemaId"] as const;
 const QUERY_KEYS = ["id", "name", "sql", "executions"] as const;
+const TEMPLATE_KEYS = ["id", "name", "columns"] as const;
 
 /**
  * Ids are unique by definition in the domain, so a repeated id is always damage —
@@ -291,5 +300,6 @@ export function schemaFromYDoc(
     groups: read<SchemaGroup>(root.groups, GROUP_KEYS),
     memos: read<Memo>(root.memos, MEMO_KEYS),
     queries: read<SavedQuery>(root.queries, QUERY_KEYS),
+    columnTemplates: read<ColumnTemplate>(root.columnTemplates, TEMPLATE_KEYS),
   };
 }

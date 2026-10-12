@@ -1,5 +1,5 @@
 export const ORACLE_VERSION = "12.2+" as const;
-export const SCHEMA_FORMAT_VERSION = 7 as const;
+export const SCHEMA_FORMAT_VERSION = 8 as const;
 
 export const ORACLE_TYPES = [
   "VARCHAR2",
@@ -142,6 +142,20 @@ export type SavedQuery = {
   executions?: number;
 };
 
+/** A column as a template holds it: no id until it lands in a table, and no foreign key to aim. */
+export type TemplateColumn = Omit<Column, "id" | "fk">;
+
+/**
+ * A reusable run of columns -- the audit block every table repeats. Built-ins
+ * live in code (`BUILTIN_COLUMN_TEMPLATES`); the project's own ride in
+ * `Schema.columnTemplates`, so collaborators share them.
+ */
+export type ColumnTemplate = {
+  id: string;
+  name: string;
+  columns: TemplateColumn[];
+};
+
 export type Schema = {
   id: string;
   name: string;
@@ -152,6 +166,8 @@ export type Schema = {
   relationships?: Relationship[];
   memos?: Memo[];
   queries?: SavedQuery[];
+  /** The project's own column templates. Absent and empty mean the same thing. */
+  columnTemplates?: ColumnTemplate[];
   updatedAt?: string;
 };
 
@@ -318,6 +334,78 @@ export function normalizeQueries(value: unknown): SavedQuery[] {
   });
 }
 
+const templateColumn = (partial: Partial<TemplateColumn> & Pick<TemplateColumn, "name" | "type">): TemplateColumn => ({
+  size: "", notNull: false, pk: false, unique: false, defaultValue: "", check: "", ...partial,
+});
+
+/** Shipped with the app and never stored, so their ids only have to be unique among themselves. */
+export const BUILTIN_COLUMN_TEMPLATES: ColumnTemplate[] = [
+  {
+    id: "builtin_audit",
+    name: "Audit columns",
+    columns: [
+      templateColumn({ name: "CREATED_AT", type: "TIMESTAMP", notNull: true, defaultValue: "SYSTIMESTAMP" }),
+      templateColumn({ name: "CREATED_BY", type: "VARCHAR2", size: "128", notNull: true, defaultValue: "USER" }),
+      templateColumn({ name: "UPDATED_AT", type: "TIMESTAMP" }),
+      templateColumn({ name: "UPDATED_BY", type: "VARCHAR2", size: "128" }),
+    ],
+  },
+  {
+    id: "builtin_soft_delete",
+    name: "Soft delete",
+    columns: [
+      templateColumn({ name: "IS_DELETED", type: "NUMBER", size: "1", notNull: true, defaultValue: "0", check: "IS_DELETED IN (0, 1)" }),
+      templateColumn({ name: "DELETED_AT", type: "TIMESTAMP" }),
+    ],
+  },
+  {
+    id: "builtin_row_version",
+    name: "Row version",
+    columns: [templateColumn({ name: "ROW_VERSION", type: "NUMBER", notNull: true, defaultValue: "0" })],
+  },
+];
+
+/** Columns as a template keeps them. The foreign key goes: its target is one table in one project. */
+export const toTemplateColumns = (columns: Column[]): TemplateColumn[] =>
+  columns.map(({ id: _id, fk: _fk, ...rest }) => rest);
+
+export function makeColumnTemplate(name: string, columns: Column[]): ColumnTemplate {
+  return { id: nextId("tpl"), name, columns: toTemplateColumns(columns) };
+}
+
+/**
+ * The template's columns appended to `table`, each with a fresh id. A column
+ * whose name the table already carries -- compared as Oracle will, normalized --
+ * is skipped, so applying a template twice adds nothing the second time.
+ */
+export function applyColumnTemplate(table: Table, template: ColumnTemplate): Table {
+  const taken = new Set(table.columns.map((column) => normalizeIdentifier(column.name)));
+  const added = template.columns.filter((column) => !taken.has(normalizeIdentifier(column.name))).map((column) => makeColumn({ ...column, fk: null }));
+  return added.length ? { ...table, columns: [...table.columns, ...added] } : table;
+}
+
+export function normalizeColumnTemplates(value: unknown): ColumnTemplate[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const template = item as Partial<ColumnTemplate>;
+    if (typeof template.id !== "string" || !template.id || !Array.isArray(template.columns)) return [];
+    const columns = template.columns.flatMap((raw) => {
+      const column = raw as Partial<TemplateColumn> | null;
+      if (!column || typeof column.name !== "string" || !column.name.trim() || !ORACLE_TYPES.includes(column.type as OracleType)) return [];
+      const text = (key: "size" | "defaultValue" | "check") => (typeof column[key] === "string" ? column[key] : "");
+      return [{
+        ...templateColumn({ name: column.name, type: column.type as OracleType, size: text("size"), defaultValue: text("defaultValue"), check: text("check") }),
+        notNull: column.notNull === true,
+        pk: column.pk === true,
+        unique: column.unique === true,
+        ...(typeof column.comment === "string" && column.comment ? { comment: column.comment } : {}),
+      }];
+    });
+    return columns.length ? [{ id: template.id, name: typeof template.name === "string" && template.name.trim() ? template.name : "Untitled template", columns }] : [];
+  });
+}
+
 export function makeDemoSchema(): Schema {
   const student = makeTable("STUDENT", 80, 90, 0);
   const enrollment = makeTable("ENROLLMENT", 460, 270, 1);
@@ -338,6 +426,7 @@ export function makeDemoSchema(): Schema {
     relationships: [],
     memos: [],
     queries: [],
+    columnTemplates: [],
   };
 }
 
@@ -352,6 +441,7 @@ export function makeEmptySchema(name = "Untitled Diagram", id = nextId("schema")
     relationships: [],
     memos: [],
     queries: [],
+    columnTemplates: [],
   };
 }
 
