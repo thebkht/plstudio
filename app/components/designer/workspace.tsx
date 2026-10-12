@@ -157,6 +157,7 @@ export default function Workspace({
     autoLayout,
     copySelection,
     deleteSelection,
+    duplicateSelection,
     fitView,
     makeJunction,
     pasteSelection,
@@ -692,6 +693,7 @@ export default function Workspace({
     copySelectionSql: () => copySelection("sql"),
     copySelectionJson: () => copySelection("json"),
     deleteSelection,
+    duplicate: () => duplicateSelection(),
     zoomIn: () => zoomBy(0.1),
     zoomOut: () => zoomBy(-0.1),
     // Through zoomBy, so ⌘0 keeps the middle of the view where it is -- the
@@ -937,6 +939,12 @@ export default function Workspace({
       hint: hint("junction"),
     },
     { separator: true },
+    {
+      label: "Duplicate",
+      onSelect: run("duplicate"),
+      disabled: !selection.tables.length,
+      hint: hint("duplicate"),
+    },
     {
       label: "Delete selection",
       onSelect: run("deleteSelection"),

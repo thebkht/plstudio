@@ -15,6 +15,7 @@ import {
   mergeSchemaJson,
 } from "@/app/lib/schema-json";
 import {
+  duplicateTables,
   EMPTY_SELECTION,
   isSelected,
   marqueeSelection,
@@ -2259,6 +2260,23 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
   };
 
   /**
+   * Copies the given tables -- or the selected ones -- beside themselves, then
+   * selects the copies so a drag moves them off their originals. One commit,
+   * so one undo removes them all.
+   */
+  const duplicateSelection = useStableCallback((tableIds?: string[]) => {
+    if (readOnly) return;
+    const ids = tableIds ?? movingEntities(schemaRef.current, selection).tables;
+    const result = duplicateTables(schemaRef.current, [...ids]);
+    if (!result.added.length) {
+      toast.error("Select a table to duplicate.");
+      return;
+    }
+    commit(result.schema);
+    setSelection({ tables: result.added.map((table) => table.id), memos: [], groups: [] });
+  });
+
+  /**
    * The listener below is bound once, so it reaches the current closures
    * through refs rather than through its dependency array.
    */
@@ -2365,6 +2383,7 @@ export function useCanvasGestures({ readOnly }: { readOnly: boolean }) {
     onTableResizeKeyDown,
     panMode,
     pasteSelection,
+    duplicateSelection,
     patchGroup: stable.patchGroup,
     patchMemo: stable.patchMemo,
     peerSelection,

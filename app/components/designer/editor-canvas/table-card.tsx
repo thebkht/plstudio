@@ -15,7 +15,7 @@
  */
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { CopyIcon, FingerprintIcon, GitMergeIcon, GripVerticalIcon, KeyRoundIcon, LinkIcon, ListPlusIcon, MoveHorizontalIcon, PanelLeftOpenIcon, TargetIcon, Trash2Icon } from "lucide-react";
+import { CopyIcon, CopyPlusIcon, FingerprintIcon, GitMergeIcon, GripVerticalIcon, KeyRoundIcon, LinkIcon, ListPlusIcon, MoveHorizontalIcon, PanelLeftOpenIcon, TargetIcon, Trash2Icon } from "lucide-react";
 import {
   ContextMenu,
   ContextMenuGroup,
@@ -164,6 +164,7 @@ export const TableCard = memo(function TableCard({
   onCopyDDL,
   onAddColumn,
   onMakeJunction,
+  onDuplicate,
   onDeleteTable,
   onShowImpact,
   reorderColumns,
@@ -208,6 +209,7 @@ export const TableCard = memo(function TableCard({
   onCopyDDL: (tableId: string) => void;
   onAddColumn: (tableId: string) => void;
   onMakeJunction: (tableId: string) => void;
+  onDuplicate: (tableIds: string[]) => void;
   onDeleteTable: (tableId: string) => void;
   /** Alt-click on a row, or the row's context-menu item. */
   onShowImpact: (tableId: string, columnId: string) => void;
@@ -474,6 +476,13 @@ export const TableCard = memo(function TableCard({
             Add junction table
             <ContextMenuShortcut>
               <ShortcutKeys id="junction" isMac={isMac} />
+            </ContextMenuShortcut>
+          </ContextMenuItem>
+          <ContextMenuItem isDisabled={readOnly} onAction={() => onDuplicate([table.id])}>
+            <CopyPlusIcon/>
+            Duplicate
+            <ContextMenuShortcut>
+              <ShortcutKeys id="duplicate" isMac={isMac} />
             </ContextMenuShortcut>
           </ContextMenuItem>
         </ContextMenuGroup>

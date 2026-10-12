@@ -31,6 +31,8 @@ export type CanvasCommands = {
   zoomBy: (delta: number) => void;
   copySelection: (format: "sql" | "json") => void;
   deleteSelection: () => void;
+  /** The given tables, or the selected ones when called bare. */
+  duplicateSelection: (tableIds?: string[]) => void;
   pasteSelection: (text: string) => void;
   revealTables: (tables: Table[]) => void;
   setHandMode: Dispatch<SetStateAction<boolean>>;
@@ -81,6 +83,7 @@ export function CanvasCommandsProvider({ children }: { children: ReactNode }) {
       zoomBy: forward("zoomBy"),
       copySelection: forward("copySelection"),
       deleteSelection: forward("deleteSelection"),
+      duplicateSelection: forward("duplicateSelection"),
       pasteSelection: forward("pasteSelection"),
       revealTables: forward("revealTables"),
       setHandMode: forward("setHandMode"),

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateDDL } from "@/app/lib/generators";
-import { makeDemoSchema, makeMemo, makeSchemaGroup, makeTable, normalizeRelationships, tableWidth, type Relationship, type Schema } from "@/app/lib/schema";
-import { EMPTY_SELECTION, focusedEntities, marqueeSelection, neighbourhood, moveSelection, movingEntities, pruneSelection, rectFromPoints, removeSelection, selectAll, selectionBounds, selectionCount, selectionSchema, selectOnly, toggleSelected } from "@/app/lib/selection";
+import { makeColumn, makeDemoSchema, makeIndex, makeMemo, makeSchemaGroup, makeTable, makeUniqueConstraint, normalizeRelationships, tableWidth, type Relationship, type Schema } from "@/app/lib/schema";
+import { duplicateTables, DUPLICATE_OFFSET, EMPTY_SELECTION, focusedEntities, marqueeSelection, neighbourhood, moveSelection, movingEntities, pruneSelection, rectFromPoints, removeSelection, selectAll, selectionBounds, selectionCount, selectionSchema, selectOnly, toggleSelected } from "@/app/lib/selection";
 
 /**
  * A group at (400,400) sized 760x520, holding one table and one memo, with a
@@ -209,5 +209,68 @@ describe("focusedEntities", () => {
     expect(focusedEntities(chain(), null).tables.size).toBe(0);
     expect(focusedEntities(chain(), { kind: "edge", id: "deleted" }).tables.size).toBe(0);
     expect(focusedEntities(chain(), { kind: "edge", id: "deleted" }).edges.size).toBe(0);
+  });
+});
+
+describe("duplicateTables", () => {
+  /** PARENT <- CHILD.PARENT_ID, plus CHILD.MANAGER_ID -> CHILD.ID (a self-reference). */
+  function family() {
+    const parent = makeTable("PARENT", 0, 0, 0);
+    const child = makeTable("CHILD", 400, 0, 1);
+    const parentId = makeColumn({ name: "PARENT_ID", type: "NUMBER", size: "", fk: { tableId: parent.id, columnId: parent.columns[0].id } });
+    const managerId = makeColumn({ name: "MANAGER_ID", type: "NUMBER", size: "", fk: { tableId: child.id, columnId: child.columns[0].id } });
+    child.columns.push(parentId, managerId);
+    child.uniques = [makeUniqueConstraint([parentId.id, managerId.id], "CHILD_UK")];
+    child.indexes = [makeIndex([parentId.id], "CHILD_PARENT_IX")];
+    const schema = normalizeRelationships({ ...makeDemoSchema(), tables: [parent, child], groups: [], memos: [], relationships: [] });
+    return { schema, parent, child };
+  }
+
+  it("re-mints every id and offsets the copy", () => {
+    const { schema, child } = family();
+    const { schema: next, added } = duplicateTables(schema, [child.id]);
+    const [copy] = added;
+    expect(next.tables).toHaveLength(3);
+    expect(copy.name).toBe("CHILD_COPY");
+    expect(copy.id).not.toBe(child.id);
+    expect(copy.x).toBe(child.x + DUPLICATE_OFFSET);
+    const originalIds = new Set(child.columns.map((column) => column.id));
+    expect(copy.columns.some((column) => originalIds.has(column.id))).toBe(false);
+    expect(copy.uniques?.[0].columnIds.every((id) => copy.columns.some((column) => column.id === id))).toBe(true);
+    expect(copy.indexes?.[0].columnIds.every((id) => copy.columns.some((column) => column.id === id))).toBe(true);
+    // Names are schema-wide in Oracle, so the copy's are minted afresh.
+    expect(copy.uniques?.[0].name).toBeUndefined();
+    expect(copy.indexes?.[0].name).toBeUndefined();
+  });
+
+  it("keeps an outgoing key on its target and points a self-reference at the copy", () => {
+    const { schema, parent, child } = family();
+    const { schema: next, added } = duplicateTables(schema, [child.id]);
+    const [copy] = added;
+    const fk = (name: string) => copy.columns.find((column) => column.name === name)?.fk;
+    expect(fk("PARENT_ID")).toEqual({ tableId: parent.id, columnId: parent.columns[0].id });
+    expect(fk("MANAGER_ID")).toEqual({ tableId: copy.id, columnId: copy.columns[0].id });
+    expect(next.relationships?.filter((relationship) => relationship.startTableId === copy.id)).toHaveLength(2);
+    // Incoming keys stay with the original.
+    expect(next.relationships?.filter((relationship) => relationship.startTableId === child.id)).toHaveLength(2);
+    expect(() => generateDDL(next)).not.toThrow();
+  });
+
+  it("rewires a key between two tables copied together", () => {
+    const { schema, parent, child } = family();
+    const { added } = duplicateTables(schema, [parent.id, child.id]);
+    const [parentCopy, childCopy] = added;
+    expect(childCopy.columns.find((column) => column.name === "PARENT_ID")?.fk?.tableId).toBe(parentCopy.id);
+  });
+
+  it("numbers names past an existing copy", () => {
+    const { schema, child } = family();
+    const once = duplicateTables(schema, [child.id]).schema;
+    expect(duplicateTables(once, [child.id]).added[0].name).toBe("CHILD_COPY2");
+  });
+
+  it("is a no-op for ids it does not know", () => {
+    const { schema } = family();
+    expect(duplicateTables(schema, ["missing"]).schema).toBe(schema);
   });
 });

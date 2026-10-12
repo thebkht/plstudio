@@ -23,6 +23,7 @@ export type ShortcutId =
   | "copySelectionSql"
   | "copySelectionJson"
   | "pasteSelection"
+  | "duplicate"
   | "deleteSelection"
   | "zoomIn"
   | "zoomOut"
@@ -90,6 +91,7 @@ export const SHORTCUTS: ShortcutDef[] = [
    * Firefox. `shortcutActions` deliberately has no entry, so the chord is inert.
    */
   { id: "pasteSelection", group: "Canvas", label: "Paste tables from the clipboard", chords: [{ key: "v", mod: true }], mutating: true, blockWhileEditing: true },
+  { id: "duplicate", group: "Canvas", label: "Duplicate selected tables", chords: [{ key: "d", mod: true }], mutating: true, blockWhileEditing: true },
   { id: "deleteSelection", group: "Canvas", label: "Delete selection", chords: [{ key: "delete" }, { key: "backspace" }], mutating: true },
   { id: "zoomIn", group: "View", label: "Zoom in", chords: [{ key: "+", mod: true, shift: "any" }, { key: "=", mod: true, shift: "any" }], allowWhileEditing: true },
   { id: "zoomOut", group: "View", label: "Zoom out", chords: [{ key: "-", mod: true, shift: "any" }, { key: "_", mod: true, shift: "any" }], allowWhileEditing: true },

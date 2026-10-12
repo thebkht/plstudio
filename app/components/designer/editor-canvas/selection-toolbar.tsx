@@ -10,6 +10,7 @@ export type SelectionToolbarProps = {
   readOnly: boolean;
   hint: (id: ShortcutId) => string;
   onCopy: (format: "sql" | "json") => void;
+  onDuplicate: () => void;
   onDelete: () => void;
 };
 
@@ -19,6 +20,7 @@ export function SelectionToolbar({
   readOnly,
   hint,
   onCopy,
+  onDuplicate,
   onDelete,
 }: SelectionToolbarProps) {
   const { selection } = useSelect();
@@ -56,6 +58,15 @@ export function SelectionToolbar({
       >
         Copy JSON
       </button>
+      {!readOnly && selection.tables.length > 0 && (
+        <button
+          type="button"
+          onClick={onDuplicate}
+          title={`Duplicate tables (${hint("duplicate")})`}
+        >
+          Duplicate
+        </button>
+      )}
       {!readOnly && (
         <button
           type="button"

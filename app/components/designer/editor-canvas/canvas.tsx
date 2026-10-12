@@ -183,6 +183,7 @@ export type CanvasGestures = {
   runShortcut: (id: ShortcutId) => void;
   copySelection: (format: "sql" | "json") => void;
   deleteSelection: () => void;
+  duplicateSelection: (tableIds?: string[]) => void;
   selectGroupMembers: (groupId: string) => void;
   canvasPoint: (event: { clientX: number; clientY: number }) => Point;
   pasteSelection: (text: string) => void;
@@ -493,6 +494,7 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
                 onCopyDDL={g.copyTableDDL}
                 onAddColumn={addColumn}
                 onMakeJunction={g.makeJunction}
+                onDuplicate={g.duplicateSelection}
                 onDeleteTable={deleteTable}
                 onShowImpact={showImpact}
                 cardStyle={settings.cardStyle}
@@ -549,6 +551,7 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
             readOnly={readOnly}
             hint={g.hint}
             onCopy={g.copySelection}
+            onDuplicate={() => g.duplicateSelection()}
             onDelete={g.deleteSelection}
           />
         )}

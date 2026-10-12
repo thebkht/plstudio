@@ -1,4 +1,4 @@
-import { groupMembers, normalizeGroups, normalizeRelationships, tableHeight, tableWidth, type CardStyle, type Memo, type Relationship, type Schema, type SchemaGroup, type Table } from "./schema";
+import { groupMembers, nextId, normalizeGroups, normalizeIdentifier, normalizeRelationships, tableHeight, tableWidth, type CardStyle, type Memo, type Relationship, type Schema, type SchemaGroup, type Table } from "./schema";
 
 /**
  * What the canvas has selected, and everything that follows from it: marquee
@@ -194,6 +194,69 @@ export function removeSelection(schema: Schema, selection: CanvasSelection): Sch
     memos: schema.memos?.filter((memo) => !memos.has(memo.id)).map((memo) => ({ ...memo, schemaId: orphaned(memo.schemaId) })),
     groups: schema.groups?.filter((group) => !groups.has(group.id)),
   });
+}
+
+/** How far a duplicate lands from its original: clear of it, but plainly its twin. */
+export const DUPLICATE_OFFSET = 32;
+
+/**
+ * Copy tables in place, as one commit. Every id is re-minted -- table, column,
+ * constraint, index and relationship -- since ids are what the CRDT and the
+ * canvas key on.
+ *
+ * Outgoing foreign keys come along: a key into a table that was copied too
+ * points at that copy (so a self-reference stays a self-reference), any other
+ * still points where it did. Incoming keys stay with the original, which is the
+ * table they were drawn to. Constraint, index and relationship names are cleared
+ * rather than copied, because Oracle names are schema-wide and the generator
+ * mints fresh ones from the new table name.
+ */
+export function duplicateTables(schema: Schema, tableIds: string[]): { schema: Schema; added: Table[] } {
+  const originals = schema.tables.filter((table) => tableIds.includes(table.id));
+  if (!originals.length) return { schema, added: [] };
+  const taken = new Set(schema.tables.map((table) => normalizeIdentifier(table.name)));
+  /** `ORDERS_COPY`, then `ORDERS_COPY2`, … -- whichever Oracle would not see as a clash. */
+  const copyName = (name: string) => {
+    let next = `${name}_COPY`;
+    for (let n = 2; taken.has(normalizeIdentifier(next)); n++) next = `${name}_COPY${n}`;
+    taken.add(normalizeIdentifier(next));
+    return next;
+  };
+  const tableMap = new Map(originals.map((table) => [table.id, nextId("tbl")] as const));
+  const columnMap = new Map(originals.flatMap((table) => table.columns.map((column) => [column.id, nextId("col")] as const)));
+  // Column ids are unique schema-wide, so the map alone says whether a column was copied.
+  const column = (id: string) => columnMap.get(id) ?? id;
+  const remapSets = <T extends { id: string; name?: string; columnIds: string[] }>(sets: T[] | undefined, prefix: string) =>
+    sets?.map((set) => ({ ...set, id: nextId(prefix), name: undefined, columnIds: set.columnIds.map(column) }));
+  const added = originals.map((table): Table => ({
+    ...table,
+    id: tableMap.get(table.id)!,
+    name: copyName(table.name),
+    x: table.x + DUPLICATE_OFFSET,
+    y: table.y + DUPLICATE_OFFSET,
+    columns: table.columns.map((item) => ({
+      ...item,
+      id: column(item.id),
+      fk: item.fk && { tableId: tableMap.get(item.fk.tableId) ?? item.fk.tableId, columnId: column(item.fk.columnId) },
+    })),
+    uniques: remapSets(table.uniques, "uk"),
+    indexes: remapSets(table.indexes, "idx"),
+  }));
+  const relationships = (schema.relationships ?? [])
+    .filter((relationship) => tableMap.has(relationship.startTableId))
+    .map((relationship): Relationship => ({
+      ...relationship,
+      id: nextId("rel"),
+      name: "",
+      startTableId: tableMap.get(relationship.startTableId)!,
+      startFieldId: column(relationship.startFieldId),
+      endTableId: tableMap.get(relationship.endTableId) ?? relationship.endTableId,
+      endFieldId: column(relationship.endFieldId),
+      fields: relationship.fields.map((pair) => ({ startFieldId: column(pair.startFieldId), endFieldId: column(pair.endFieldId) })),
+    }));
+  const next = normalizeRelationships({ ...schema, tables: [...schema.tables, ...added], relationships: [...(schema.relationships ?? []), ...relationships] });
+  const ids = new Set(added.map((table) => table.id));
+  return { schema: next, added: next.tables.filter((table) => ids.has(table.id)) };
 }
 
 /**
