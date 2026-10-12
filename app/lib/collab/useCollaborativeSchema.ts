@@ -5,15 +5,13 @@ import * as Y from "yjs";
 import { HocuspocusProvider } from "@hocuspocus/provider";
 import type { Schema } from "@/app/lib/schema";
 import { applySchemaToYDoc, createReadCache, isEmptyDoc, schemaFromYDoc, schemaRoot } from "./ydoc";
-import { createCursorStore, samePeers, type CollabUser, type CursorPoint, type Peer } from "./presence";
+import { aliasFor, createCursorStore, deviceId, peerColor, samePeers, type CollabUser, type CursorPoint, type Peer } from "./presence";
 import { createSyncStore, revisionFromStateless } from "./sync";
 
 export type { CollabUser, Peer } from "./presence";
+export { peerColor } from "./presence";
 export type CollabStatus = "local" | "connecting" | "connected" | "disconnected";
 
-/** Peer colours are derived from the user id so everyone sees the same person in the same colour. */
-const PEER_COLORS = ["#175e7a", "#7d9dff", "#3cde7d", "#6360f7", "#f2994a", "#e8617d", "#00b8d9"];
-export const peerColor = (id: string) => PEER_COLORS[Math.abs([...id].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) | 0, 7)) % PEER_COLORS.length];
 
 /**
  * Owns the shared document and presents the same surface the designer already
@@ -44,11 +42,18 @@ export function useCollaborativeSchema({
   shareToken?: string;
   workspaceSlug?: string;
 }) {
+  /**
+   * This browser, not the account: what tells apart a team sharing one login.
+   * Lazy rather than an effect, because `identity` must exist on the first
+   * client render — without it the doc is seeded before the server syncs, and
+   * the CRDT merge duplicates every table. Nothing renders it on the server.
+   */
+  const [device] = useState(() => (typeof window === "undefined" ? null : deviceId()));
   // Identity-stable: a fresh `user` object each render would otherwise tear the
   // socket down and rebuild it on every keystroke.
   const identity = useMemo(
-    () => (user ? { id: user.id, name: user.name, image: user.image ?? null } : null),
-    [user?.id, user?.name, user?.image],
+    () => (user && device ? { id: user.id, name: user.name, image: user.image ?? null, device, alias: aliasFor(device) } : null),
+    [device, user?.id, user?.name, user?.image],
   );
   const ydoc = useMemo(() => new Y.Doc(), [projectId]);
   /** Tags local transactions so the undo manager can ignore everyone else's edits. */
@@ -194,7 +199,7 @@ export function useCollaborativeSchema({
     providerRef.current = provider;
 
     provider.setAwarenessField("user", identity);
-    provider.setAwarenessField("color", peerColor(identity.id));
+    provider.setAwarenessField("color", peerColor(identity.device));
 
     const awareness = provider.awareness;
     const readPeers = () => {
@@ -205,7 +210,7 @@ export function useCollaborativeSchema({
       const next = states.map(([clientId, peer]) => ({
         clientId,
         user: peer.user,
-        color: peer.color ?? peerColor(peer.user.id),
+        color: peer.color ?? peerColor(peer.user.device ?? peer.user.id),
         // A peer on a build that predates multi-selection still sends the
         // single `selectedId`; read either shape rather than losing them.
         selectedIds: Array.isArray(peer.selectedIds) ? peer.selectedIds : peer.selectedId ? [peer.selectedId] : [],
@@ -280,5 +285,5 @@ export function useCollaborativeSchema({
 
   useEffect(() => () => { if (cursorFrame.current !== null) cancelAnimationFrame(cursorFrame.current); }, []);
 
-  return { schema, commit, undo, redo, canUndo, canRedo, setRevision, getRevision, sync, status, peers, cursors, setCursor, setSelection };
+  return { schema, commit, undo, redo, canUndo, canRedo, setRevision, getRevision, sync, status, peers, self: identity, cursors, setCursor, setSelection };
 }

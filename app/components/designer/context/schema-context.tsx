@@ -62,6 +62,8 @@ export type SchemaContextValue = {
   collabSync: ReturnType<typeof useCollaborativeSchema>["sync"];
   collabStatus: ReturnType<typeof useCollaborativeSchema>["status"];
   peers: ReturnType<typeof useCollaborativeSchema>["peers"];
+  /** This browser's presence identity, to tell whether a peer shares its account. */
+  self: ReturnType<typeof useCollaborativeSchema>["self"];
   cursors: ReturnType<typeof useCollaborativeSchema>["cursors"];
   setCursor: ReturnType<typeof useCollaborativeSchema>["setCursor"];
   broadcastSelection: ReturnType<typeof useCollaborativeSchema>["setSelection"];
@@ -145,6 +147,7 @@ export function SchemaProvider({
     sync: collabSync,
     status: collabStatus,
     peers,
+    self,
     cursors,
     setCursor,
     setSelection: broadcastSelection,
@@ -530,6 +533,7 @@ export function SchemaProvider({
       collabSync,
       collabStatus,
       peers,
+      self,
       cursors,
       setCursor,
       broadcastSelection,
@@ -568,6 +572,7 @@ export function SchemaProvider({
       collabSync,
       collabStatus,
       peers,
+      self,
       cursors,
       setCursor,
       broadcastSelection,

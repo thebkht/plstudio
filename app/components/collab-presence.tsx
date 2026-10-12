@@ -6,7 +6,7 @@ import { Cursor, CursorBody, CursorName, CursorPointer } from "@/components/kibo
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Identicon } from "@/app/components/identicon";
 import type { CollabStatus, Peer } from "@/app/lib/collab/useCollaborativeSchema";
-import type { CursorStore } from "@/app/lib/collab/presence";
+import { displayName, type CollabUser, type CursorStore } from "@/app/lib/collab/presence";
 
 /**
  * Collaborators' pointers. Rendered inside the canvas transform so a peer's
@@ -18,7 +18,7 @@ import type { CursorStore } from "@/app/lib/collab/presence";
  * Positions come from the cursor store rather than `peers`, so this is the only
  * component a remote pointer move re-renders.
  */
-export const PeerCursors = memo(function PeerCursors({ peers, cursors }: { peers: Peer[]; cursors: CursorStore }) {
+export const PeerCursors = memo(function PeerCursors({ peers, self, cursors }: { peers: Peer[]; self: CollabUser | null; cursors: CursorStore }) {
   const points = useSyncExternalStore(cursors.subscribe, cursors.getSnapshot, cursors.getSnapshot);
   return (
     <>
@@ -33,7 +33,7 @@ export const PeerCursors = memo(function PeerCursors({ peers, cursors }: { peers
         >
           <CursorPointer style={{ color: peer.color }} />
           <CursorBody className="peer-cursor-body" style={{ background: peer.color, color: "#fff" }}>
-            <CursorName>{peer.user.name}</CursorName>
+            <CursorName>{displayName(peer, peers, self)}</CursorName>
           </CursorBody>
         </Cursor>
       ))}
@@ -42,18 +42,23 @@ export const PeerCursors = memo(function PeerCursors({ peers, cursors }: { peers
 });
 
 /** Who else is in the room. Absent entirely when nobody is. */
-export const PeerAvatars = memo(function PeerAvatars({ peers, status }: { peers: Peer[]; status: CollabStatus }) {
+export const PeerAvatars = memo(function PeerAvatars({ peers, self, status }: { peers: Peer[]; self: CollabUser | null; status: CollabStatus }) {
   if (status === "local" || !peers.length) return null;
   return (
     <AvatarStack animate size={26} className="peer-avatars">
-      {peers.map((peer) => (
-        <Avatar key={peer.clientId} title={peer.user.name} aria-label={peer.user.name} style={{ outline: `2px solid ${peer.color}` }}>
-          {peer.user.image ? <AvatarImage src={peer.user.image} alt="" /> : null}
-          <AvatarFallback className="overflow-hidden p-0">
-            <Identicon seed={peer.user.id} className="size-full" />
-          </AvatarFallback>
-        </Avatar>
-      ))}
+      {peers.map((peer) => {
+        const name = displayName(peer, peers, self);
+        // An alias means a shared login, whose photo would say nothing about who this is.
+        const aliased = name !== peer.user.name;
+        return (
+          <Avatar key={peer.clientId} title={name} aria-label={name} style={{ outline: `2px solid ${peer.color}` }}>
+            {peer.user.image && !aliased ? <AvatarImage src={peer.user.image} alt="" /> : null}
+            <AvatarFallback className="overflow-hidden p-0">
+              <Identicon seed={aliased ? peer.user.device ?? peer.user.id : peer.user.id} className="size-full" />
+            </AvatarFallback>
+          </Avatar>
+        );
+      })}
     </AvatarStack>
   );
 });

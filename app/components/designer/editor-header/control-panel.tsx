@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { CollabUser } from "@/app/lib/collab/useCollaborativeSchema";
+import { selfAlias } from "@/app/lib/collab/presence";
 import { useLayout, useSaveState, useSchema } from "@/app/hooks";
 import { Menu, Menubar, type MenuItem } from "../primitives";
 
@@ -31,7 +32,7 @@ export function ControlPanel({
   readOnly,
   user,
 }: ControlPanelProps) {
-  const { schema, commitWith, peers, collabStatus } = useSchema();
+  const { schema, commitWith, peers, self, collabStatus } = useSchema();
   const { openMenu, setOpenMenu, setModal, userMenuOpen, setUserMenuOpen } =
     useLayout();
   const { saveState, dirty } = useSaveState();
@@ -124,12 +125,13 @@ export function ControlPanel({
         >
           <SearchIcon />
         </Button>
-        <PeerAvatars peers={peers} status={collabStatus} />
+        <PeerAvatars peers={peers} self={self} status={collabStatus} />
         <Button size="sm" className="share-btn" onClick={() => setModal("share")}>
           <ShareIcon data-icon="inline-start" /> Share
         </Button>
         <NavUser
           user={user}
+          alias={selfAlias(self, peers)}
           isOpen={userMenuOpen}
           onOpenChange={setUserMenuOpen}
         />

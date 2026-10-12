@@ -21,6 +21,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { PeerCursors } from "@/app/components/collab-presence";
+import { displayName, type Peer } from "@/app/lib/collab/presence";
 import {
   tableHeight,
   tableWidth,
@@ -106,7 +107,7 @@ export type CanvasGestures = {
   resizeTable: { id: string; width: number } | null;
   linking: Linking | null;
   multiFrame: Box | null;
-  peerSelection: Map<string, { user: { name: string }; color: string }>;
+  peerSelection: Map<string, Peer>;
 
   onCanvasDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onCanvasDownCapture: (event: ReactPointerEvent<HTMLDivElement>) => void;
@@ -196,7 +197,7 @@ export type CanvasProps = {
 };
 
 export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
-  const { schema, groupsById, peers, cursors, addColumn, addIndex, deleteTable, reorderColumns } =
+  const { schema, groupsById, peers, self, cursors, addColumn, addIndex, deleteTable, reorderColumns } =
     useSchema();
   const { heatmap, analysis, setImpactTarget } = useOverlay();
   const showImpact = useCallback(
@@ -474,7 +475,7 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
                 }
                 resizing={g.resizeTable?.id === table.id}
                 hoverDisabled={moving || g.grabbing || g.linking !== null}
-                heldByName={heldBy?.user.name}
+                heldByName={heldBy && displayName(heldBy, peers, self)}
                 heldByColor={heldBy?.color}
                 group={
                   table.schemaId ? groupsById.get(table.schemaId) : undefined
@@ -534,7 +535,7 @@ export function Canvas({ readOnly, save, gestures: g }: CanvasProps) {
               onAdd={addIndex}
             />
           )}
-          <PeerCursors peers={peers} cursors={cursors} />
+          <PeerCursors peers={peers} self={self} cursors={cursors} />
         </div>
         {heatmap && <HeatLegend />}
         <ImpactPanel />

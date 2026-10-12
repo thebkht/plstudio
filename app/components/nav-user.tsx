@@ -48,10 +48,13 @@ export type NavUserAccount = {
  */
 export default function NavUser({
   user,
+  alias,
   isOpen,
   onOpenChange,
 }: {
   user?: NavUserAccount | null;
+  /** How collaborators see this browser when the account is shared — see `selfAlias`. */
+  alias?: string;
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
@@ -88,6 +91,9 @@ export default function NavUser({
             <span className="nav-user-name">{name}</span>
             {user?.email && (
               <span className="nav-user-email">{user.email}</span>
+            )}
+            {alias && (
+              <span className="nav-user-email">You appear as {alias}</span>
             )}
           </span>
         </DropdownMenuLabel>

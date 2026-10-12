@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createCursorStore, samePeers, type Peer } from "@/app/lib/collab/presence";
+import { aliasFor, createCursorStore, displayName, samePeers, selfAlias, type Peer } from "@/app/lib/collab/presence";
 
 const peer = (clientId: number, selectedIds: string[] = []): Peer => ({ clientId, user: { id: `u${clientId}`, name: "Ada", image: null }, color: "#175e7a", selectedIds });
 
@@ -44,5 +44,43 @@ describe("createCursorStore", () => {
     unsubscribe();
     store.set(new Map([[2, { x: 0, y: 0 }]]));
     expect(listener).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("shared-login identities", () => {
+  const on = (clientId: number, account: string, device: string): Peer => ({ clientId, user: { id: account, name: "Team", image: null, device, alias: aliasFor(device) }, color: "#175e7a", selectedIds: [] });
+
+  it("derives the same alias from the same device, and different ones from different devices", () => {
+    expect(aliasFor("device-a")).toBe(aliasFor("device-a"));
+    expect(aliasFor("device-a")).toMatch(/^\w+ \w+$/);
+    expect(new Set(["a", "b", "c", "d", "e", "f"].map(aliasFor)).size).toBeGreaterThan(1);
+  });
+
+  it("shows the account name when the account is in the room once", () => {
+    const peers = [on(1, "alice", "d1"), on(2, "bob", "d2")];
+    expect(displayName(peers[0], peers, { id: "carol", name: "Carol" })).toBe("Team");
+    expect(selfAlias({ id: "carol", name: "Carol", alias: "Calm Fox" }, peers)).toBeUndefined();
+  });
+
+  it("shows the alias when two peers share an account", () => {
+    const peers = [on(1, "team", "d1"), on(2, "team", "d2")];
+    expect(peers.map((peer) => displayName(peer, peers, null))).toEqual([aliasFor("d1"), aliasFor("d2")]);
+  });
+
+  it("shows the alias when a peer shares this browser's account", () => {
+    const peers = [on(1, "team", "d1")];
+    const self = { id: "team", name: "Team", device: "d0", alias: aliasFor("d0") };
+    expect(displayName(peers[0], peers, self)).toBe(aliasFor("d1"));
+    expect(selfAlias(self, peers)).toBe(aliasFor("d0"));
+  });
+
+  it("falls back to the account name for a peer on a build without aliases", () => {
+    const old: Peer = { clientId: 2, user: { id: "team", name: "Team" }, color: "#175e7a", selectedIds: [] };
+    const peers = [on(1, "team", "d1"), old];
+    expect(displayName(old, peers, null)).toBe("Team");
+  });
+
+  it("treats an alias change as a roster change", () => {
+    expect(samePeers([on(1, "team", "d1")], [on(1, "team", "d2")])).toBe(false);
   });
 });
