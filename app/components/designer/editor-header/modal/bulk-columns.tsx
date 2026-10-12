@@ -103,7 +103,7 @@ export function BulkColumnsModal({ isOpen, onOpenChange, readOnly }: BulkColumns
       <div className="flex gap-2">
         <Input autoFocus aria-label="Filter columns" placeholder="Filter by TABLE.COLUMN" value={text} onChange={(event) => setText(event.target.value)} />
         <Select aria-label="Filter by type" className="w-56 shrink-0" selectedKey={typeFilter} onSelectionChange={(key) => setTypeFilter(String(key))}>
-          <SelectTrigger className="mono"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="mono w-full"><SelectValue /></SelectTrigger>
           <SelectContent className="code-menu"><SelectGroup>
             <SelectItem id={ANY}>Any type</SelectItem>
             {ORACLE_TYPES.map((item) => <SelectItem key={item} id={item}>{item}</SelectItem>)}
@@ -146,8 +146,8 @@ export function BulkColumnsModal({ isOpen, onOpenChange, readOnly }: BulkColumns
           <TabsTrigger id="rename">Rename</TabsTrigger>
         </TabsList>
         <TabsContent id="set" className="grid grid-cols-2 gap-2 pt-3">
-          <Select aria-label="New type" selectedKey={type} onSelectionChange={(key) => setType(String(key))}>
-            <SelectTrigger className="mono"><SelectValue /></SelectTrigger>
+          <Select aria-label="New type" className="w-full" selectedKey={type} onSelectionChange={(key) => setType(String(key))}>
+            <SelectTrigger className="mono w-full"><SelectValue /></SelectTrigger>
             <SelectContent className="code-menu"><SelectGroup>
               <SelectItem id={KEEP}>Keep type</SelectItem>
               {ORACLE_TYPES.map((item) => <SelectItem key={item} id={item}>{item}</SelectItem>)}
@@ -161,8 +161,8 @@ export function BulkColumnsModal({ isOpen, onOpenChange, readOnly }: BulkColumns
             value={size}
             onChange={(event) => setSize(event.target.value)}
           />
-          <Select aria-label="Nullability" selectedKey={nullability} onSelectionChange={(key) => setNullability(key as Nullability)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+          <Select aria-label="Nullability" className="w-full" selectedKey={nullability} onSelectionChange={(key) => setNullability(key as Nullability)}>
+            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
             <SelectContent><SelectGroup>
               <SelectItem id={KEEP}>Keep nullability</SelectItem>
               <SelectItem id="required">NOT NULL</SelectItem>

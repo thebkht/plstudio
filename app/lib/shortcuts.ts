@@ -34,7 +34,8 @@ export type ShortcutId =
   | "toggleHand"
   | "tidyLayout"
   | "toggleSidebar"
-  | "shortcutsHelp";
+  | "shortcutsHelp"
+  | "commandPalette";
 
 export type ShortcutGroup = "File" | "Edit" | "Canvas" | "View";
 
@@ -103,6 +104,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { id: "toggleHand", group: "View", label: "Hand tool — turn on or off", chords: [{ key: "h" }] },
   { id: "tidyLayout", group: "View", label: "Tidy up layout", chords: [{ key: "l", shift: true }], mutating: true },
   { id: "toggleSidebar", group: "View", label: "Show or hide side panel", chords: [{ key: ".", mod: true }] },
+  { id: "commandPalette", group: "View", label: "Search commands, tables and columns", chords: [{ key: "k", mod: true }], allowWhileEditing: true },
   { id: "shortcutsHelp", group: "View", label: "Keyboard shortcuts", chords: [{ key: "?", shift: "any" }, { key: "/", mod: true }] },
 ];
 

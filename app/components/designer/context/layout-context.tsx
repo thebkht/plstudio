@@ -18,7 +18,7 @@ const MAX_SIDEBAR_WIDTH = 800;
 const DEFAULT_SIDEBAR_WIDTH = 417;
 const SIDEBAR_WIDTH_KEY = "drawsql_sidebar_width";
 
-export type DesignerModal = "export" | "import" | "share" | "shortcuts" | "history" | "bulk-columns" | null;
+export type DesignerModal = "export" | "import" | "share" | "shortcuts" | "history" | "bulk-columns" | "palette" | null;
 
 export type LayoutContextValue = {
   sidebarOpen: boolean;

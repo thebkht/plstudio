@@ -712,6 +712,7 @@ export default function Workspace({
     tidyLayout: autoLayout,
     toggleSidebar: () => setSidebarOpen((open) => !open),
     shortcutsHelp: () => setModal("shortcuts"),
+    commandPalette: () => setModal("palette"),
   };
   /** Menu items fire the same closures as the chords, so the two can never diverge. */
   const run = (id: ShortcutId) => () => shortcutActions[id]?.();
@@ -1378,6 +1379,15 @@ export default function Workspace({
           else void appendSchema(text);
         }}
         onClearInvalidForeignKeys={clearInvalidForeignKeys}
+        onRunCommand={(id) => shortcutActions[id]?.()}
+        onJumpToTable={(tableId) => {
+          const table = tablesById.get(tableId);
+          if (!table) return;
+          selectTable(tableId);
+          revealTables([table]);
+          setPanelTab("tables");
+          setSidebarOpen(true);
+        }}
       />
     </div>
   );

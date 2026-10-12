@@ -1,6 +1,6 @@
 "use client";
 
-import { ShareIcon } from "lucide-react";
+import { SearchIcon, ShareIcon } from "lucide-react";
 import BrandMark from "@/app/components/brand-mark";
 import { PeerAvatars } from "@/app/components/collab-presence";
 import NavUser from "@/app/components/nav-user";
@@ -116,6 +116,14 @@ export function ControlPanel({
                   ? "Unsaved changes"
                   : "Saved"}
         </Badge>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Search commands, tables and columns"
+          onClick={() => setModal("palette")}
+        >
+          <SearchIcon />
+        </Button>
         <PeerAvatars peers={peers} status={collabStatus} />
         <Button size="sm" className="share-btn" onClick={() => setModal("share")}>
           <ShareIcon data-icon="inline-start" /> Share

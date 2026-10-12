@@ -7,6 +7,7 @@ import type { ValidationIssue } from "@/app/lib/validation";
 import { useLayout, useSchema } from "@/app/hooks";
 import type { ExportTab, MigrationBaseline } from "./export";
 import type { ImportFormat, ImportMessage } from "./import";
+import type { ShortcutId } from "@/app/lib/shortcuts";
 
 /*
  * Each dialog is its own chunk, fetched the first time it is opened. Between
@@ -18,6 +19,7 @@ const ExportModal = dynamic(() => import("./export").then((module) => module.Exp
 const ImportModal = dynamic(() => import("./import").then((module) => module.ImportModal), { ssr: false });
 const HistoryModal = dynamic(() => import("./history").then((module) => module.HistoryModal), { ssr: false });
 const ShareModal = dynamic(() => import("./share").then((module) => module.ShareModal), { ssr: false });
+const CommandPalette = dynamic(() => import("./command-palette").then((module) => module.CommandPalette), { ssr: false });
 const BulkColumnsModal = dynamic(() => import("./bulk-columns").then((module) => module.BulkColumnsModal), { ssr: false });
 const ShortcutsModal = dynamic(() => import("./shortcuts").then((module) => module.ShortcutsModal), { ssr: false });
 
@@ -34,6 +36,8 @@ export type ModalsProps = {
   onClearInvalidForeignKeys: () => void;
   onSave: () => Promise<void> | void;
   onRestore: (schema: Schema) => void;
+  onRunCommand: (id: ShortcutId) => void;
+  onJumpToTable: (tableId: string) => void;
 };
 
 /**
@@ -54,6 +58,8 @@ export function Modals({
   onClearInvalidForeignKeys,
   onSave,
   onRestore,
+  onRunCommand,
+  onJumpToTable,
 }: ModalsProps) {
   const { modal, setModal } = useLayout();
   const { schema, errors } = useSchema();
@@ -113,6 +119,13 @@ export function Modals({
           setExportTab("migration");
           setModal("export");
         }}
+      />}
+      {opened.has("palette") && <CommandPalette
+        isOpen={modal === "palette"}
+        onOpenChange={close}
+        readOnly={readOnly}
+        onRunCommand={onRunCommand}
+        onJumpToTable={onJumpToTable}
       />}
       {opened.has("bulk-columns") && <BulkColumnsModal
         isOpen={modal === "bulk-columns"}
