@@ -1,5 +1,7 @@
 "use client";
 
+import { NewDiagramDialog } from "@/app/components/new-diagram-dialog";
+import { convertToOracle, convertToPostgres, dialectOf } from "@/app/lib/dialect";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRightIcon, ChevronDownIcon, ChevronRightIcon, LinkIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -104,6 +106,7 @@ export default function Workspace({
   user,
 }: DesignerProps) {
   const router = useRouter();
+  const [newDiagramOpen, setNewDiagramOpen] = useState(false);
   const {
     schema,
     schemaRef,
@@ -457,6 +460,42 @@ export default function Workspace({
     setImportMessage({
       ok: true,
       text: `${result.added.length} table(s) added.${result.skipped.length ? ` Already in this project: ${result.skipped.join(", ")}.` : ""}${result.warnings.length ? ` ${result.warnings.length} warning(s).` : ""}`,
+    });
+    commit(result.schema);
+    selectTable(result.added[0]?.id ?? null);
+    revealTables(result.added);
+  };
+  /**
+   * A PostgreSQL script. Replacing makes the project a PostgreSQL diagram;
+   * adding keeps the project's database and brings the tables in with their
+   * PostgreSQL types. The first warning is shown, since it names what was
+   * set aside (an unknown type, an EXCLUDE clause).
+   */
+  const loadPostgresImport = () => import("@/app/lib/postgres-import");
+  const importPostgres = async (text: string) => {
+    const { parsePostgres } = await loadPostgresImport();
+    const result = parsePostgres(text);
+    if (!result.schema) {
+      setImportMessage({ ok: false, text: result.errors.join(" ") });
+      return;
+    }
+    setImportMessage({
+      ok: true,
+      text: `${result.schema.tables.length} PostgreSQL table(s) imported.${result.warnings.length ? ` ${result.warnings.length} warning(s): ${result.warnings[0]}` : ""}`,
+    });
+    commit({ ...result.schema, id: schema.id, name: schema.name, revision: schema.revision });
+    selectTable(result.schema.tables[0]?.id ?? null);
+  };
+  const appendPostgresTables = async (text: string) => {
+    const { appendPostgres } = await loadPostgresImport();
+    const result = appendPostgres(schemaRef.current, text);
+    if (!result.schema) {
+      setImportMessage({ ok: false, text: result.errors.join(" ") });
+      return;
+    }
+    setImportMessage({
+      ok: true,
+      text: `${result.added.length} table(s) added.${result.skipped.length ? ` Already in this project: ${result.skipped.join(", ")}.` : ""}${result.warnings.length ? ` ${result.warnings.length} warning(s): ${result.warnings[0]}` : ""}`,
     });
     commit(result.schema);
     selectTable(result.added[0]?.id ?? null);
@@ -884,25 +923,17 @@ export default function Workspace({
   );
 
   const fileMenu: MenuItem[] = [
+    // Asks which database first; see `NewDiagramDialog`.
+    { label: "New diagram", onSelect: () => setNewDiagramOpen(true) },
     {
-      label: "New diagram",
-      onSelect: async () => {
-        const response = await fetch("/api/projects", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            ...(workspaceSlug ? { workspace: workspaceSlug } : {}),
-            name: "Untitled Diagram",
-          }),
-        });
-        if (response.ok) {
-          const created = (await response.json()) as Schema;
-          router.push(
-            workspaceSlug
-              ? `/${workspaceSlug}/${created.id}`
-              : `/project/${created.id}`,
-          );
-        } else toast.error("Could not create project.");
+      // Columns are stored as Oracle types either way, so switching is a relabel plus,
+      // towards PostgreSQL, moving each type to the twin that keeps its meaning. One undo reverts it.
+      label: dialectOf(schema) === "postgres" ? "Switch to Oracle" : "Switch to PostgreSQL",
+      disabled: readOnly,
+      onSelect: () => {
+        const toPostgres = dialectOf(schema) !== "postgres";
+        commit(toPostgres ? convertToPostgres(schema) : convertToOracle(schema));
+        toast.success(toPostgres ? "This diagram is now PostgreSQL. The Oracle DDL stays in Export." : "This diagram is now Oracle.");
       },
     },
     { separator: true },
@@ -1049,11 +1080,18 @@ export default function Workspace({
       hint: hint("shortcutsHelp"),
     },
     { separator: true },
-    {
-      label: "Oracle target: 12.2+",
-      onSelect: () =>
-        toast.success("Generating DDL for Oracle 12.2 and later."),
-    },
+    // The database the diagram is for, and the version its main script targets.
+    dialectOf(schema) === "postgres"
+      ? {
+        label: "PostgreSQL target: 13+",
+        onSelect: () =>
+          toast.success("Generating SQL for PostgreSQL 13 and later. The Oracle DDL (12.2+) stays in Export."),
+      }
+      : {
+        label: "Oracle target: 12.2+",
+        onSelect: () =>
+          toast.success("Generating DDL for Oracle 12.2 and later."),
+      },
   ];
 
   const tableEntity = (table: Table) => (
@@ -1303,6 +1341,7 @@ export default function Workspace({
 
   return (
     <div className={`app ${readOnly ? "share-read-only" : ""}`}>
+      <NewDiagramDialog isOpen={newDiagramOpen} onOpenChange={setNewDiagramOpen} workspace={workspaceSlug} />
       <ControlPanel
         menus={menus}
         save={save}
@@ -1371,11 +1410,13 @@ export default function Workspace({
         onReplace={(text, format) => {
           if (format === "json") importJson(text);
           else if (format === "mermaid") void importMermaid(text);
+          else if (format === "postgres") void importPostgres(text);
           else void importSchema(text);
         }}
         onAppend={(text, format) => {
           if (format === "json") appendJson(text);
           else if (format === "mermaid") void appendMermaid(text);
+          else if (format === "postgres") void appendPostgresTables(text);
           else void appendSchema(text);
         }}
         onClearInvalidForeignKeys={clearInvalidForeignKeys}

@@ -48,6 +48,7 @@ export function exportSchemaJson(schema: Schema, exportedAt = new Date().toISOSt
         columnTemplates: schema.columnTemplates ?? [],
         packages: schema.packages ?? [],
         documentation: schema.documentation ?? "",
+        dialect: schema.dialect ?? "oracle",
         ...(schema.lint?.disabled.length ? { lint: schema.lint } : {}),
       },
     } satisfies SchemaExport,
@@ -89,6 +90,7 @@ function readColumn(value: unknown, table: string, index: number, warnings: stri
     check: str(raw.check),
     comment: typeof raw.comment === "string" ? raw.comment : undefined,
     fk: readForeignKey(raw.fk),
+    ...(typeof raw.postgresType === "string" && raw.postgresType ? { postgresType: raw.postgresType } : {}),
   });
 }
 
@@ -219,6 +221,7 @@ export function parseSchemaJson(text: string): ParseResult {
     columnTemplates: normalizeColumnTemplates(rawSchema.columnTemplates),
     packages: normalizePackages(rawSchema.packages, tables.map((table) => table.id)),
     ...(str(rawSchema.documentation) ? { documentation: str(rawSchema.documentation) } : {}),
+    ...(rawSchema.dialect === "postgres" ? { dialect: "postgres" as const } : {}),
     ...normalizeLint(rawSchema.lint),
   };
   /*

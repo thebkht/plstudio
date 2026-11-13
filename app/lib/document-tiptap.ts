@@ -21,7 +21,7 @@ export type BadgeTone = "" | "good" | "bad";
 
 /** Highlight and word colours are a sign or a colour code after the opening marks (`app/lib/doc-colors.ts`). */
 const INLINE = new RegExp([
-  String.raw`\[\[(?<badgeTone>[+-]?)(?<badge>[^\]]+)\]\]`,
+  String.raw`\[\[(?<badgeTone>[+-]|\{#[0-9a-fA-F]{6}\})?(?<badge>[^\]]+)\]\]`,
   // Bold and italic together, as `inlineText` writes them; it has to come first, or `**` takes the inner pair.
   String.raw`\*\*\*(?<boldItalic>[^*]+)\*\*\*`,
   String.raw`\*\*(?<bold>[^*]+)\*\*`,
@@ -44,7 +44,7 @@ export function inlineNodes(source: string): JSONContent[] {
     for (const match of part.matchAll(INLINE)) {
       if (match.index > last) nodes.push(text(part.slice(last, match.index)));
       const group = match.groups!;
-      if (group.badge !== undefined) nodes.push(text(group.badge, [{ type: "badge", attrs: { tone: group.badgeTone === "+" ? "good" : group.badgeTone === "-" ? "bad" : "" } }]));
+      if (group.badge !== undefined) nodes.push(text(group.badge, [{ type: "badge", attrs: { tone: group.badgeTone === "+" ? "good" : group.badgeTone === "-" ? "bad" : group.badgeTone?.startsWith("{") ? group.badgeTone.slice(1, -1).toLowerCase() : "" } }]));
       else if (group.boldItalic !== undefined) nodes.push(...withMark(group.boldItalic, { type: "italic" }, { type: "bold" }));
       else if (group.bold !== undefined) nodes.push(...withMark(group.bold, { type: "bold" }));
       else if (group.italic !== undefined) nodes.push(...withMark(group.italic, { type: "italic" }));
@@ -67,7 +67,8 @@ export function inlineText(nodes: JSONContent[] = []): string {
     if (!value) return "";
     if (has(node, "code")) return `\`${value.replace(/`/g, "'")}\``;
     const badge = node.marks?.find((mark) => mark.type === "badge");
-    if (badge) value = `[[${badge.attrs?.tone === "good" ? "+" : badge.attrs?.tone === "bad" ? "-" : ""}${value.replace(/[[\]]/g, "")}]]`;
+    const tone = String(badge?.attrs?.tone ?? "");
+    if (badge) value = `[[${tone === "good" ? "+" : tone === "bad" ? "-" : /^#[0-9a-f]{6}$/i.test(tone) ? `{${tone.toLowerCase()}}` : ""}${value.replace(/[[\]]/g, "")}]]`;
     const color = node.marks?.find((mark) => mark.type === "textColor");
     // A pair inside the words would close the mark early, so a run inside them is cut to one; a run at their end is fine.
     if (color) value = `!!${toneBefore(String(color.attrs?.color ?? "yellow"), value)}${value.replace(/!{2,}(?=[^!])/g, "!")}!!`;
@@ -92,7 +93,7 @@ const toNode = (block: DocBlock): JSONContent => {
     case "kicker": return { type: "kicker", content: inlineNodes(block.text) };
     case "heading": return { type: "heading", attrs: { level: block.level }, content: inlineNodes(block.text) };
     case "paragraph": return paragraph(block.text);
-    case "note": return { type: "note", content: inlineNodes(block.text) };
+    case "note": return { type: "note", attrs: { color: block.color || null }, content: inlineNodes(block.text) };
     case "callout": return { type: "callout", attrs: { tone: block.tone }, content: inlineNodes(block.text) };
     case "list": return {
       type: block.ordered ? "orderedList" : "bulletList",
@@ -151,7 +152,7 @@ function toBlockText(node: JSONContent): string {
     case "kicker": return inline.trim() ? `^ ${inline}` : "";
     case "heading": return inline.trim() ? `${"#".repeat(Number(node.attrs?.level ?? 2))} ${inline}` : "";
     case "paragraph": return guard(inline.trim());
-    case "note": return inline.trim() ? `> ${inline}` : "";
+    case "note": return inline.trim() ? `>${node.attrs?.color ? `{${String(node.attrs.color).toLowerCase()}}` : ""} ${inline}` : "";
     case "callout": return inline.trim() ? `!>${CALLOUT_SIGN[(node.attrs?.tone ?? "") as CalloutTone] ?? ""} ${inline}` : "";
     case "bulletList": case "orderedList": return (node.content ?? [])
       .map((item) => (item.content ?? []).map((child) => inlineText(child.content)).join(" ").trim())

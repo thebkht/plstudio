@@ -163,7 +163,7 @@ const writeColumn = (map: Y.Map<unknown>, column: Column) =>
   writeFields(map, {
     id: column.id, name: column.name, type: column.type, size: column.size, notNull: column.notNull,
     pk: column.pk, unique: column.unique, defaultValue: column.defaultValue, check: column.check,
-    comment: column.comment, fk: column.fk,
+    comment: column.comment, fk: column.fk, postgresType: column.postgresType || undefined,
   });
 
 function writeTable(map: Y.Map<unknown>, table: Table) {
@@ -214,7 +214,7 @@ const writePackage = (map: Y.Map<unknown>, pkg: SchemaPackage) =>
 export function applySchemaToYDoc(ydoc: Y.Doc, next: Schema, origin?: unknown) {
   const root = schemaRoot(ydoc);
   ydoc.transact(() => {
-    writeFields(root.meta, { id: next.id, name: next.name, schemaFormatVersion: next.schemaFormatVersion ?? SCHEMA_FORMAT_VERSION, documentation: undefined, lintDisabled: next.lint?.disabled.length ? next.lint.disabled : undefined });
+    writeFields(root.meta, { id: next.id, name: next.name, schemaFormatVersion: next.schemaFormatVersion ?? SCHEMA_FORMAT_VERSION, documentation: undefined, dialect: next.dialect === "postgres" ? "postgres" : undefined, lintDisabled: next.lint?.disabled.length ? next.lint.disabled : undefined });
     reconcileList(root.tables, next.tables, writeTable);
     reconcileList(root.relationships, next.relationships ?? [], writeRelationship);
     reconcileList(root.groups, next.groups ?? [], writeGroup);
@@ -234,7 +234,7 @@ const readRecord = <T>(map: Y.Map<unknown>, keys: readonly (keyof T & string)[])
     return record;
   }, {} as T);
 
-const COLUMN_KEYS = ["id", "name", "type", "size", "notNull", "pk", "unique", "defaultValue", "check", "comment"] as const;
+const COLUMN_KEYS = ["id", "name", "type", "size", "notNull", "pk", "unique", "defaultValue", "check", "comment", "postgresType"] as const;
 const TABLE_KEYS = ["id", "name", "x", "y", "color", "keyStrategy", "schemaId", "comment", "width", "uniques", "indexes"] as const;
 const RELATIONSHIP_KEYS = ["id", "startTableId", "startFieldId", "endTableId", "endFieldId", "fields", "name", "cardinality", "manyLabel", "updateConstraint", "deleteConstraint"] as const;
 const GROUP_KEYS = ["id", "name", "keyword", "x", "y", "width", "height", "color"] as const;
@@ -351,6 +351,7 @@ export function schemaFromYDoc(
     columnTemplates: read<ColumnTemplate>(root.columnTemplates, TEMPLATE_KEYS),
     packages: read<SchemaPackage>(root.packages, PACKAGE_KEYS),
     ...readDocumentation(root),
+    ...(root.meta.get("dialect") === "postgres" ? { dialect: "postgres" as const } : {}),
     ...normalizeLint({ disabled: root.meta.get("lintDisabled") }),
   };
 }
